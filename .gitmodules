@@ -1,0 +1,12 @@
+[submodule "icu"]
+	path = third_party/icu
+	url = https://github.com/unicode-org/icu.git
+[submodule "third_party/icu-le-hb"]
+	path = third_party/icu-le-hb
+	url = https://github.com/harfbuzz/icu-le-hb
+[submodule "third_party/harfbuzz"]
+	path = third_party/harfbuzz
+	url = https://github.com/harfbuzz/harfbuzz
+[submodule "third_party/freetype"]
+	path = third_party/freetype
+	url = https://gitlab.freedesktop.org/freetype/freetype.git
