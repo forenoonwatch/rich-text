@@ -1,6 +1,7 @@
 add_subdirectory(freetype)
 add_subdirectory(harfbuzz)
 add_subdirectory(icu_cmake)
+add_subdirectory(minifb)
 
 if (MINGW)
 	target_compile_options(harfbuzz PRIVATE -Wa,-mbig-obj)
