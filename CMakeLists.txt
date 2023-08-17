@@ -13,6 +13,7 @@ add_executable(ICUTest "")
 target_sources(ICUTest PRIVATE
 	"${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/font_instance.cpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/bitmap.cpp"
 )
 
 target_link_libraries(ICUTest PRIVATE ICU::common ICU::layoutex)
