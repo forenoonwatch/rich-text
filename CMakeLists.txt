@@ -28,3 +28,5 @@ add_custom_command(TARGET ICUTest POST_BUILD
 	COMMAND
 		${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:ICU::data> $<TARGET_FILE_DIR:ICUTest>
 )
+
+add_subdirectory(fonts)

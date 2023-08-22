@@ -1,0 +1,63 @@
+{
+	"name": "Noto Sans",
+	"faces": [
+		{
+			"name": "Thin",
+			"weight": 100,
+			"style": "normal",
+			"uri": "fonts/NotoSans/NotoSans-Thin.ttf"
+		},
+		{
+			"name": "Extra Light",
+			"weight": 200,
+			"style": "normal",
+			"uri": "fonts/NotoSans/NotoSans-ExtraLight.ttf"
+		},
+		{
+			"name": "Light",
+			"weight": 300,
+			"style": "normal",
+			"uri": "fonts/NotoSans/NotoSans-Light.ttf"
+		},
+		{
+			"name": "Regular",
+			"weight": 400,
+			"style": "normal",
+			"scripts": [
+				{
+					"uri": "fonts/NotoSans/NotoSans-Regular.ttf"
+				}
+			]
+		},
+		{
+			"name": "Medium",
+			"weight": 500,
+			"style": "normal",
+			"uri": "fonts/NotoSans/NotoSans-Medium.ttf"
+		},
+		{
+			"name": "Semi Bold",
+			"weight": 600,
+			"style": "normal",
+			"uri": "fonts/NotoSans/NotoSans-SemiBold.ttf"
+		},
+		{
+			"name": "Bold",
+			"weight": 700,
+			"style": "normal",
+			"uri": "fonts/NotoSans/NotoSans-Bold.ttf"
+		},
+		{
+			"name": "Extra Bold",
+			"weight": 800,
+			"style": "normal",
+			"uri": "fonts/NotoSans/NotoSans-ExtraBold.ttf"
+		},
+		{
+			"name": "Black",
+			"weight": 900,
+			"style": "normal",
+			"uri": "fonts/NotoSans/NotoSans-Black.ttf"
+		}
+	]
+}
