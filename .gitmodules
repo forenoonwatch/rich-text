@@ -13,3 +13,6 @@
 [submodule "third_party/minifb"]
 	path = third_party/minifb
 	url = https://github.com/emoon/minifb
+[submodule "third_party/simdjson"]
+	path = third_party/simdjson
+	url = https://github.com/simdjson/simdjson.git

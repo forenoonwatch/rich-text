@@ -16,6 +16,7 @@ target_sources(ICUTest PRIVATE
 
 target_link_libraries(ICUTest PRIVATE ICU::common ICU::layoutex)
 target_link_libraries(ICUTest PRIVATE minifb)
+target_link_libraries(ICUTest PRIVATE simdjson)
 set_target_properties(ICUTest PROPERTIES
 	CXX_STANDARD 20
 	CXX_STANDARD_REQUIRED ON
