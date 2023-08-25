@@ -1,23 +1,22 @@
 #pragma once
 
-#include <memory>
+#include <vector>
 
 #include <cstdio>
 #include <cstddef>
 
-inline std::unique_ptr<char[]> file_read_bytes(const char* fileName, size_t& outFileSize) {
-	FILE* file = std::fopen(fileName, "rb");
-	if (!file) {
+inline std::vector<char> file_read_bytes(const char* fileName) {
+	FILE* file{};
+
+	if (fopen_s(&file, fileName, "rb") != 0) {
 		return {};
 	}
 
 	std::fseek(file, 0, SEEK_END);
-	outFileSize = std::ftell(file);
+	std::vector<char> result(std::ftell(file));
 	std::rewind(file);
 
-	auto result = std::make_unique<char[]>(outFileSize);
-	std::fread(result.get(), 1, outFileSize, file);
-
+	std::fread(result.data(), 1, result.size(), file);
 	std::fclose(file);
 
 	return result;
