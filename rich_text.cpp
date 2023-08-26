@@ -2,6 +2,7 @@
 
 #include "font.hpp"
 #include "font_cache.hpp"
+#include "text_run_builder.hpp"
 
 #include <unicode/utext.h>
 
@@ -26,7 +27,7 @@ struct FontAttributes {
 
 class RichTextParser {
 	public:
-		explicit RichTextParser(const std::string& text, Font& baseFont, Color&& baseColor);
+		explicit RichTextParser(const std::string& text, const Font& baseFont, Color&& baseColor);
 
 		void parse();
 
@@ -40,11 +41,10 @@ class RichTextParser {
 
 		const std::string& m_text;
 		
-		TextRuns<const Font*> m_fontRuns;
-		TextRuns<Color> m_colorRuns;
-
-		std::vector<Font*> m_fontStack;
-		std::vector<Color> m_colorStack;
+		TextRunBuilder<const Font*> m_fontRuns;
+		TextRunBuilder<Color> m_colorRuns;
+		TextRunBuilder<bool> m_strikethroughRuns;
+		TextRunBuilder<bool> m_underlineRuns;
 
 		void parse_content(std::u32string_view expectedClose);
 		bool parse_open_bracket(std::u32string_view expectedClose);
@@ -98,8 +98,8 @@ class RichTextParser {
 
 // RichText API
 
-RichText::Result RichText::make_default_runs(const std::string& text, std::string& contentText, Font& baseFont,
-		Color baseColor) {
+RichText::Result RichText::make_default_runs(const std::string& text, std::string& contentText,
+		const Font& baseFont, Color baseColor) {
 	contentText = text;
 	auto str = icu::UnicodeString::fromUTF8(text);
 	auto length = str.length();
@@ -113,7 +113,7 @@ RichText::Result RichText::make_default_runs(const std::string& text, std::strin
 	};
 }
 
-RichText::Result RichText::parse(const std::string& text, std::string& contentText, Font& baseFont,
+RichText::Result RichText::parse(const std::string& text, std::string& contentText, const Font& baseFont,
 		Color baseColor) {
 	RichTextParser parser(text, baseFont, std::move(baseColor));
 	parser.parse();
@@ -122,27 +122,30 @@ RichText::Result RichText::parse(const std::string& text, std::string& contentTe
 
 // RichTextParser
 
-RichTextParser::RichTextParser(const std::string& text, Font& baseFont, Color&& baseColor)
+RichTextParser::RichTextParser(const std::string& text, const Font& baseFont, Color&& baseColor)
 		: m_text(text)
-		, m_fontStack{&baseFont}
-		, m_colorStack{std::move(baseColor)} {
+		, m_fontRuns{&baseFont}
+		, m_colorRuns{std::move(baseColor)}
+		, m_strikethroughRuns{false}
+		, m_underlineRuns{false} {
 	UErrorCode errc{};
 	utext_openUTF8(&m_iter, text.data(), text.size(), &errc);
 }
 
 RichText::Result RichTextParser::get_result(std::string& contentText) {
 	if (m_error) {
-		return RichText::make_default_runs(m_text, contentText, *m_fontStack.front(), m_colorStack.front());
+		return RichText::make_default_runs(m_text, contentText, *m_fontRuns.get_base_value(),
+				m_colorRuns.get_base_value());
 	}
 	else {
 		m_output.toUTF8String(contentText);
 
 		return {
 			.str = std::move(m_output),
-			.fontRuns = std::move(m_fontRuns),
-			.colorRuns = std::move(m_colorRuns),
-			.strikethroughRuns{false, static_cast<int32_t>(m_charIndex)},
-			.underlineRuns{false, static_cast<int32_t>(m_charIndex)},
+			.fontRuns = m_fontRuns.get(),
+			.colorRuns = m_colorRuns.get(),
+			.strikethroughRuns = m_strikethroughRuns.get(),
+			.underlineRuns = m_underlineRuns.get(),
 		};
 	}
 }
@@ -245,7 +248,7 @@ void RichTextParser::parse_font() {
 	}
 
 	auto fontAttribs = parse_font_attributes();
-	auto& currFont = *m_fontStack.back();
+	auto& currFont = *m_fontRuns.get_current_value();
 	bool hasFontChange = (fontAttribs.family != FontCache::INVALID_FAMILY
 			&& fontAttribs.family != currFont.get_family())
 			|| (fontAttribs.sizeChange && fontAttribs.size != currFont.get_size());
@@ -254,34 +257,24 @@ void RichTextParser::parse_font() {
 		auto family = fontAttribs.family != FontCache::INVALID_FAMILY ? fontAttribs.family
 				: currFont.get_family();
 		auto size = fontAttribs.sizeChange ? fontAttribs.size : currFont.get_size();
-		auto* pNewFont = m_fontStack.back()->get_font_cache()->get_font(family, currFont.get_weight(),
+		auto* pNewFont = currFont.get_font_cache()->get_font(family, currFont.get_weight(),
 				currFont.get_style(), size);
 
-		m_fontRuns.add(static_cast<int32_t>(m_charIndex), m_fontStack.back());
-		m_fontStack.emplace_back(pNewFont);
+		m_fontRuns.push(static_cast<int32_t>(m_charIndex), pNewFont);
 	}
 
 	if (fontAttribs.colorChange) {
-		m_colorRuns.add(static_cast<int32_t>(m_charIndex), m_colorStack.back());
-		m_colorStack.emplace_back(fontAttribs.color);
+		m_colorRuns.push(static_cast<int32_t>(m_charIndex), fontAttribs.color); 
 	}
 
 	parse_content(U"font>");
 
 	if (hasFontChange) {
-		if (m_fontRuns.empty() || m_fontRuns.get_limit() < m_charIndex) {
-			m_fontRuns.add(static_cast<int32_t>(m_charIndex), m_fontStack.back());
-		}
-
-		m_fontStack.pop_back();
+		m_fontRuns.pop(static_cast<int32_t>(m_charIndex));
 	}
 
 	if (fontAttribs.colorChange) {
-		if (m_colorRuns.empty() || m_colorRuns.get_limit() < m_charIndex) {
-			m_colorRuns.add(static_cast<int32_t>(m_charIndex), m_colorStack.back());
-		}
-
-		m_colorStack.pop_back();
+		m_colorRuns.pop(static_cast<int32_t>(m_charIndex));
 	}
 }
 
@@ -341,7 +334,7 @@ void RichTextParser::parse_font_face(FontAttributes& attribs) {
 		auto c = UTEXT_NEXT32(&m_iter);
 
 		if (c == '"') {
-			auto& cache = *m_fontStack.front()->get_font_cache();
+			auto& cache = *m_fontRuns.get_current_value()->get_font_cache();
 			attribs.family = cache.get_font_family(std::string_view(m_text.data() + start, end - start));
 
 			if (attribs.family == FontCache::INVALID_FAMILY) {
@@ -498,12 +491,9 @@ void RichTextParser::raise_error() {
 }
 
 void RichTextParser::finalize_runs() {
-	if (m_fontRuns.empty() || static_cast<uint32_t>(m_fontRuns.get_limit()) < m_charIndex) {
-		m_fontRuns.add(static_cast<int32_t>(m_charIndex), m_fontStack.back());
-	}
-
-	if (m_colorRuns.empty() || static_cast<uint32_t>(m_colorRuns.get_limit()) < m_charIndex) {
-		m_colorRuns.add(static_cast<int32_t>(m_charIndex), m_colorStack.back());
-	}
+	m_fontRuns.pop(static_cast<int32_t>(m_charIndex));
+	m_colorRuns.pop(static_cast<int32_t>(m_charIndex));
+	m_strikethroughRuns.pop(static_cast<int32_t>(m_charIndex));
+	m_underlineRuns.pop(static_cast<int32_t>(m_charIndex));
 }
 

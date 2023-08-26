@@ -19,8 +19,9 @@ struct Result {
 	TextRuns<bool> underlineRuns;
 };
 
-Result make_default_runs(const std::string& text, std::string& contentText, Font& baseFont, Color baseColor);
-Result parse(const std::string& text, std::string& contentText, Font& baseFont, Color baseColor);
+Result make_default_runs(const std::string& text, std::string& contentText, const Font& baseFont,
+		Color baseColor);
+Result parse(const std::string& text, std::string& contentText, const Font& baseFont, Color baseColor);
 
 }
 
