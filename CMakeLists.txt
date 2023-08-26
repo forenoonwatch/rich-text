@@ -8,14 +8,6 @@ project(
 add_subdirectory(third_party)
 
 add_executable(ICUTest "")
-target_sources(ICUTest PRIVATE
-	"${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
-	"${CMAKE_CURRENT_SOURCE_DIR}/bitmap.cpp"
-	"${CMAKE_CURRENT_SOURCE_DIR}/text_box.cpp"
-	"${CMAKE_CURRENT_SOURCE_DIR}/rich_text.cpp"
-	"${CMAKE_CURRENT_SOURCE_DIR}/font.cpp"
-	"${CMAKE_CURRENT_SOURCE_DIR}/font_cache.cpp"
-)
 
 target_link_libraries(ICUTest PRIVATE ICU::common ICU::layoutex)
 target_link_libraries(ICUTest PRIVATE minifb)
@@ -32,3 +24,4 @@ add_custom_command(TARGET ICUTest POST_BUILD
 )
 
 add_subdirectory(fonts)
+add_subdirectory(src)
