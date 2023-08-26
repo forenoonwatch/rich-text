@@ -5,19 +5,31 @@
 			"name": "Thin",
 			"weight": 100,
 			"style": "normal",
-			"uri": "fonts/NotoSans/NotoSans-Thin.ttf"
+			"scripts": [
+				{
+					"uri": "fonts/NotoSans/NotoSans-Thin.ttf"
+				}
+			]
 		},
 		{
 			"name": "Extra Light",
 			"weight": 200,
 			"style": "normal",
-			"uri": "fonts/NotoSans/NotoSans-ExtraLight.ttf"
+			"scripts": [
+				{
+					"uri": "fonts/NotoSans/NotoSans-ExtraLight.ttf"
+				}
+			]
 		},
 		{
 			"name": "Light",
 			"weight": 300,
 			"style": "normal",
-			"uri": "fonts/NotoSans/NotoSans-Light.ttf"
+			"scripts": [
+				{
+					"uri": "fonts/NotoSans/NotoSans-Light.ttf"
+				}
+			]
 		},
 		{
 			"name": "Regular",
@@ -26,6 +38,10 @@
 			"scripts": [
 				{
 					"uri": "fonts/NotoSans/NotoSans-Regular.ttf"
+				},
+				{
+					"uri": "fonts/NotoSans/NotoSansCJKjp-Regular.otf",
+					"scripts": [20, 105, 119]
 				}
 			]
 		},
@@ -33,31 +49,51 @@
 			"name": "Medium",
 			"weight": 500,
 			"style": "normal",
-			"uri": "fonts/NotoSans/NotoSans-Medium.ttf"
+			"scripts": [
+				{
+					"uri": "fonts/NotoSans/NotoSans-Medium.ttf"
+				}
+			]
 		},
 		{
 			"name": "Semi Bold",
 			"weight": 600,
 			"style": "normal",
-			"uri": "fonts/NotoSans/NotoSans-SemiBold.ttf"
+			"scripts": [
+				{
+					"uri": "fonts/NotoSans/NotoSans-SemiBold.ttf"
+				}
+			]
 		},
 		{
 			"name": "Bold",
 			"weight": 700,
 			"style": "normal",
-			"uri": "fonts/NotoSans/NotoSans-Bold.ttf"
+			"scripts": [
+				{
+					"uri": "fonts/NotoSans/NotoSans-Bold.ttf"
+				}
+			]
 		},
 		{
 			"name": "Extra Bold",
 			"weight": 800,
 			"style": "normal",
-			"uri": "fonts/NotoSans/NotoSans-ExtraBold.ttf"
+			"scripts": [
+				{
+					"uri": "fonts/NotoSans/NotoSans-ExtraBold.ttf"
+				}
+			]
 		},
 		{
 			"name": "Black",
 			"weight": 900,
 			"style": "normal",
-			"uri": "fonts/NotoSans/NotoSans-Black.ttf"
+			"scripts": [
+				{
+					"uri": "fonts/NotoSans/NotoSans-Black.ttf"
+				}
+			]
 		}
 	]
 }
