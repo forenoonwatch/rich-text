@@ -29,7 +29,7 @@ class RichTextParser {
 
 		void parse();
 
-		RichText::Result get_result();
+		RichText::Result get_result(std::string& contentText);
 		bool has_error() const;
 	private:
 		UText m_iter UTEXT_INITIALIZER;
@@ -95,10 +95,28 @@ class RichTextParser {
 
 }
 
-RichText::Result RichText::parse(const std::string& text, Font& baseFont, Color baseColor) {
+// RichText API
+
+RichText::Result RichText::make_default_runs(const std::string& text, std::string& contentText, Font& baseFont,
+		Color baseColor) {
+	contentText = text;
+	auto str = icu::UnicodeString::fromUTF8(text);
+	auto length = str.length();
+
+	return {
+		.str = std::move(str),
+		.fontRuns{&baseFont, length},
+		.colorRuns{std::move(baseColor), length},
+		.strikethroughRuns{false, length},
+		.underlineRuns{false, length},
+	};
+}
+
+RichText::Result RichText::parse(const std::string& text, std::string& contentText, Font& baseFont,
+		Color baseColor) {
 	RichTextParser parser(text, baseFont, std::move(baseColor));
 	parser.parse();
-	return parser.get_result();
+	return parser.get_result(contentText);
 }
 
 // RichTextParser
@@ -111,19 +129,19 @@ RichTextParser::RichTextParser(const std::string& text, Font& baseFont, Color&& 
 	utext_openUTF8(&m_iter, text.data(), text.size(), &errc);
 }
 
-RichText::Result RichTextParser::get_result() {
+RichText::Result RichTextParser::get_result(std::string& contentText) {
 	if (m_error) {
-		return {
-			.str = icu::UnicodeString::fromUTF8(m_text),
-			.fontRuns{m_fontStack.front(), static_cast<int32_t>(m_text.size())},
-			.colorRuns{m_colorStack.front(), static_cast<int32_t>(m_text.size())},
-		};
+		return RichText::make_default_runs(m_text, contentText, *m_fontStack.front(), m_colorStack.front());
 	}
 	else {
+		m_output.toUTF8String(contentText);
+
 		return {
 			.str = std::move(m_output),
 			.fontRuns = std::move(m_fontRuns),
 			.colorRuns = std::move(m_colorRuns),
+			.strikethroughRuns{false, static_cast<int32_t>(m_charIndex)},
+			.underlineRuns{false, static_cast<int32_t>(m_charIndex)},
 		};
 	}
 }
