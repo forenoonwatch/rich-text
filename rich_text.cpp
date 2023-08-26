@@ -21,6 +21,7 @@ struct FontAttributes {
 	uint32_t size{};
 	Color color;
 	bool colorChange{false};
+	bool sizeChange{false};
 };
 
 class RichTextParser {
@@ -244,6 +245,21 @@ void RichTextParser::parse_font() {
 	}
 
 	auto fontAttribs = parse_font_attributes();
+	auto& currFont = *m_fontStack.back();
+	bool hasFontChange = (fontAttribs.family != FontCache::INVALID_FAMILY
+			&& fontAttribs.family != currFont.get_family())
+			|| (fontAttribs.sizeChange && fontAttribs.size != currFont.get_size());
+
+	if (hasFontChange) {
+		auto family = fontAttribs.family != FontCache::INVALID_FAMILY ? fontAttribs.family
+				: currFont.get_family();
+		auto size = fontAttribs.sizeChange ? fontAttribs.size : currFont.get_size();
+		auto* pNewFont = m_fontStack.back()->get_font_cache()->get_font(family, currFont.get_weight(),
+				currFont.get_style(), size);
+
+		m_fontRuns.add(static_cast<int32_t>(m_charIndex), m_fontStack.back());
+		m_fontStack.emplace_back(pNewFont);
+	}
 
 	if (fontAttribs.colorChange) {
 		m_colorRuns.add(static_cast<int32_t>(m_charIndex), m_colorStack.back());
@@ -251,6 +267,14 @@ void RichTextParser::parse_font() {
 	}
 
 	parse_content(U"font>");
+
+	if (hasFontChange) {
+		if (m_fontRuns.empty() || m_fontRuns.get_limit() < m_charIndex) {
+			m_fontRuns.add(static_cast<int32_t>(m_charIndex), m_fontStack.back());
+		}
+
+		m_fontStack.pop_back();
+	}
 
 	if (fontAttribs.colorChange) {
 		if (m_colorRuns.empty() || m_colorRuns.get_limit() < m_charIndex) {
@@ -350,6 +374,7 @@ void RichTextParser::parse_font_size(FontAttributes& attribs) {
 		}
 		else if (c == '"') {
 			std::from_chars(buffer, buffer + i, attribs.size);
+			attribs.sizeChange = true;
 			return;
 		}
 		else {

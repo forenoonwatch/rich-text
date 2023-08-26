@@ -155,3 +155,7 @@ FontFaceStyle Font::get_style() const {
 	return static_cast<FontFaceStyle>(m_fontKey & 0x1u);
 }
 
+uint32_t Font::get_size() const {
+	return m_size;
+}
+

@@ -43,6 +43,7 @@ class Font final : public icu::LEFontInstance {
 		FamilyIndex_T get_family() const;
 		FontWeightIndex get_weight() const;
 		FontFaceStyle get_style() const;
+		uint32_t get_size() const;
 	private:
 		FT_FaceRec_* m_ftFace;
 		hb_font_t* m_hbFont;
