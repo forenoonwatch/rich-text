@@ -68,8 +68,8 @@ const icu::LEFontInstance* Font::getSubFont(const LEUnicode chars[], le_int32* o
 
     *offset = limit;
 
-	return m_fontCache->get_font(get_family(), get_weight(), get_style(), static_cast<UScriptCode>(script),
-			m_size);
+	return m_fontCache->get_font_for_script(get_family(), get_weight(), get_style(),
+			static_cast<UScriptCode>(script), m_size);
 }
 
 const void* Font::getFontTable(LETag tableTag, size_t& length) const {
