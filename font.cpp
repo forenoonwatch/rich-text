@@ -4,6 +4,7 @@
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_TRUETYPE_TABLES_H
 
 #include <hb.h>
 
@@ -18,7 +19,14 @@ Font::Font(FontCache& cache, FT_FaceRec_* ftFace, hb_font_t* hbFont, FaceIndex_T
 				| (static_cast<uint64_t>(weight) << 1)
 				| (static_cast<uint64_t>(family) << 32)
 				| (static_cast<uint64_t>(face) << 48)) 
-		, m_size(size) {}
+		, m_size(size)
+		, m_strikethroughPosition{}
+		, m_strikethroughThickness{1} {
+	if (auto* pOS2Table = reinterpret_cast<TT_OS2*>(FT_Get_Sfnt_Table(ftFace, FT_SFNT_OS2))) {
+		m_strikethroughPosition = -pOS2Table->yStrikeoutPosition;
+		m_strikethroughThickness = pOS2Table->yStrikeoutSize;
+	}
+}
 
 Font::~Font() {
 	hb_font_destroy(m_hbFont);
@@ -52,6 +60,22 @@ float Font::get_baseline() const {
 float Font::get_line_height() const {
 	auto& metrics = m_ftFace->size->metrics;
 	return static_cast<float>(metrics.ascender - metrics.descender) / 64.f;
+}
+
+float Font::get_underline_position() const {
+	return getScaleFactorY() * static_cast<float>(-m_ftFace->underline_position);
+}
+
+float Font::get_underline_thickness() const {
+	return getScaleFactorY() * static_cast<float>(m_ftFace->underline_thickness);
+}
+
+float Font::get_strikethrough_position() const {
+	return getScaleFactorY() * static_cast<float>(m_strikethroughPosition);
+}
+
+float Font::get_strikethrough_thickness() const {
+	return getScaleFactorY() * static_cast<float>(m_strikethroughThickness);
 }
 
 const icu::LEFontInstance* Font::getSubFont(const LEUnicode chars[], le_int32* offset, le_int32 limit,
@@ -116,11 +140,11 @@ float Font::getYPixelsPerEm() const {
 }
 
 float Font::getScaleFactorX() const {
-	return static_cast<float>(m_ftFace->size->metrics.x_scale) / 65536.f;
+	return static_cast<float>(m_ftFace->size->metrics.x_scale) / 4194304.f;
 }
 
 float Font::getScaleFactorY() const {
-	return static_cast<float>(m_ftFace->size->metrics.y_scale) / 65536.f;
+	return static_cast<float>(m_ftFace->size->metrics.y_scale) / 4194304.f;
 }
 
 le_int32 Font::getAscent() const {

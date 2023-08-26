@@ -21,6 +21,12 @@ class Font final : public icu::LEFontInstance {
 		float get_baseline() const;
 		float get_line_height() const;
 
+		float get_underline_position() const;
+		float get_underline_thickness() const;
+
+		float get_strikethrough_position() const;
+		float get_strikethrough_thickness() const;
+
 		const LEFontInstance* getSubFont(const LEUnicode chars[], le_int32* offset, le_int32 limit,
 				le_int32 script, LEErrorCode& success) const override;
 
@@ -50,5 +56,21 @@ class Font final : public icu::LEFontInstance {
 		FontCache* m_fontCache;
 		uint64_t m_fontKey;
 		uint32_t m_size;
+		/**
+		 * https://learn.microsoft.com/en-us/typography/opentype/otspec182/os2#ystrikeoutposition
+		 * The position of the top of the strikeout stroke relative to the baseline in font design units.
+		 * Positive values represent distances above the baseline, while negative values represent distances
+		 * below the baseline... For a Roman font with a 2048 em square, 460 is suggested.
+		 */
+		int16_t m_strikethroughPosition;
+		/**
+		 * https://learn.microsoft.com/en-us/typography/opentype/otspec182/os2#ystrikeoutsize
+		 * Width of the strikeout stroke in font design units.
+		 * This field should normally be the width of the em dash for the current font. If the size is one, the
+		 * strikeout line will be the line represented by the strikeout position field. If the value is two, the 
+		 * strikeout line will be the line represented by the strikeout position and the line immediately above 
+		 * the strikeout position. For a Roman font with a 2048 em square, 102 is suggested.
+		 */
+		int16_t m_strikethroughThickness;
 };
 
