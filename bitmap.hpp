@@ -1,23 +1,8 @@
 #pragma once
 
-#include <cstdint>
+#include "color.hpp"
 
 #include <memory>
-
-struct Color {
-	float r;
-	float g;
-	float b;
-	float a;
-
-	static constexpr Color from_rgb(float r, float g, float b, float a = 255.f) {
-		return {r / 255.f, g / 255.f, b / 255.f, a / 255.f};
-	}
-
-	constexpr Color operator*(const Color& c) const {
-		return {r * c.r, g * c.g, b * c.b, a * c.a};
-	}
-};
 
 class Bitmap final {
 	public:
