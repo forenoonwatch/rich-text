@@ -24,6 +24,13 @@ Bitmap::Bitmap(uint32_t width, uint32_t height)
 		, m_width(width)
 		, m_height(height) {}
 
+Bitmap::Bitmap(uint32_t width, uint32_t height, const Color& color)
+		: m_data(std::make_unique_for_overwrite<uint32_t[]>(width * height))
+		, m_width(width)
+		, m_height(height) {
+	clear(color);
+}
+
 void Bitmap::clear(const Color& color) {
 	auto value = make_argb(color);
 	std::fill_n(m_data.get(), m_width * m_height, value);

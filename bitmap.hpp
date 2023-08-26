@@ -8,6 +8,7 @@ class Bitmap final {
 	public:
 		Bitmap() = default;
 		explicit Bitmap(uint32_t width, uint32_t height);
+		explicit Bitmap(uint32_t width, uint32_t height, const Color&);
 
 		Bitmap(Bitmap&&) noexcept = default;
 		Bitmap& operator=(Bitmap&&) noexcept = default;
