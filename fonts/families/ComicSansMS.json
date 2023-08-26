@@ -1,0 +1,15 @@
+{
+	"name": "Comic Sans MS",
+	"faces": [
+		{
+			"name": "Regular",
+			"weight": 400,
+			"style": "normal",
+			"scripts": [
+				{
+					"uri": "C:/Windows/Fonts/comic.ttf"
+				}
+			]
+		}
+	]
+}
