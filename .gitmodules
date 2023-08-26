@@ -1,6 +1,6 @@
 [submodule "icu"]
 	path = third_party/icu
-	url = https://github.com/unicode-org/icu.git
+	url = https://github.com/forenoonwatch/icu.git
 [submodule "third_party/icu-le-hb"]
 	path = third_party/icu-le-hb
 	url = https://github.com/harfbuzz/icu-le-hb
