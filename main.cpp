@@ -1,41 +1,55 @@
 #include <cstdio>
-#include <cstring>
 
-#include <string_view>
-
-#include <layout/ParagraphLayout.h>
-
-#include "font_instance.hpp"
 #include "file_read_bytes.hpp"
+#include "font_cache.hpp"
+#include "text_box.hpp"
+
+#include <MiniFB.h>
+
+static Bitmap g_bitmap;
+static TextBox g_textBox;
+
+static void on_resize(mfb_window* window, int width, int height);
 
 int main() {
-	std::u16string_view testText{u"Hello World"};
-	std::unique_ptr<FontInstance> font = FontInstance::create("C:/Windows/Fonts/segoeui.ttf");
+	FontCache fontCache("fonts/families");
+	auto famIdx = fontCache.get_font_family("Noto Sans"); 
+	auto* pFont = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 24);
 
-	size_t fileSize{};
-	std::unique_ptr<char[]> fileData;
-	if (!(fileData = file_read_bytes("Sample.txt", fileSize))) {
-		return 1;
-	}
+	auto* str = "hello <!-- and this is a comment--><font face=\"Noto Sans\" color=\"#FF0000\">で<font color=\"rgb(0, 255, 0)\">す</font>and red</font> world";
 
-	auto str = icu::UnicodeString::fromUTF8(std::string_view(fileData.get(), fileSize));
-	
-	icu::FontRuns fontRuns(1);
-	fontRuns.add(font.get(), str.length());
-	LEErrorCode err{};
-	icu::ParagraphLayout pl(str.getBuffer(), str.length(), &fontRuns, nullptr, nullptr, nullptr,
-			UBIDI_DEFAULT_LTR, false, err);
+	g_textBox.set_rich_text(true);
+	g_textBox.set_text(str);
 
-	int lineCount = 0;
-	while (auto* line = pl.nextLine(100.f)) {
-		for (le_int32 i = 0; i < line->countRuns(); ++i) {
-			auto* run = line->getVisualRun(i);
-			printf("Line %d run %d has %d glyphs\n", lineCount, i, run->getGlyphCount());
+	{
+		std::vector<char> fileData;
+		if (fileData = file_read_bytes("Sample.txt"); fileData.empty()) {
+			return 1;
 		}
-
-		delete line;
-		++lineCount;
 	}
 
-	puts("ICUTest - Done");
+	g_textBox.set_font(pFont);
+
+	auto* window = mfb_open_ex("Font Tests", 640, 480, WF_RESIZABLE);
+	on_resize(window, 640, 480);
+
+	mfb_set_resize_callback(window, on_resize);
+
+	do {
+		if (mfb_update_ex(window, g_bitmap.data(), g_bitmap.get_width(), g_bitmap.get_height()) < 0) {
+			window = nullptr;
+			break;
+		}
+	}
+	while (mfb_wait_sync(window));
 }
+
+static void on_resize(mfb_window* window, int width, int height) {
+	g_textBox.set_size(static_cast<float>(width), static_cast<float>(height));
+
+	g_bitmap = Bitmap(width, height);
+	g_bitmap.clear({1.f, 1.f, 1.f, 1.f});
+
+	g_textBox.render(g_bitmap);
+}
+
