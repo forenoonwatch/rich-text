@@ -135,6 +135,10 @@ le_int32 Font::getLeading() const {
 	return 0;
 }
 
+FontCache* Font::get_font_cache() const {
+	return m_fontCache;
+}
+
 FaceIndex_T Font::get_face() const {
 	return static_cast<FaceIndex_T>((m_fontKey >> 48) & 0xFFFFu);
 }

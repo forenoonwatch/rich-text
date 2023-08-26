@@ -37,6 +37,8 @@ class Font final : public icu::LEFontInstance {
 		le_int32 getDescent() const override;
 		le_int32 getLeading() const override;
 
+		FontCache* get_font_cache() const;
+
 		FaceIndex_T get_face() const;
 		FamilyIndex_T get_family() const;
 		FontWeightIndex get_weight() const;
