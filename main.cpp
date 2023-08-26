@@ -16,7 +16,7 @@ int main() {
 	auto famIdx = fontCache.get_font_family("Noto Sans"); 
 	auto* pFont = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 24);
 
-	auto* str = "hello <!-- and this is a comment--><font face=\"Comic Sans MS\" color=\"#FF0000\">で<font color=\"rgb(0, 255, 0)\">す</font>and red</font> world";
+	auto* str = "hello <!-- and this is a comment--><font face=\"Comic Sans MS\" color=\"#FF0000\">で<font color=\"rgb(0, 255, 0)\">す</font>and <s>red</s></font> <u>world</u>";
 
 	g_textBox.set_rich_text(true);
 	g_textBox.set_text(str);

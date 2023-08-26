@@ -65,6 +65,26 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 				float offset[2]{};
 				auto glyphBitmap = pFont->get_glyph(LE_GET_GLYPH(pGlyphs[i]), offset);
 
+				if (textInfo.strikethroughRuns.get_value(pGlyphChars[i])) {
+					auto height = static_cast<uint32_t>(pFont->get_strikethrough_thickness() + 0.5f);
+					m_textRects.push_back({
+						.x = lineX + pX + offset[0],
+						.y = lineY + pY + pFont->get_strikethrough_position(),
+						.texture = Bitmap(glyphBitmap.get_width(), height, {1.f, 1.f, 1.f, 1.f}),
+						.color = textInfo.colorRuns.get_value(pGlyphChars[i]),
+					});
+				}
+
+				if (textInfo.underlineRuns.get_value(pGlyphChars[i])) {
+					auto height = static_cast<uint32_t>(pFont->get_underline_thickness() + 0.5f);
+					m_textRects.push_back({
+						.x = lineX + pX + offset[0],
+						.y = lineY + pY + pFont->get_underline_position(),
+						.texture = Bitmap(glyphBitmap.get_width(), height, {1.f, 1.f, 1.f, 1.f}),
+						.color = textInfo.colorRuns.get_value(pGlyphChars[i]),
+					});
+				}
+
 				m_textRects.push_back({
 					.x = lineX + pX + offset[0],
 					.y = lineY + pY + offset[1],

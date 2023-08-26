@@ -11,8 +11,8 @@ template <typename T>
 class TextRuns {
 	public:
 		constexpr TextRuns() = default;
-		constexpr TextRuns(const T& value, int32_t limit)
-				: m_values{value}
+		constexpr TextRuns(T&& value, int32_t limit)
+				: m_values{std::forward<T>(value)}
 				, m_limits{limit} {}
 
 		constexpr TextRuns(TextRuns&&) noexcept = default;
@@ -27,7 +27,7 @@ class TextRuns {
 			m_limits.emplace_back(limit);
 		}
 
-		constexpr const T& get_value(int32_t index) const {
+		constexpr T get_value(int32_t index) const {
 			auto first = 0;
 			auto count = m_limits.size();
 

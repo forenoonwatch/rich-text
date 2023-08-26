@@ -51,6 +51,10 @@ class RichTextParser {
 
 		void parse_comment();
 
+		void parse_b_tag();
+		void parse_s_tag();
+		void parse_u_tag();
+
 		void parse_font();
 		[[nodiscard]] FontAttributes parse_font_attributes();
 		void parse_font_end();
@@ -59,17 +63,11 @@ class RichTextParser {
 		void parse_font_size(FontAttributes&);
 		void parse_font_face(FontAttributes&);
 
+		void parse_strikethrough();
+		void parse_underline();
+
 		void parse_italic();
 		void parse_italic_end();
-
-		void parse_b_tag();
-		void parse_b_tag_end();
-
-		void parse_s_tag();
-		void parse_s_tag_end();
-
-		void parse_u_tag();
-		void parse_u_tag_end();
 
 		void parse_stroke();
 		void parse_stroke_end();
@@ -204,6 +202,12 @@ bool RichTextParser::parse_open_bracket(std::u32string_view expectedClose) {
 		case 'f':
 			parse_font();
 			break;
+		case 's':
+			parse_s_tag();
+			break;
+		case 'u':
+			parse_u_tag();
+			break;
 		default:
 			raise_error();
 			return true;
@@ -239,6 +243,54 @@ void RichTextParser::parse_comment() {
 
 			break;
 		}
+	}
+}
+
+void RichTextParser::parse_s_tag() {
+	switch (UTEXT_NEXT32(&m_iter)) {
+		case '>':
+			parse_strikethrough();
+			break;
+		case 'c':
+			if (!consume_char('>')) {
+				return;
+			}
+
+			// FIXME: parse_smallcaps();
+			break;
+		case 't':
+			// FIXME: parse_stroke();
+			break;
+		default:
+			raise_error();
+			break;
+	}
+}
+
+void RichTextParser::parse_u_tag() {
+	switch (UTEXT_NEXT32(&m_iter)) {
+		case '>':
+			parse_underline();
+			break;
+		case 'c':
+			if (!consume_char('>')) {
+				raise_error();
+				return;
+			}
+
+			// FIXME: parse_uppercase();
+			break;
+		case 'p':
+			if (!consume_word(U"percase>")) {
+				raise_error();
+				return;
+			}
+
+			// FIXME: parse_uppercase();
+			break;
+		default:
+			raise_error();
+			break;
 	}
 }
 
@@ -375,6 +427,18 @@ void RichTextParser::parse_font_size(FontAttributes& attribs) {
 			return;
 		}
 	}
+}
+
+void RichTextParser::parse_strikethrough() {
+	m_strikethroughRuns.push(m_charIndex, true);
+	parse_content(U"s>");
+	m_strikethroughRuns.pop(m_charIndex);
+}
+
+void RichTextParser::parse_underline() {
+	m_underlineRuns.push(m_charIndex, true);
+	parse_content(U"u>");
+	m_underlineRuns.pop(m_charIndex);
 }
 
 bool RichTextParser::parse_color(uint32_t& color) {
