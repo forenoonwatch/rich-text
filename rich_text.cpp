@@ -36,7 +36,7 @@ class RichTextParser {
 	private:
 		UText m_iter UTEXT_INITIALIZER;
 		icu::UnicodeString m_output;
-		uint32_t m_charIndex{};
+		int32_t m_charIndex{};
 		bool m_error{false};
 
 		const std::string& m_text;
@@ -260,21 +260,21 @@ void RichTextParser::parse_font() {
 		auto* pNewFont = currFont.get_font_cache()->get_font(family, currFont.get_weight(),
 				currFont.get_style(), size);
 
-		m_fontRuns.push(static_cast<int32_t>(m_charIndex), pNewFont);
+		m_fontRuns.push(m_charIndex, pNewFont);
 	}
 
 	if (fontAttribs.colorChange) {
-		m_colorRuns.push(static_cast<int32_t>(m_charIndex), fontAttribs.color); 
+		m_colorRuns.push(m_charIndex, fontAttribs.color); 
 	}
 
 	parse_content(U"font>");
 
 	if (hasFontChange) {
-		m_fontRuns.pop(static_cast<int32_t>(m_charIndex));
+		m_fontRuns.pop(m_charIndex);
 	}
 
 	if (fontAttribs.colorChange) {
-		m_colorRuns.pop(static_cast<int32_t>(m_charIndex));
+		m_colorRuns.pop(m_charIndex);
 	}
 }
 
@@ -491,9 +491,9 @@ void RichTextParser::raise_error() {
 }
 
 void RichTextParser::finalize_runs() {
-	m_fontRuns.pop(static_cast<int32_t>(m_charIndex));
-	m_colorRuns.pop(static_cast<int32_t>(m_charIndex));
-	m_strikethroughRuns.pop(static_cast<int32_t>(m_charIndex));
-	m_underlineRuns.pop(static_cast<int32_t>(m_charIndex));
+	m_fontRuns.pop(m_charIndex);
+	m_colorRuns.pop(m_charIndex);
+	m_strikethroughRuns.pop(m_charIndex);
+	m_underlineRuns.pop(m_charIndex);
 }
 
