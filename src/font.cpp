@@ -140,11 +140,11 @@ float Font::getYPixelsPerEm() const {
 }
 
 float Font::getScaleFactorX() const {
-	return static_cast<float>(m_ftFace->size->metrics.x_scale) / 4194304.f;
+	return static_cast<float>(m_ftFace->size->metrics.x_scale) / 65536.f;
 }
 
 float Font::getScaleFactorY() const {
-	return static_cast<float>(m_ftFace->size->metrics.y_scale) / 4194304.f;
+	return static_cast<float>(m_ftFace->size->metrics.y_scale) / 65536.f;
 }
 
 le_int32 Font::getAscent() const {
