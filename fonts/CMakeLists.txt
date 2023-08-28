@@ -1,5 +1,7 @@
 set(NOTO_SANS_MAIN_URL "https://github.com/notofonts/latin-greek-cyrillic/releases/download/NotoSans-v2.012/NotoSans-v2.012.zip")
 set(NOTO_SANS_JP_URL "https://github.com/notofonts/noto-cjk/releases/download/Sans2.004/06_NotoSansCJKjp.zip")
+set(NOTO_SANS_DEVA_URL "https://github.com/notofonts/devanagari/releases/download/NotoSerifDevanagari-v2.004/NotoSerifDevanagari-v2.004.zip")
+set(NOTO_SANS_ARABIC_URL "https://github.com/notofonts/arabic/releases/download/NotoNaskhArabic-v2.016/NotoNaskhArabic-v2.016.zip")
 
 set(ARCHIVE_TEMP_DIR "${CMAKE_CURRENT_BINARY_DIR}/tmp")
 file(MAKE_DIRECTORY ${ARCHIVE_TEMP_DIR})
@@ -40,3 +42,5 @@ endfunction()
 
 fetch_font("NotoSans" ${NOTO_SANS_MAIN_URL} "*NotoSans/full/ttf/*.ttf")
 fetch_font("NotoSans" ${NOTO_SANS_JP_URL} "*.otf")
+fetch_font("NotoSans" ${NOTO_SANS_DEVA_URL} "NotoSerifDevanagari/full/ttf/*.ttf")
+fetch_font("NotoSans" ${NOTO_SANS_ARABIC_URL} "NotoNaskhArabic/full/ttf/*.ttf")

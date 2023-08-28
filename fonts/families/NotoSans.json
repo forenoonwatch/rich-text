@@ -42,6 +42,14 @@
 				{
 					"uri": "fonts/NotoSans/NotoSansCJKjp-Regular.otf",
 					"scripts": [20, 105, 119]
+				},
+				{
+					"uri": "fonts/NotoSans/NotoSerifDevanagari-Regular.ttf",
+					"scripts": [10]
+				},
+				{
+					"uri": "fonts/NotoSans/NotoNaskhArabic-Regular.ttf",
+					"scripts": [2]
 				}
 			]
 		},
