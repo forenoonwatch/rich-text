@@ -8,6 +8,10 @@
 			"scripts": [
 				{
 					"uri": "C:/Windows/Fonts/times.ttf"
+				},
+				{
+					"uri": "C:/Windows/Fonts/Nirmala.ttf",
+					"scripts": [10]
 				}
 			]
 		}
