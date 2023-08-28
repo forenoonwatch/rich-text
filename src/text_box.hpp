@@ -8,6 +8,7 @@
 class Font;
 
 namespace RichText { struct Result; }
+namespace RichText { template <typename> class TextRuns; }
 
 struct TextRect {
 	float x;
@@ -40,5 +41,7 @@ class TextBox {
 
 		void recalc_text();
 		void create_text_rects(RichText::Result&);
+		void create_text_rects_for_paragraph(RichText::Result&, const RichText::TextRuns<const Font*>&,
+				float& lineY, int32_t offset, int32_t length);
 };
 

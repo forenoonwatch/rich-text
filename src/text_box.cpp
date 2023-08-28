@@ -7,6 +7,13 @@
 #include <layout/ParagraphLayout.h>
 #include <layout/RunArrays.h>
 
+#include <unicode/utext.h>
+
+static constexpr const UChar32 CH_LF = 0x000A;
+static constexpr const UChar32 CH_CR = 0x000D;
+static constexpr const UChar32 CH_LSEP = 0x2028;
+static constexpr const UChar32 CH_PSEP = 0x2029;
+
 void TextBox::render(Bitmap& target) {
 	for (auto& rect : m_textRects) {
 		target.blit_alpha(rect.texture, static_cast<int32_t>(rect.x), static_cast<int32_t>(rect.y), rect.color);
@@ -31,17 +38,62 @@ void TextBox::recalc_text() {
 }
 
 void TextBox::create_text_rects(RichText::Result& textInfo) {
-	auto** ppFonts = const_cast<const Font**>(textInfo.fontRuns.get_values());
-	icu::FontRuns fontRuns(reinterpret_cast<const icu::LEFontInstance**>(ppFonts),
-			textInfo.fontRuns.get_limits(), textInfo.fontRuns.get_value_count());
+	RichText::TextRuns<const Font*> subsetFontRuns(textInfo.fontRuns.get_value_count());
+
+	// FIXME: maintain line counter
+
+	auto* start = textInfo.str.getBuffer();
+	auto* end = start + textInfo.str.length();
+	UText iter UTEXT_INITIALIZER;
+	UErrorCode err{};
+	utext_openUnicodeString(&iter, &textInfo.str, &err);
+
+	float lineY = m_font->get_baseline();
+
+	int32_t startIndex = 0;
+	int32_t charIndex = 0;
+
+	for (;;) {
+		auto c = UTEXT_NEXT32(&iter);
+
+		if (c == U_SENTINEL || c == CH_LF || c == CH_CR || c == CH_LSEP || c == CH_PSEP) {
+			if (startIndex != charIndex) {
+				subsetFontRuns.clear();
+				textInfo.fontRuns.get_runs_subset(startIndex, charIndex - startIndex, subsetFontRuns);
+				create_text_rects_for_paragraph(textInfo, subsetFontRuns, lineY, startIndex,
+						charIndex - startIndex);
+			}
+			else {
+				lineY += m_font->get_line_height();
+			}
+
+			if (c == U_SENTINEL) {
+				break;
+			}
+			else if (c == CH_CR && UTEXT_CURRENT32(&iter) == CH_LF) {
+				UTEXT_NEXT32(&iter);
+				++charIndex;
+			}
+
+			startIndex = charIndex + 1;
+		}
+
+		++charIndex;
+	}
+}
+
+void TextBox::create_text_rects_for_paragraph(RichText::Result& textInfo,
+		const RichText::TextRuns<const Font*>& subsetFontRuns, float& lineY, int32_t offset, int32_t length) {
+	auto** ppFonts = const_cast<const Font**>(subsetFontRuns.get_values());
+	icu::FontRuns fontRuns(reinterpret_cast<const icu::LEFontInstance**>(ppFonts), subsetFontRuns.get_limits(),
+			subsetFontRuns.get_value_count());
 
 	LEErrorCode err{};
-	icu::ParagraphLayout pl(textInfo.str.getBuffer(), textInfo.str.length(), &fontRuns, nullptr, nullptr,
-			nullptr, UBIDI_DEFAULT_LTR, false, err);
+	icu::ParagraphLayout pl(textInfo.str.getBuffer() + offset, length, &fontRuns, nullptr, nullptr, nullptr,
+			UBIDI_DEFAULT_LTR, false, err);
 	auto paragraphLevel = pl.getParagraphLevel();
 
 	float lineX = 0.f;
-	float lineY = m_font->get_baseline();
 
 	float lineWidth = m_size[0];
 	float lineHeight = m_font->get_line_height();
@@ -62,34 +114,34 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 			for (le_int32 i = 0; i < run->getGlyphCount(); ++i) {
 				auto pX = posData[2 * i];
 				auto pY = posData[2 * i + 1];
-				float offset[2]{};
-				auto glyphBitmap = pFont->get_glyph(LE_GET_GLYPH(pGlyphs[i]), offset);
+				float glyphOffset[2]{};
+				auto glyphBitmap = pFont->get_glyph(LE_GET_GLYPH(pGlyphs[i]), glyphOffset);
 
-				if (textInfo.strikethroughRuns.get_value(pGlyphChars[i])) {
+				if (textInfo.strikethroughRuns.get_value(pGlyphChars[i] - offset)) {
 					auto height = static_cast<uint32_t>(pFont->get_strikethrough_thickness() + 0.5f);
 					m_textRects.push_back({
-						.x = lineX + pX + offset[0],
+						.x = lineX + pX + glyphOffset[0],
 						.y = lineY + pY + pFont->get_strikethrough_position(),
 						.texture = Bitmap(glyphBitmap.get_width(), height, {1.f, 1.f, 1.f, 1.f}),
-						.color = textInfo.colorRuns.get_value(pGlyphChars[i]),
+						.color = textInfo.colorRuns.get_value(pGlyphChars[i] - offset),
 					});
 				}
 
-				if (textInfo.underlineRuns.get_value(pGlyphChars[i])) {
+				if (textInfo.underlineRuns.get_value(pGlyphChars[i] - offset)) {
 					auto height = static_cast<uint32_t>(pFont->get_underline_thickness() + 0.5f);
 					m_textRects.push_back({
-						.x = lineX + pX + offset[0],
+						.x = lineX + pX + glyphOffset[0],
 						.y = lineY + pY + pFont->get_underline_position(),
 						.texture = Bitmap(glyphBitmap.get_width(), height, {1.f, 1.f, 1.f, 1.f}),
-						.color = textInfo.colorRuns.get_value(pGlyphChars[i]),
+						.color = textInfo.colorRuns.get_value(pGlyphChars[i] - offset),
 					});
 				}
 
 				m_textRects.push_back({
-					.x = lineX + pX + offset[0],
-					.y = lineY + pY + offset[1],
+					.x = lineX + pX + glyphOffset[0],
+					.y = lineY + pY + glyphOffset[1],
 					.texture = std::move(glyphBitmap),
-					.color = textInfo.colorRuns.get_value(pGlyphChars[i]),
+					.color = textInfo.colorRuns.get_value(pGlyphChars[i] - offset),
 				});
 			}
 		}
