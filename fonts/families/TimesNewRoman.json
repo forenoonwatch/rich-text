@@ -1,0 +1,15 @@
+{
+	"name": "Times New Roman",
+	"faces": [
+		{
+			"name": "Regular",
+			"weight": 400,
+			"style": "normal",
+			"scripts": [
+				{
+					"uri": "C:/Windows/Fonts/times.ttf"
+				}
+			]
+		}
+	]
+}
