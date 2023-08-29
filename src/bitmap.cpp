@@ -77,12 +77,7 @@ void Bitmap::blit_alpha(const Bitmap& src, int32_t x, int32_t y, const Color& co
 			auto srcColor = src.get_pixel(ix - x, iy - y) * color;
 			auto dstColor = get_pixel(ix, iy);
 
-			set_pixel(ix, iy, {
-				.r = srcColor.r * srcColor.a + dstColor.r * (1.f - srcColor.a),
-				.g = srcColor.g * srcColor.a + dstColor.g * (1.f - srcColor.a),
-				.b = srcColor.b * srcColor.a + dstColor.b * (1.f - srcColor.a),
-				.a = dstColor.a,
-			});
+			set_pixel(ix, iy, Color::blend(srcColor, dstColor));
 		}
 	}
 }
