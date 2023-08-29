@@ -18,12 +18,19 @@ struct Color {
 	}
 
 	static constexpr Color blend(const Color& src, const Color& dst) {
-		return {src.r * src.a + dst.r * (1.f - src.a), src.g * src.a + dst.g * (1.f - src.a),
-				src.b * src.a + dst.b * (1.f - src.a), src.a + dst.a * (1.f - src.a)};
+		return src * src.a + dst * (1.f - src.a);
+	}
+
+	constexpr Color operator+(const Color& c) const {
+		return {r + c.r, g + c.g, b + c.b, a + c.a};
 	}
 
 	constexpr Color operator*(const Color& c) const {
 		return {r * c.r, g * c.g, b * c.b, a * c.a};
+	}
+
+	constexpr Color operator*(float s) const {
+		return {r * s, g * s, b * s, a * s};
 	}
 };
 
