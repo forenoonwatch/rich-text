@@ -10,13 +10,18 @@ struct hb_font_t;
 
 class FontCache;
 
+struct FontGlyphResult {
+	Bitmap bitmap;
+	bool hasColor;
+};
+
 class Font final : public icu::LEFontInstance {
 	public:
 		explicit Font(FontCache&, FT_FaceRec_*, hb_font_t*, FaceIndex_T, FamilyIndex_T, FontWeightIndex,
 				FontFaceStyle, uint32_t size);
 		~Font();
 
-		Bitmap get_glyph(uint32_t glyphIndex, float* offsetOut) const;
+		FontGlyphResult get_glyph(uint32_t glyphIndex, float* offsetOut) const;
 
 		float get_baseline() const;
 		float get_line_height() const;

@@ -120,7 +120,9 @@ void TextBox::create_text_rects_for_paragraph(RichText::Result& textInfo,
 				auto pY = posData[2 * i + 1];
 				auto globalCharIndex = pGlyphChars[i] + charOffset;
 				float glyphOffset[2]{};
-				auto glyphBitmap = pFont->get_glyph(LE_GET_GLYPH(pGlyphs[i]), glyphOffset);
+				auto [glyphBitmap, hasColor] = pFont->get_glyph(pGlyphs[i], glyphOffset);
+				auto textColor = hasColor ? Color{1.f, 1.f, 1.f, 1.f}
+						: textInfo.colorRuns.get_value(globalCharIndex);
 
 				if (textInfo.strikethroughRuns.get_value(globalCharIndex)) {
 					auto height = static_cast<uint32_t>(pFont->get_strikethrough_thickness() + 0.5f);
@@ -128,7 +130,7 @@ void TextBox::create_text_rects_for_paragraph(RichText::Result& textInfo,
 						.x = lineX + pX + glyphOffset[0],
 						.y = lineY + pY + pFont->get_strikethrough_position(),
 						.texture = Bitmap(glyphBitmap.get_width(), height, {1.f, 1.f, 1.f, 1.f}),
-						.color = textInfo.colorRuns.get_value(globalCharIndex),
+						.color = textColor,
 					});
 				}
 
@@ -138,7 +140,7 @@ void TextBox::create_text_rects_for_paragraph(RichText::Result& textInfo,
 						.x = lineX + pX + glyphOffset[0],
 						.y = lineY + pY + pFont->get_underline_position(),
 						.texture = Bitmap(glyphBitmap.get_width(), height, {1.f, 1.f, 1.f, 1.f}),
-						.color = textInfo.colorRuns.get_value(globalCharIndex),
+						.color = textColor,
 					});
 				}
 
@@ -146,7 +148,7 @@ void TextBox::create_text_rects_for_paragraph(RichText::Result& textInfo,
 					.x = lineX + pX + glyphOffset[0],
 					.y = lineY + pY + glyphOffset[1],
 					.texture = std::move(glyphBitmap),
-					.color = textInfo.colorRuns.get_value(globalCharIndex),
+					.color = textColor,
 				});
 			}
 		}

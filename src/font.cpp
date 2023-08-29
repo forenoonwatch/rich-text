@@ -33,18 +33,41 @@ Font::~Font() {
 	FT_Done_Face(m_ftFace);
 }
 
-Bitmap Font::get_glyph(uint32_t glyphIndex, float* offsetOut) const {
-	FT_Load_Glyph(m_ftFace, glyphIndex, FT_LOAD_RENDER);
+FontGlyphResult Font::get_glyph(uint32_t glyphIndex, float* offsetOut) const {
+	FT_Load_Glyph(m_ftFace, glyphIndex, FT_LOAD_RENDER | FT_LOAD_COLOR);
 	auto uWidth = static_cast<uint32_t>(m_ftFace->glyph->bitmap.width);
 	auto uHeight = static_cast<uint32_t>(m_ftFace->glyph->bitmap.rows);
 
-	Bitmap result(uWidth, uHeight);
+	FontGlyphResult result{
+		.bitmap = Bitmap{uWidth, uHeight},
+		.hasColor = false,
+	};
+	auto* buffer = m_ftFace->glyph->bitmap.buffer;
 
-	for (uint32_t y = 0, i = 0; y < uHeight; ++y) {
-		for (uint32_t x = 0; x < uWidth; ++x, ++i) {
-			auto alpha = static_cast<float>(m_ftFace->glyph->bitmap.buffer[i]) / 255.f;
-			result.set_pixel(x, y, {1.f, 1.f, 1.f, alpha});
-		}
+	switch (m_ftFace->glyph->bitmap.pixel_mode) {
+		case FT_PIXEL_MODE_GRAY:
+			for (uint32_t y = 0, i = 0; y < uHeight; ++y) {
+				for (uint32_t x = 0; x < uWidth; ++x, ++i) {
+					auto alpha = static_cast<float>(buffer[i]) / 255.f;
+					result.bitmap.set_pixel(x, y, {1.f, 1.f, 1.f, alpha});
+				}
+			}
+			break;
+		case FT_PIXEL_MODE_BGRA:
+			for (uint32_t y = 0, i = 0; y < uHeight; ++y) {
+				for (uint32_t x = 0; x < uWidth; ++x, i += 4) {
+					auto b = static_cast<float>(buffer[i]) / 255.f;
+					auto g = static_cast<float>(buffer[i + 1]) / 255.f;
+					auto r = static_cast<float>(buffer[i + 2]) / 255.f;
+					auto a = static_cast<float>(buffer[i + 3]) / 255.f;
+					result.bitmap.set_pixel(x, y, {r / a, g / a, b / a, a});
+				}
+			}
+
+			result.hasColor = true;
+			break;
+		default:
+			break;
 	}
 
 	offsetOut[0] = static_cast<float>(m_ftFace->glyph->bitmap_left);
