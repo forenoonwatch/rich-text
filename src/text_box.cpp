@@ -16,7 +16,8 @@ static constexpr const UChar32 CH_PSEP = 0x2029;
 
 void TextBox::render(Bitmap& target) {
 	for (auto& rect : m_textRects) {
-		target.blit_alpha(rect.texture, static_cast<int32_t>(rect.x), static_cast<int32_t>(rect.y), rect.color);
+		target.blit_alpha(rect.texture, static_cast<int32_t>(m_position[0] + rect.x),
+				static_cast<int32_t>(m_position[1] + rect.y), rect.color);
 	}
 }
 
@@ -52,6 +53,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 
 	int32_t startIndex = 0;
 	int32_t charIndex = 0;
+	int32_t codepointIndex = 0;
 
 	for (;;) {
 		auto c = UTEXT_NEXT32(&iter);
@@ -60,7 +62,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 			if (startIndex != charIndex) {
 				subsetFontRuns.clear();
 				textInfo.fontRuns.get_runs_subset(startIndex, charIndex - startIndex, subsetFontRuns);
-				create_text_rects_for_paragraph(textInfo, subsetFontRuns, lineY, startIndex,
+				create_text_rects_for_paragraph(textInfo, subsetFontRuns, lineY, codepointIndex, startIndex,
 						charIndex - startIndex);
 			}
 			else {
@@ -75,6 +77,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 				++charIndex;
 			}
 
+			codepointIndex = UTEXT_GETNATIVEINDEX(&iter);
 			startIndex = charIndex + 1;
 		}
 
@@ -83,14 +86,15 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 }
 
 void TextBox::create_text_rects_for_paragraph(RichText::Result& textInfo,
-		const RichText::TextRuns<const Font*>& subsetFontRuns, float& lineY, int32_t offset, int32_t length) {
+		const RichText::TextRuns<const Font*>& subsetFontRuns, float& lineY, int32_t codepointOffset,
+		int32_t charOffset, int32_t length) {
 	auto** ppFonts = const_cast<const Font**>(subsetFontRuns.get_values());
 	icu::FontRuns fontRuns(reinterpret_cast<const icu::LEFontInstance**>(ppFonts), subsetFontRuns.get_limits(),
 			subsetFontRuns.get_value_count());
 
 	LEErrorCode err{};
-	icu::ParagraphLayout pl(textInfo.str.getBuffer() + offset, length, &fontRuns, nullptr, nullptr, nullptr,
-			UBIDI_DEFAULT_LTR, false, err);
+	icu::ParagraphLayout pl(textInfo.str.getBuffer() + codepointOffset, length, &fontRuns, nullptr, nullptr,
+			nullptr, UBIDI_DEFAULT_LTR, false, err);
 	auto paragraphLevel = pl.getParagraphLevel();
 
 	float lineX = 0.f;
@@ -114,26 +118,27 @@ void TextBox::create_text_rects_for_paragraph(RichText::Result& textInfo,
 			for (le_int32 i = 0; i < run->getGlyphCount(); ++i) {
 				auto pX = posData[2 * i];
 				auto pY = posData[2 * i + 1];
+				auto globalCharIndex = pGlyphChars[i] + charOffset;
 				float glyphOffset[2]{};
 				auto glyphBitmap = pFont->get_glyph(LE_GET_GLYPH(pGlyphs[i]), glyphOffset);
 
-				if (textInfo.strikethroughRuns.get_value(pGlyphChars[i] - offset)) {
+				if (textInfo.strikethroughRuns.get_value(globalCharIndex)) {
 					auto height = static_cast<uint32_t>(pFont->get_strikethrough_thickness() + 0.5f);
 					m_textRects.push_back({
 						.x = lineX + pX + glyphOffset[0],
 						.y = lineY + pY + pFont->get_strikethrough_position(),
 						.texture = Bitmap(glyphBitmap.get_width(), height, {1.f, 1.f, 1.f, 1.f}),
-						.color = textInfo.colorRuns.get_value(pGlyphChars[i] - offset),
+						.color = textInfo.colorRuns.get_value(globalCharIndex),
 					});
 				}
 
-				if (textInfo.underlineRuns.get_value(pGlyphChars[i] - offset)) {
+				if (textInfo.underlineRuns.get_value(globalCharIndex)) {
 					auto height = static_cast<uint32_t>(pFont->get_underline_thickness() + 0.5f);
 					m_textRects.push_back({
 						.x = lineX + pX + glyphOffset[0],
 						.y = lineY + pY + pFont->get_underline_position(),
 						.texture = Bitmap(glyphBitmap.get_width(), height, {1.f, 1.f, 1.f, 1.f}),
-						.color = textInfo.colorRuns.get_value(pGlyphChars[i] - offset),
+						.color = textInfo.colorRuns.get_value(globalCharIndex),
 					});
 				}
 
@@ -141,7 +146,7 @@ void TextBox::create_text_rects_for_paragraph(RichText::Result& textInfo,
 					.x = lineX + pX + glyphOffset[0],
 					.y = lineY + pY + glyphOffset[1],
 					.texture = std::move(glyphBitmap),
-					.color = textInfo.colorRuns.get_value(pGlyphChars[i] - offset),
+					.color = textInfo.colorRuns.get_value(globalCharIndex),
 				});
 			}
 		}

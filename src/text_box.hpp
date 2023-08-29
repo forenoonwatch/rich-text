@@ -42,6 +42,6 @@ class TextBox {
 		void recalc_text();
 		void create_text_rects(RichText::Result&);
 		void create_text_rects_for_paragraph(RichText::Result&, const RichText::TextRuns<const Font*>&,
-				float& lineY, int32_t offset, int32_t length);
+				float& lineY, int32_t codepointOffset, int32_t charOffset, int32_t length);
 };
 
