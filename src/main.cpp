@@ -14,7 +14,7 @@ static void on_resize(mfb_window* window, int width, int height);
 int main() {
 	FontCache fontCache("fonts/families");
 	auto famIdx = fontCache.get_font_family("Noto Sans"); 
-	auto* pFont = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
+	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 24);
 
 	g_textBox.set_rich_text(true);
 
@@ -30,7 +30,8 @@ int main() {
 		g_textBox.set_text(std::move(str));
 	}
 
-	g_textBox.set_font(pFont);
+	g_textBox.set_font(std::move(font));
+	g_textBox.set_position(0.f, 30.f);
 
 	auto* window = mfb_open_ex("Font Tests", 640, 480, WF_RESIZABLE);
 	on_resize(window, 640, 480);

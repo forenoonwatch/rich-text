@@ -76,15 +76,6 @@ FontGlyphResult Font::get_glyph(uint32_t glyphIndex, float* offsetOut) const {
 	return result;
 }
 
-float Font::get_baseline() const {
-	return static_cast<float>(m_ftFace->size->metrics.ascender) / 64.f;
-}
-
-float Font::get_line_height() const {
-	auto& metrics = m_ftFace->size->metrics;
-	return static_cast<float>(metrics.ascender - metrics.descender) / 64.f;
-}
-
 float Font::get_underline_position() const {
 	return getScaleFactorY() * static_cast<float>(-m_ftFace->underline_position);
 }
@@ -113,10 +104,8 @@ const icu::LEFontInstance* Font::getSubFont(const LEUnicode chars[], le_int32* o
         return NULL;
     }
 
-    *offset = limit;
-
-	return m_fontCache->get_font_for_script(get_family(), get_weight(), get_style(),
-			static_cast<UScriptCode>(script), m_size);
+	*offset = limit;
+	return this;
 }
 
 const void* Font::getFontTable(LETag tableTag, size_t& length) const {
@@ -171,11 +160,11 @@ float Font::getScaleFactorY() const {
 }
 
 le_int32 Font::getAscent() const {
-	return m_ftFace->ascender;
+	return m_ftFace->size->metrics.ascender / 64;
 }
 
 le_int32 Font::getDescent() const {
-	return m_ftFace->descender;
+	return -m_ftFace->size->metrics.descender / 64;
 }
 
 le_int32 Font::getLeading() const {

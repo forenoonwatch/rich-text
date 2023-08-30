@@ -28,8 +28,8 @@ void TextBox::recalc_text() {
 		return;
 	}
 
-	auto runs = m_richText ? RichText::parse(m_text, m_contentText, *m_font, m_textColor)
-			: RichText::make_default_runs(m_text, m_contentText, *m_font, m_textColor);
+	auto runs = m_richText ? RichText::parse(m_text, m_contentText, m_font, m_textColor)
+			: RichText::make_default_runs(m_text, m_contentText, m_font, m_textColor);
 
 	if (m_contentText.empty()) {
 		return;
@@ -39,9 +39,7 @@ void TextBox::recalc_text() {
 }
 
 void TextBox::create_text_rects(RichText::Result& textInfo) {
-	RichText::TextRuns<const Font*> subsetFontRuns(textInfo.fontRuns.get_value_count());
-
-	// FIXME: maintain line counter
+	RichText::TextRuns<const MultiScriptFont*> subsetFontRuns(textInfo.fontRuns.get_value_count());
 
 	auto* start = textInfo.str.getBuffer();
 	auto* end = start + textInfo.str.length();
@@ -49,11 +47,16 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 	UErrorCode err{};
 	utext_openUnicodeString(&iter, &textInfo.str, &err);
 
-	float lineY = m_font->get_baseline();
-
 	int32_t startIndex = 0;
 	int32_t charIndex = 0;
 	int32_t codepointIndex = 0;
+
+	std::vector<icu::ParagraphLayout::Line*> lines;
+	RichText::TextRuns<int32_t> offsetRunsByLine;
+
+	int32_t maxAscent = 0;
+	int32_t maxDescent = 0;
+	UBiDiLevel paragraphLevel = UBIDI_DEFAULT_LTR;
 
 	for (;;) {
 		auto c = UTEXT_NEXT32(&iter);
@@ -62,11 +65,37 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 			if (startIndex != charIndex) {
 				subsetFontRuns.clear();
 				textInfo.fontRuns.get_runs_subset(startIndex, charIndex - startIndex, subsetFontRuns);
-				create_text_rects_for_paragraph(textInfo, subsetFontRuns, lineY, codepointIndex, startIndex,
-						charIndex - startIndex);
+
+				LEErrorCode err{};
+				auto** ppFonts = const_cast<const MultiScriptFont**>(subsetFontRuns.get_values());
+				icu::FontRuns fontRuns(reinterpret_cast<const icu::LEFontInstance**>(ppFonts),
+						subsetFontRuns.get_limits(), subsetFontRuns.get_value_count());
+				icu::ParagraphLayout pl(textInfo.str.getBuffer() + codepointIndex, charIndex - startIndex,
+						&fontRuns, nullptr, nullptr, nullptr, paragraphLevel, false, err);
+
+				if (paragraphLevel == UBIDI_DEFAULT_LTR) {
+					paragraphLevel = pl.getParagraphLevel();
+				}
+
+				auto ascent = pl.getAscent();
+				auto descent = pl.getDescent();
+
+				if (ascent > maxAscent) {
+					maxAscent = ascent;
+				}
+
+				if (descent > maxDescent) {
+					maxDescent = descent;
+				}
+
+				while (auto* pLine = pl.nextLine(m_size[0])) {
+					lines.emplace_back(pLine);
+				}
+
+				offsetRunsByLine.add(static_cast<int32_t>(lines.size()), startIndex);
 			}
 			else {
-				lineY += m_font->get_line_height();
+				lines.emplace_back(nullptr);
 			}
 
 			if (c == U_SENTINEL) {
@@ -83,33 +112,27 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 
 		++charIndex;
 	}
-}
 
-void TextBox::create_text_rects_for_paragraph(RichText::Result& textInfo,
-		const RichText::TextRuns<const Font*>& subsetFontRuns, float& lineY, int32_t codepointOffset,
-		int32_t charOffset, int32_t length) {
-	auto** ppFonts = const_cast<const Font**>(subsetFontRuns.get_values());
-	icu::FontRuns fontRuns(reinterpret_cast<const icu::LEFontInstance**>(ppFonts), subsetFontRuns.get_limits(),
-			subsetFontRuns.get_value_count());
+	auto lineY = static_cast<float>(maxAscent);
+	auto lineHeight = static_cast<float>(maxDescent + maxAscent);
 
-	LEErrorCode err{};
-	icu::ParagraphLayout pl(textInfo.str.getBuffer() + codepointOffset, length, &fontRuns, nullptr, nullptr,
-			nullptr, UBIDI_DEFAULT_LTR, false, err);
-	auto paragraphLevel = pl.getParagraphLevel();
-
-	float lineX = 0.f;
-
-	float lineWidth = m_size[0];
-	float lineHeight = m_font->get_line_height();
-	
-	while (auto* line = pl.nextLine(lineWidth)) {
-		if (paragraphLevel == UBIDI_RTL) {
-			auto lastX = line->getWidth();
-			lineX = lineWidth - lastX;
+	for (size_t lineNumber = 0; lineNumber < lines.size(); ++lineNumber) {
+		if (!lines[lineNumber]) {
+			lineY += lineHeight;
+			continue;
 		}
 
-		for (le_int32 runID = 0; runID < line->countRuns(); ++runID) {
-			auto* run = line->getVisualRun(runID);
+		auto charOffset = offsetRunsByLine.get_value(static_cast<int32_t>(lineNumber));
+
+		float lineX = 0.f;
+
+		if (paragraphLevel == UBIDI_RTL) {
+			auto lastX = lines[lineNumber]->getWidth();
+			lineX = m_size[0] - lastX;
+		}
+
+		for (le_int32 runID = 0; runID < lines[lineNumber]->countRuns(); ++runID) {
+			auto* run = lines[lineNumber]->getVisualRun(runID);
 			auto* posData = run->getPositions();
 			auto* pFont = static_cast<const Font*>(run->getFont());
 			auto* pGlyphs = run->getGlyphs();
@@ -153,15 +176,15 @@ void TextBox::create_text_rects_for_paragraph(RichText::Result& textInfo,
 			}
 		}
 
-		delete line;
+		delete lines[lineNumber];
 		lineY += lineHeight;
 	}
 }
 
 // Setters
 
-void TextBox::set_font(Font* font) {
-	m_font = font;
+void TextBox::set_font(MultiScriptFont font) {
+	m_font = std::move(font);
 	recalc_text();
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "font_common.hpp"
+#include "multi_script_font.hpp"
 #include "string_hash.hpp"
 
 #include <unicode/uscript.h>
@@ -27,7 +28,7 @@ class FontCache final {
 		FamilyIndex_T get_font_family(std::string_view name) const;
 		FaceIndex_T get_face_index(FamilyIndex_T, FontWeightIndex, FontFaceStyle, UScriptCode) const;
 
-		Font* get_font(FamilyIndex_T, FontWeightIndex, FontFaceStyle, uint32_t size);
+		MultiScriptFont get_font(FamilyIndex_T, FontWeightIndex, FontFaceStyle, uint32_t size);
 		Font* get_font_for_script(FamilyIndex_T, FontWeightIndex, FontFaceStyle, UScriptCode, uint32_t size);
 
 		bool face_has_script(FamilyIndex_T, FontWeightIndex, FontFaceStyle, FaceIndex_T, UScriptCode) const;

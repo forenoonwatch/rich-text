@@ -1,11 +1,10 @@
 #pragma once
 
 #include "bitmap.hpp"
+#include "multi_script_font.hpp"
 
 #include <string>
 #include <vector>
-
-class Font;
 
 namespace RichText { struct Result; }
 namespace RichText { template <typename> class TextRuns; }
@@ -21,14 +20,14 @@ class TextBox {
 	public:
 		void render(Bitmap& target);
 
-		void set_font(Font*);
+		void set_font(MultiScriptFont);
 		void set_text(std::string);
 		void set_position(float x, float y);
 		void set_size(float width, float height);
 		void set_text_wrapped(bool);
 		void set_rich_text(bool);
 	private:
-		Font* m_font{};
+		MultiScriptFont m_font{};
 		float m_position[2]{};
 		float m_size[2]{};
 		std::string m_text{};
@@ -41,7 +40,5 @@ class TextBox {
 
 		void recalc_text();
 		void create_text_rects(RichText::Result&);
-		void create_text_rects_for_paragraph(RichText::Result&, const RichText::TextRuns<const Font*>&,
-				float& lineY, int32_t codepointOffset, int32_t charOffset, int32_t length);
 };
 

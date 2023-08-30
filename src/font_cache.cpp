@@ -43,8 +43,9 @@ FaceIndex_T FontCache::get_face_index(FamilyIndex_T family, FontWeightIndex weig
 	return m_families[family].faceLookup[static_cast<size_t>(weight)][static_cast<size_t>(style)][script];
 }
 
-Font* FontCache::get_font(FamilyIndex_T family, FontWeightIndex weight, FontFaceStyle style, uint32_t size) {
-	return get_font_for_script(family, weight, style, USCRIPT_LATIN, size);
+MultiScriptFont FontCache::get_font(FamilyIndex_T family, FontWeightIndex weight, FontFaceStyle style,
+		uint32_t size) {
+	return MultiScriptFont(*this, family, weight, style, size);
 }
 
 Font* FontCache::get_font_for_script(FamilyIndex_T family, FontWeightIndex weight, FontFaceStyle style,

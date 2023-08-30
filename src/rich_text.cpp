@@ -2,6 +2,7 @@
 
 #include "font.hpp"
 #include "font_cache.hpp"
+#include "multi_script_font.hpp"
 #include "text_run_builder.hpp"
 
 #include <unicode/utext.h>
@@ -27,7 +28,7 @@ struct FontAttributes {
 
 class RichTextParser {
 	public:
-		explicit RichTextParser(const std::string& text, const Font& baseFont, Color&& baseColor);
+		explicit RichTextParser(const std::string& text, const MultiScriptFont& baseFont, Color&& baseColor);
 
 		void parse();
 
@@ -41,10 +42,11 @@ class RichTextParser {
 
 		const std::string& m_text;
 		
-		TextRunBuilder<const Font*> m_fontRuns;
+		TextRunBuilder<uint32_t> m_fontRuns;
 		TextRunBuilder<Color> m_colorRuns;
 		TextRunBuilder<bool> m_strikethroughRuns;
 		TextRunBuilder<bool> m_underlineRuns;
+		std::vector<MultiScriptFont> m_ownedFonts;
 
 		void parse_content(std::u32string_view expectedClose);
 		bool parse_open_bracket(std::u32string_view expectedClose);
@@ -97,7 +99,7 @@ class RichTextParser {
 // RichText API
 
 RichText::Result RichText::make_default_runs(const std::string& text, std::string& contentText,
-		const Font& baseFont, Color baseColor) {
+		const MultiScriptFont& baseFont, Color baseColor) {
 	contentText = text;
 	auto str = icu::UnicodeString::fromUTF8(text);
 	auto length = str.length();
@@ -111,8 +113,8 @@ RichText::Result RichText::make_default_runs(const std::string& text, std::strin
 	};
 }
 
-RichText::Result RichText::parse(const std::string& text, std::string& contentText, const Font& baseFont,
-		Color baseColor) {
+RichText::Result RichText::parse(const std::string& text, std::string& contentText,
+		const MultiScriptFont& baseFont, Color baseColor) {
 	RichTextParser parser(text, baseFont, std::move(baseColor));
 	parser.parse();
 	return parser.get_result(contentText);
@@ -120,31 +122,41 @@ RichText::Result RichText::parse(const std::string& text, std::string& contentTe
 
 // RichTextParser
 
-RichTextParser::RichTextParser(const std::string& text, const Font& baseFont, Color&& baseColor)
+RichTextParser::RichTextParser(const std::string& text, const MultiScriptFont& baseFont, Color&& baseColor)
 		: m_text(text)
-		, m_fontRuns{&baseFont}
+		, m_fontRuns{0u}
 		, m_colorRuns{std::move(baseColor)}
 		, m_strikethroughRuns{false}
-		, m_underlineRuns{false} {
+		, m_underlineRuns{false}
+		, m_ownedFonts{baseFont} {
 	UErrorCode errc{};
 	utext_openUTF8(&m_iter, text.data(), text.size(), &errc);
 }
 
 RichText::Result RichTextParser::get_result(std::string& contentText) {
 	if (m_error) {
-		return RichText::make_default_runs(m_text, contentText, *m_fontRuns.get_base_value(),
+		return RichText::make_default_runs(m_text, contentText, m_ownedFonts.front(),
 				m_colorRuns.get_base_value());
 	}
 	else {
 		m_output.toUTF8String(contentText);
+		auto fontIndexRuns = m_fontRuns.get();
 
-		return {
+		RichText::Result result{
 			.str = std::move(m_output),
-			.fontRuns = m_fontRuns.get(),
+			.fontRuns{fontIndexRuns.get_value_count()},
 			.colorRuns = m_colorRuns.get(),
 			.strikethroughRuns = m_strikethroughRuns.get(),
 			.underlineRuns = m_underlineRuns.get(),
+			.ownedFonts = std::move(m_ownedFonts),
 		};
+
+		for (uint32_t i = 0; i < fontIndexRuns.get_value_count(); ++i) {
+			result.fontRuns.add(fontIndexRuns.get_limits()[i],
+					&result.ownedFonts[fontIndexRuns.get_values()[i]]);
+		}
+
+		return result;
 	}
 }
 
@@ -300,7 +312,7 @@ void RichTextParser::parse_font() {
 	}
 
 	auto fontAttribs = parse_font_attributes();
-	auto& currFont = *m_fontRuns.get_current_value();
+	auto& currFont = m_ownedFonts[m_fontRuns.get_current_value()];
 	bool hasFontChange = (fontAttribs.family != FontCache::INVALID_FAMILY
 			&& fontAttribs.family != currFont.get_family())
 			|| (fontAttribs.sizeChange && fontAttribs.size != currFont.get_size());
@@ -309,10 +321,11 @@ void RichTextParser::parse_font() {
 		auto family = fontAttribs.family != FontCache::INVALID_FAMILY ? fontAttribs.family
 				: currFont.get_family();
 		auto size = fontAttribs.sizeChange ? fontAttribs.size : currFont.get_size();
-		auto* pNewFont = currFont.get_font_cache()->get_font(family, currFont.get_weight(),
-				currFont.get_style(), size);
+		auto newFontIndex = static_cast<uint32_t>(m_ownedFonts.size());
+		m_ownedFonts.emplace_back(currFont.get_font_cache()->get_font(family, currFont.get_weight(),
+				currFont.get_style(), size));
 
-		m_fontRuns.push(m_charIndex, pNewFont);
+		m_fontRuns.push(m_charIndex, newFontIndex);
 	}
 
 	if (fontAttribs.colorChange) {
@@ -386,7 +399,7 @@ void RichTextParser::parse_font_face(FontAttributes& attribs) {
 		auto c = UTEXT_NEXT32(&m_iter);
 
 		if (c == '"') {
-			auto& cache = *m_fontRuns.get_current_value()->get_font_cache();
+			auto& cache = *m_ownedFonts[m_fontRuns.get_current_value()].get_font_cache();
 			attribs.family = cache.get_font_family(std::string_view(m_text.data() + start, end - start));
 
 			if (attribs.family == FontCache::INVALID_FAMILY) {
