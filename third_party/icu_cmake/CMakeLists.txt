@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 
+option(ICU_CHARSET_IS_UTF8 "Whether the default charset is UTF8, otherwise it is UTF16" OFF)
+
 file(REAL_PATH "../icu/icu4c/source" ICU_SOURCE_DIR BASE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 include(${CMAKE_CURRENT_LIST_DIR}/ICUHelpers.cmake)

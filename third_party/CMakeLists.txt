@@ -1,3 +1,5 @@
+set(ICU_CHARSET_IS_UTF8 ON CACHE BOOL "")
+
 add_subdirectory(freetype)
 add_subdirectory(harfbuzz)
 add_subdirectory(icu_cmake)

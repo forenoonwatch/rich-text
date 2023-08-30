@@ -13,4 +13,8 @@ file(GLOB_RECURSE ICU_COMMON_SOURCE_FILES "${ICU_SOURCE_DIR}/common/*.cpp")
 target_sources(ICU_common PRIVATE ${ICU_COMMON_SOURCE_FILES})
 target_include_directories(ICU_common PUBLIC "${ICU_SOURCE_DIR}/common")
 
+if (ICU_CHARSET_IS_UTF8)
+	target_compile_definitions(ICU_common PUBLIC U_CHARSET_IS_UTF8=1)
+endif()
+
 add_library(ICU::common ALIAS ICU_common)
