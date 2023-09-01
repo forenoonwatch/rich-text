@@ -92,22 +92,6 @@ float Font::get_strikethrough_thickness() const {
 	return getScaleFactorY() * static_cast<float>(m_strikethroughThickness);
 }
 
-const icu::LEFontInstance* Font::getSubFont(const LEUnicode chars[], le_int32* offset, le_int32 limit,
-		le_int32 script, LEErrorCode& success) const {
-	if (LE_FAILURE(success)) {
-        return NULL;
-    }
-
-    if (chars == NULL || *offset < 0 || limit < 0 || *offset >= limit || script < 0
-			|| script >= icu::scriptCodeCount) {
-        success = LE_ILLEGAL_ARGUMENT_ERROR;
-        return NULL;
-    }
-
-	*offset = limit;
-	return this;
-}
-
 const void* Font::getFontTable(LETag tableTag, size_t& length) const {
 	if (auto* blob = hb_face_reference_table(hb_font_get_face(m_hbFont), tableTag)) {
 		unsigned tmpLength{};

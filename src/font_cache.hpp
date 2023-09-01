@@ -22,6 +22,11 @@ class FontCache final {
 		static constexpr const FamilyIndex_T INVALID_FAMILY = static_cast<FamilyIndex_T>(~0u);
 		static constexpr const FaceIndex_T INVALID_FONT = static_cast<FaceIndex_T>(~0u);
 
+		struct FamilyFallbackInfo {
+			FaceIndex_T baseIndex;
+			FaceIndex_T count;
+		};
+
 		explicit FontCache(std::filesystem::path root);
 		~FontCache();
 
@@ -30,8 +35,11 @@ class FontCache final {
 
 		MultiScriptFont get_font(FamilyIndex_T, FontWeightIndex, FontFaceStyle, uint32_t size);
 		Font* get_font_for_script(FamilyIndex_T, FontWeightIndex, FontFaceStyle, UScriptCode, uint32_t size);
+		Font* get_fallback_font(FamilyIndex_T, FaceIndex_T fallbackIndex, uint32_t size);
 
 		bool face_has_script(FamilyIndex_T, FontWeightIndex, FontFaceStyle, FaceIndex_T, UScriptCode) const;
+
+		FamilyFallbackInfo get_fallback_info(FamilyIndex_T) const;
 	private:
 		struct FontFace {
 			std::unordered_map<uint32_t, Font*> fonts;
@@ -39,17 +47,20 @@ class FontCache final {
 			std::string fileName;
 		};
 
-		struct FontFamily {
-			FaceIndex_T faceLookup[WEIGHT_COUNT][STYLE_COUNT][USCRIPT_CODE_LIMIT];
+		struct ScriptFaceIndices {
+			FaceIndex_T lookup[WEIGHT_COUNT][STYLE_COUNT][USCRIPT_CODE_LIMIT];
 		};
 
 		std::vector<FontFace> m_faces;
-		std::vector<FontFamily> m_families;
+		std::vector<ScriptFaceIndices> m_scriptFaceLookup;
+		std::vector<FamilyFallbackInfo> m_familyFallbackInfos;
+		std::vector<FaceIndex_T> m_fallbackFaces;
 		std::unordered_map<std::string, FamilyIndex_T, StringHash, std::equal_to<>> m_familiesByName;
 
 		FT_LibraryRec_* m_ftLibrary;
 
 		bool try_init_face(FontFace&);
+		Font* try_create_font(FaceIndex_T, FamilyIndex_T, FontWeightIndex, FontFaceStyle, uint32_t size);
 
 		bool load_family_file(const std::filesystem::path&);
 };

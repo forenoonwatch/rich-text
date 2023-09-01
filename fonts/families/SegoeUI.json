@@ -8,8 +8,30 @@
 			"scripts": [
 				{
 					"uri": "C:/Windows/Fonts/segoeui.ttf"
+				},
+				{
+					"uri": "C:/Windows/Fonts/msyh.ttc",
+					"scripts": [17]
+				},
+				{
+					"uri": "C:/Windows/Fonts/meiryo.ttc",
+					"scripts": [20]
 				}
 			]
+		}
+	],
+	"fallback_faces": [
+		{
+			"name": "Segoe UI Emoji",
+			"weight": 400,
+			"style": "normal",
+			"uri": "C:/Windows/Fonts/seguiemj.ttf"
+		},
+		{
+			"name": "Cambria Math",
+			"weight": 400,
+			"style": "normal",
+			"uri": "C:/Windows/Fonts/cambria.ttc"
 		}
 	]
 }

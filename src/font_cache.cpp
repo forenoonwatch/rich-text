@@ -38,9 +38,9 @@ FamilyIndex_T FontCache::get_font_family(std::string_view name) const {
 	return INVALID_FAMILY;
 }
 
-FaceIndex_T FontCache::get_face_index(FamilyIndex_T family, FontWeightIndex weight,
-		FontFaceStyle style, UScriptCode script) const {
-	return m_families[family].faceLookup[static_cast<size_t>(weight)][static_cast<size_t>(style)][script];
+FaceIndex_T FontCache::get_face_index(FamilyIndex_T family, FontWeightIndex weight, FontFaceStyle style,
+		UScriptCode script) const {
+	return m_scriptFaceLookup[family].lookup[static_cast<size_t>(weight)][static_cast<size_t>(style)][script];
 }
 
 MultiScriptFont FontCache::get_font(FamilyIndex_T family, FontWeightIndex weight, FontFaceStyle style,
@@ -51,6 +51,37 @@ MultiScriptFont FontCache::get_font(FamilyIndex_T family, FontWeightIndex weight
 Font* FontCache::get_font_for_script(FamilyIndex_T family, FontWeightIndex weight, FontFaceStyle style,
 		UScriptCode script, uint32_t size) {
 	auto faceIndex = get_face_index(family, weight, style, script);
+	return try_create_font(faceIndex, family, weight, style, size);;
+}
+
+Font* FontCache::get_fallback_font(FamilyIndex_T family, FaceIndex_T fallbackIndex, uint32_t size) {
+	auto faceIndex = m_fallbackFaces[fallbackIndex];
+	return try_create_font(faceIndex, family, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, size);
+}
+
+bool FontCache::face_has_script(FamilyIndex_T family, FontWeightIndex weight, FontFaceStyle style,
+		FaceIndex_T face, UScriptCode script) const {
+	return get_face_index(family, weight, style, script) == face;
+}
+
+FontCache::FamilyFallbackInfo FontCache::get_fallback_info(FamilyIndex_T family) const {
+	return m_familyFallbackInfos[family];
+}
+
+// Private
+
+bool FontCache::try_init_face(FontFace& face) {
+	if (!face.fileData.empty()) {
+		return true;
+	}
+
+	face.fileData = file_read_bytes(face.fileName.c_str());
+
+	return !face.fileData.empty();
+}
+
+Font* FontCache::try_create_font(FaceIndex_T faceIndex, FamilyIndex_T family, FontWeightIndex weight,
+		FontFaceStyle style, uint32_t size) {
 	auto& face = m_faces[faceIndex];
 
 	if (auto it = face.fonts.find(size); it != face.fonts.end()) {
@@ -88,33 +119,15 @@ Font* FontCache::get_font_for_script(FamilyIndex_T family, FontWeightIndex weigh
 	return font;
 }
 
-bool FontCache::face_has_script(FamilyIndex_T family, FontWeightIndex weight, FontFaceStyle style,
-		FaceIndex_T face, UScriptCode script) const {
-	return m_families[family].faceLookup[static_cast<size_t>(weight)][static_cast<size_t>(style)][script]
-			== face;
-}
-
-// Private
-
-bool FontCache::try_init_face(FontFace& face) {
-	if (!face.fileData.empty()) {
-		return true;
-	}
-
-	face.fileData = file_read_bytes(face.fileName.c_str());
-
-	return !face.fileData.empty();
-}
-
 bool FontCache::load_family_file(const std::filesystem::path& path) {
-	auto familyIndex = static_cast<FamilyIndex_T>(m_families.size());
-	m_families.emplace_back();
-	auto& family = m_families.back();
+	auto familyIndex = static_cast<FamilyIndex_T>(m_scriptFaceLookup.size());
+	m_scriptFaceLookup.emplace_back();
+	auto& scriptFaceLookup = m_scriptFaceLookup.back();
 
 	for (size_t weight = 0; weight < WEIGHT_COUNT; ++weight) {
 		for (size_t style = 0; style < STYLE_COUNT; ++style) {
 			for (size_t script = 0; script < USCRIPT_CODE_LIMIT; ++script) {
-				family.faceLookup[weight][style][script] = INVALID_FONT;
+				scriptFaceLookup.lookup[weight][style][script] = INVALID_FONT;
 			}
 		}
 	}
@@ -207,7 +220,7 @@ bool FontCache::load_family_file(const std::filesystem::path& path) {
 						return false;
 					}
 
-					family.faceLookup[weightIndex][styleIndex][scriptCodeValue] = faceIndex;
+					scriptFaceLookup.lookup[weightIndex][styleIndex][scriptCodeValue] = faceIndex;
 				}
 			}
 			else {
@@ -217,13 +230,41 @@ bool FontCache::load_family_file(const std::filesystem::path& path) {
 
 		// Apply default font to all scripts that are unset
 		if (defaultFaceIndex != INVALID_FONT) {
-			auto& facesByScript = family.faceLookup[weightIndex][styleIndex];
+			auto& facesByScript = scriptFaceLookup.lookup[weightIndex][styleIndex];
 
 			for (size_t i = 0; i < USCRIPT_CODE_LIMIT; ++i) {
 				if (facesByScript[i] == INVALID_FONT) {
 					facesByScript[i] = defaultFaceIndex;
 				}
 			}
+		}
+	}
+
+	m_familyFallbackInfos.emplace_back();
+	auto& fallbackInfo = m_familyFallbackInfos.back();
+	fallbackInfo.baseIndex = static_cast<FaceIndex_T>(m_fallbackFaces.size());
+	fallbackInfo.count = 0;
+
+	simdjson::ondemand::array fallbackFaces;
+	if (!root["fallback_faces"].get(fallbackFaces)) {
+		for (auto faceValue : fallbackFaces) {
+			simdjson::ondemand::object fontInfo;
+			if (faceValue.get(fontInfo)) {
+				return false;
+			}
+
+			std::string_view uri;
+			if (fontInfo["uri"].get(uri)) {
+				return false;
+			}
+
+			m_fallbackFaces.emplace_back(static_cast<FaceIndex_T>(m_faces.size()));
+
+			m_faces.push_back({
+				.fileName = std::string(uri),
+			});
+
+			++fallbackInfo.count;
 		}
 	}
 

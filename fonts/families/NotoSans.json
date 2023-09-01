@@ -103,5 +103,13 @@
 				}
 			]
 		}
+	],
+	"fallback_faces": [
+		{
+			"name": "Twemoji",
+			"weight": 400,
+			"style": "normal",
+			"uri": "fonts/Twemoji/Twemoji.Mozilla.ttf"
+		}
 	]
 }
