@@ -325,7 +325,7 @@ void RichTextParser::parse_font() {
 		m_ownedFonts.emplace_back(currFont.get_font_cache()->get_font(family, currFont.get_weight(),
 				currFont.get_style(), size));
 
-		m_fontRuns.push(m_charIndex, newFontIndex);
+		m_fontRuns.push(m_output.length(), newFontIndex);
 	}
 
 	if (fontAttribs.colorChange) {
@@ -335,7 +335,7 @@ void RichTextParser::parse_font() {
 	parse_content(U"font>");
 
 	if (hasFontChange) {
-		m_fontRuns.pop(m_charIndex);
+		m_fontRuns.pop(m_output.length());
 	}
 
 	if (fontAttribs.colorChange) {
@@ -568,7 +568,7 @@ void RichTextParser::raise_error() {
 }
 
 void RichTextParser::finalize_runs() {
-	m_fontRuns.pop(m_charIndex);
+	m_fontRuns.pop(m_output.length());
 	m_colorRuns.pop(m_charIndex);
 	m_strikethroughRuns.pop(m_charIndex);
 	m_underlineRuns.pop(m_charIndex);

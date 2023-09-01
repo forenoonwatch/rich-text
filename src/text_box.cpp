@@ -49,7 +49,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 
 	int32_t startIndex = 0;
 	int32_t charIndex = 0;
-	int32_t codepointIndex = 0;
+	int32_t byteIndex = 0;
 
 	std::vector<icu::ParagraphLayout::Line*> lines;
 	RichText::TextRuns<int32_t> offsetRunsByLine;
@@ -59,19 +59,22 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 	UBiDiLevel paragraphLevel = UBIDI_DEFAULT_LTR;
 
 	for (;;) {
+		auto idx = UTEXT_GETNATIVEINDEX(&iter);
 		auto c = UTEXT_NEXT32(&iter);
 
 		if (c == U_SENTINEL || c == CH_LF || c == CH_CR || c == CH_LSEP || c == CH_PSEP) {
 			if (startIndex != charIndex) {
+				auto byteCount = idx - byteIndex;
+
 				subsetFontRuns.clear();
-				textInfo.fontRuns.get_runs_subset(startIndex, charIndex - startIndex, subsetFontRuns);
+				textInfo.fontRuns.get_runs_subset(byteIndex, byteCount, subsetFontRuns);
 
 				LEErrorCode err{};
 				auto** ppFonts = const_cast<const MultiScriptFont**>(subsetFontRuns.get_values());
 				icu::FontRuns fontRuns(reinterpret_cast<const icu::LEFontInstance**>(ppFonts),
 						subsetFontRuns.get_limits(), subsetFontRuns.get_value_count());
-				icu::ParagraphLayout pl(textInfo.str.getBuffer() + codepointIndex, charIndex - startIndex,
-						&fontRuns, nullptr, nullptr, nullptr, paragraphLevel, false, err);
+				icu::ParagraphLayout pl(textInfo.str.getBuffer() + byteIndex, byteCount, &fontRuns, nullptr,
+						nullptr, nullptr, paragraphLevel, false, err);
 
 				if (paragraphLevel == UBIDI_DEFAULT_LTR) {
 					paragraphLevel = pl.getParagraphLevel();
@@ -106,7 +109,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 				++charIndex;
 			}
 
-			codepointIndex = UTEXT_GETNATIVEINDEX(&iter);
+			byteIndex = UTEXT_GETNATIVEINDEX(&iter);
 			startIndex = charIndex + 1;
 		}
 
