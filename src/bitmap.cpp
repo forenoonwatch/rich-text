@@ -60,7 +60,7 @@ void Bitmap::blit(const Bitmap& src, int32_t x, int32_t y) {
 	auto* pSrcPixels = src.data();
 
 	for (uint32_t i = y, l = std::min(y + src.get_height(), m_height); i < l; ++i) {
-		std::memcpy(pDstPixels, pSrcPixels, width);
+		std::memcpy(pDstPixels, pSrcPixels, width * sizeof(uint32_t));
 		pSrcPixels += src.get_width();
 		pDstPixels += m_width;
 	}
