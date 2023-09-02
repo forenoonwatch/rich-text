@@ -47,8 +47,6 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 	UErrorCode err{};
 	utext_openUnicodeString(&iter, &textInfo.str, &err);
 
-	int32_t startIndex = 0;
-	int32_t charIndex = 0;
 	int32_t byteIndex = 0;
 
 	std::vector<icu::ParagraphLayout::Line*> lines;
@@ -63,7 +61,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 		auto c = UTEXT_NEXT32(&iter);
 
 		if (c == U_SENTINEL || c == CH_LF || c == CH_CR || c == CH_LSEP || c == CH_PSEP) {
-			if (startIndex != charIndex) {
+			if (idx != byteIndex) {
 				auto byteCount = idx - byteIndex;
 
 				subsetFontRuns.clear();
@@ -95,7 +93,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 					lines.emplace_back(pLine);
 				}
 
-				offsetRunsByLine.add(static_cast<int32_t>(lines.size()), startIndex);
+				offsetRunsByLine.add(static_cast<int32_t>(lines.size()), byteIndex);
 			}
 			else {
 				lines.emplace_back(nullptr);
@@ -106,14 +104,10 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 			}
 			else if (c == CH_CR && UTEXT_CURRENT32(&iter) == CH_LF) {
 				UTEXT_NEXT32(&iter);
-				++charIndex;
 			}
 
 			byteIndex = UTEXT_GETNATIVEINDEX(&iter);
-			startIndex = charIndex + 1;
 		}
-
-		++charIndex;
 	}
 
 	auto lineY = static_cast<float>(maxAscent);

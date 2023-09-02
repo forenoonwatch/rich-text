@@ -37,7 +37,6 @@ class RichTextParser {
 	private:
 		UText m_iter UTEXT_INITIALIZER;
 		icu::UnicodeString m_output;
-		int32_t m_charIndex{};
 		bool m_error{false};
 
 		const std::string& m_text;
@@ -189,7 +188,6 @@ void RichTextParser::parse_content(std::u32string_view expectedClose) {
 		}
 		else {
 			m_output.append(c);
-			++m_charIndex;
 		}
 
 		if (m_error) {
@@ -329,7 +327,7 @@ void RichTextParser::parse_font() {
 	}
 
 	if (fontAttribs.colorChange) {
-		m_colorRuns.push(m_charIndex, fontAttribs.color); 
+		m_colorRuns.push(m_output.length(), fontAttribs.color); 
 	}
 
 	parse_content(U"font>");
@@ -339,7 +337,7 @@ void RichTextParser::parse_font() {
 	}
 
 	if (fontAttribs.colorChange) {
-		m_colorRuns.pop(m_charIndex);
+		m_colorRuns.pop(m_output.length());
 	}
 }
 
@@ -443,15 +441,15 @@ void RichTextParser::parse_font_size(FontAttributes& attribs) {
 }
 
 void RichTextParser::parse_strikethrough() {
-	m_strikethroughRuns.push(m_charIndex, true);
+	m_strikethroughRuns.push(m_output.length(), true);
 	parse_content(U"s>");
-	m_strikethroughRuns.pop(m_charIndex);
+	m_strikethroughRuns.pop(m_output.length());
 }
 
 void RichTextParser::parse_underline() {
-	m_underlineRuns.push(m_charIndex, true);
+	m_underlineRuns.push(m_output.length(), true);
 	parse_content(U"u>");
-	m_underlineRuns.pop(m_charIndex);
+	m_underlineRuns.pop(m_output.length());
 }
 
 bool RichTextParser::parse_color(uint32_t& color) {
@@ -569,8 +567,8 @@ void RichTextParser::raise_error() {
 
 void RichTextParser::finalize_runs() {
 	m_fontRuns.pop(m_output.length());
-	m_colorRuns.pop(m_charIndex);
-	m_strikethroughRuns.pop(m_charIndex);
-	m_underlineRuns.pop(m_charIndex);
+	m_colorRuns.pop(m_output.length());
+	m_strikethroughRuns.pop(m_output.length());
+	m_underlineRuns.pop(m_output.length());
 }
 
