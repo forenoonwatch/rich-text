@@ -1,9 +1,19 @@
 set(ICU_CHARSET_IS_UTF8 ON CACHE BOOL "")
 
+set(MSDFGEN_BUILD_STANDALONE OFF CACHE BOOL "")
+set(MSDFGEN_CORE_ONLY ON CACHE BOOL "")
+set(MSDFGEN_DYNAMIC_RUNTIME OFF CACHE BOOL "")
+set(MSDFGEN_INSTALL OFF CACHE BOOL "")
+set(MSDFGEN_USE_CPP11 ON CACHE BOOL "")
+set(MSDFGEN_USE_OPENMP OFF CACHE BOOL "")
+set(MSDFGEN_USE_SKIA OFF CACHE BOOL "")
+set(MSDFGEN_USE_VCPKG OFF CACHE BOOL "")
+
 add_subdirectory(freetype)
 add_subdirectory(harfbuzz)
 add_subdirectory(icu_cmake)
 add_subdirectory(minifb)
+add_subdirectory(msdfgen)
 add_subdirectory(simdjson)
 
 if (MINGW)
