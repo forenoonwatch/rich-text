@@ -67,13 +67,13 @@ void Bitmap::blit(const Bitmap& src, int32_t x, int32_t y) {
 }
 
 void Bitmap::blit_alpha(const Bitmap& src, int32_t x, int32_t y, const Color& color) {
-	x = std::max(0, x);
-	y = std::max(0, y);
+	auto startX = std::max(0, x);
+	auto startY = std::max(0, y);
+	auto endX = std::min(x + static_cast<int32_t>(src.get_width()), static_cast<int32_t>(m_width));
+	auto endY = std::min(y + static_cast<int32_t>(src.get_height()), static_cast<int32_t>(m_height));
 
-	auto width = std::min(src.get_width(), m_width - x);
-
-	for (uint32_t iy = y, ly = std::min(y + src.get_height(), m_height); iy < ly; ++iy) {
-		for (uint32_t ix = x, lx = x + width; ix < lx; ++ix) {
+	for (int32_t iy = startY; iy < endY; ++iy) {
+		for (int32_t ix = startX; ix < endX; ++ix) {
 			auto srcColor = src.get_pixel(ix - x, iy - y) * color;
 			auto dstColor = get_pixel(ix, iy);
 
