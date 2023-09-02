@@ -28,8 +28,9 @@ void TextBox::recalc_text() {
 		return;
 	}
 
-	auto runs = m_richText ? RichText::parse(m_text, m_contentText, m_font, m_textColor)
-			: RichText::make_default_runs(m_text, m_contentText, m_font, m_textColor);
+	RichText::StrokeState strokeState{};
+	auto runs = m_richText ? RichText::parse(m_text, m_contentText, m_font, m_textColor, strokeState)
+			: RichText::make_default_runs(m_text, m_contentText, m_font, m_textColor, strokeState);
 
 	if (m_contentText.empty()) {
 		return;
@@ -136,6 +137,35 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 			auto* pGlyphChars = run->getGlyphToCharMap();
 
 			for (le_int32 i = 0; i < run->getGlyphCount(); ++i) {
+				if (pGlyphs[i] == 0xFFFFu || pGlyphs[i] == 0xFFFEu) {
+					continue;
+				}
+
+				auto globalCharIndex = pGlyphChars[i] + charOffset;
+				auto stroke = textInfo.strokeRuns.get_value(globalCharIndex);
+
+				if (stroke.color.a > 0.f) {
+					auto pX = posData[2 * i];
+					auto pY = posData[2 * i + 1];
+
+					float strokeOffset[2]{};
+					auto [strokeBitmap, strokeHasColor] = pFont->get_outline_glyph(pGlyphs[i], stroke.thickness,
+							stroke.joins, strokeOffset);
+
+					m_textRects.push_back({
+						.x = lineX + pX + strokeOffset[0],
+						.y = lineY + pY + strokeOffset[1],
+						.texture = std::move(strokeBitmap),
+						.color = stroke.color,
+					});
+				}
+			}
+
+			for (le_int32 i = 0; i < run->getGlyphCount(); ++i) {
+				if (pGlyphs[i] == 0xFFFFu || pGlyphs[i] == 0xFFFEu) {
+					continue;
+				}
+
 				auto pX = posData[2 * i];
 				auto pY = posData[2 * i + 1];
 				auto globalCharIndex = pGlyphChars[i] + charOffset;

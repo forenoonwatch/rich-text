@@ -5,6 +5,7 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_TRUETYPE_TABLES_H
+#include FT_STROKER_H
 
 #include <hb.h>
 
@@ -72,6 +73,60 @@ FontGlyphResult Font::get_glyph(uint32_t glyphIndex, float* offsetOut) const {
 
 	offsetOut[0] = static_cast<float>(m_ftFace->glyph->bitmap_left);
 	offsetOut[1] = static_cast<float>(-m_ftFace->glyph->bitmap_top);
+
+	return result;
+}
+
+FontGlyphResult Font::get_outline_glyph(uint32_t glyphIndex, uint8_t thickness, StrokeType strokeType,
+		float* offsetOut) const {
+	FT_Load_Glyph(m_ftFace, glyphIndex, FT_LOAD_NO_BITMAP);
+
+	FT_Glyph glyph;
+	FT_Get_Glyph(m_ftFace->glyph, &glyph);
+	glyph->format = FT_GLYPH_FORMAT_OUTLINE;
+
+	FT_Stroker_LineJoin lineJoin = FT_STROKER_LINEJOIN_ROUND;
+
+	switch (strokeType) {
+		case StrokeType::BEVEL:
+			lineJoin = FT_STROKER_LINEJOIN_BEVEL;
+			break;
+		case StrokeType::MITER:
+			lineJoin = FT_STROKER_LINEJOIN_MITER;
+			break;
+		default:
+			break;
+	}
+
+	FT_Stroker stroker;
+	FT_Stroker_New(glyph->library, &stroker);
+	FT_Stroker_Set(stroker, static_cast<FT_Fixed>(thickness) * 64, FT_STROKER_LINECAP_ROUND, lineJoin, 0);
+
+	FT_Glyph_Stroke(&glyph, stroker, false);
+	FT_Glyph_To_Bitmap(&glyph, FT_RENDER_MODE_NORMAL, nullptr, true);
+
+	auto bmpGlyph = reinterpret_cast<FT_BitmapGlyph>(glyph);
+	auto uWidth = static_cast<uint32_t>(bmpGlyph->bitmap.width);
+	auto uHeight = static_cast<uint32_t>(bmpGlyph->bitmap.rows);
+	auto* buffer = bmpGlyph->bitmap.buffer;
+
+	FontGlyphResult result{
+		.bitmap = Bitmap{uWidth, uHeight},
+		.hasColor = false,
+	};
+
+	for (uint32_t y = 0, i = 0; y < uHeight; ++y) {
+		for (uint32_t x = 0; x < uWidth; ++x, ++i) {
+			auto alpha = static_cast<float>(buffer[i]) / 255.f;
+			result.bitmap.set_pixel(x, y, {1.f, 1.f, 1.f, alpha});
+		}
+	}
+
+	offsetOut[0] = static_cast<float>(bmpGlyph->left);
+	offsetOut[1] = static_cast<float>(-bmpGlyph->top);
+
+	FT_Stroker_Done(stroker);
+	FT_Done_Glyph(glyph);
 
 	return result;
 }

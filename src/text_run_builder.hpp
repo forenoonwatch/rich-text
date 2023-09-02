@@ -7,8 +7,9 @@ namespace RichText {
 template <typename T>
 class TextRunBuilder {
 	public:
-		constexpr explicit TextRunBuilder(T&& baseValue)
-				: m_stack{std::forward<T>(baseValue)} {}
+		template <typename U>
+		constexpr explicit TextRunBuilder(U&& baseValue)
+				: m_stack{std::forward<U>(baseValue)} {}
 
 		template <typename... Args>
 		constexpr void push(int32_t limit, Args&&... args) {

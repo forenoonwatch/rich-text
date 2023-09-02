@@ -11,8 +11,9 @@ template <typename T>
 class TextRuns {
 	public:
 		constexpr TextRuns() = default;
-		constexpr TextRuns(T&& value, int32_t limit)
-				: m_values{std::forward<T>(value)}
+		template <typename U>
+		constexpr TextRuns(U&& value, int32_t limit)
+				: m_values{std::forward<U>(value)}
 				, m_limits{limit} {}
 		constexpr TextRuns(size_t initialCapacity) {
 			m_values.reserve(initialCapacity);

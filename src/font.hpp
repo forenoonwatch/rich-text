@@ -2,6 +2,7 @@
 
 #include "bitmap.hpp"
 #include "font_common.hpp"
+#include "stroke_type.hpp"
 
 #include <layout/LEFontInstance.h>
 
@@ -22,6 +23,8 @@ class Font final : public icu::LEFontInstance {
 		~Font();
 
 		FontGlyphResult get_glyph(uint32_t glyphIndex, float* offsetOut) const;
+		FontGlyphResult get_outline_glyph(uint32_t glyphIndex, uint8_t thickness, StrokeType,
+				float* offsetOut) const;
 
 		float get_underline_position() const;
 		float get_underline_thickness() const;

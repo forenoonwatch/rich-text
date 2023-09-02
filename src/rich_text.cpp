@@ -9,6 +9,7 @@
 
 #include <charconv>
 #include <string_view>
+#include <type_traits>
 
 using namespace RichText;
 
@@ -28,7 +29,8 @@ struct FontAttributes {
 
 class RichTextParser {
 	public:
-		explicit RichTextParser(const std::string& text, const MultiScriptFont& baseFont, Color&& baseColor);
+		explicit RichTextParser(const std::string& text, const MultiScriptFont& baseFont, Color&& baseColor,
+				const StrokeState& baseStroke);
 
 		void parse();
 
@@ -43,6 +45,7 @@ class RichTextParser {
 		
 		TextRunBuilder<uint32_t> m_fontRuns;
 		TextRunBuilder<Color> m_colorRuns;
+		TextRunBuilder<StrokeState> m_strokeRuns;
 		TextRunBuilder<bool> m_strikethroughRuns;
 		TextRunBuilder<bool> m_underlineRuns;
 		std::vector<MultiScriptFont> m_ownedFonts;
@@ -58,27 +61,21 @@ class RichTextParser {
 
 		void parse_font();
 		[[nodiscard]] FontAttributes parse_font_attributes();
-		void parse_font_end();
-
-		void parse_font_color(FontAttributes&);
-		void parse_font_size(FontAttributes&);
 		void parse_font_face(FontAttributes&);
 
 		void parse_strikethrough();
 		void parse_underline();
 
 		void parse_italic();
-		void parse_italic_end();
 
 		void parse_stroke();
-		void parse_stroke_end();
+		[[nodiscard]] StrokeState parse_stroke_attributes();
+		void parse_stroke_joins(StrokeState&);
 
-		void parse_stroke_attributes();
-		void parse_stroke_color();
-		void parse_stroke_joins();
-		void parse_stroke_t_attributes();
-		void parse_stroke_thickness();
-		void parse_stroke_transparency();
+		std::string_view parse_attribute(std::u32string_view name);
+		template <typename T> requires std::is_arithmetic_v<T>
+		void parse_attribute(std::u32string_view name, T& value);
+		void parse_attribute(std::u32string_view name, Color& value);
 
 		void parse_line_break();
 
@@ -98,33 +95,38 @@ class RichTextParser {
 // RichText API
 
 RichText::Result RichText::make_default_runs(const std::string& text, std::string& contentText,
-		const MultiScriptFont& baseFont, Color baseColor) {
+		const MultiScriptFont& baseFont, Color baseColor, const StrokeState& baseStroke) {
 	contentText = text;
 	auto str = icu::UnicodeString::fromUTF8(text);
 	auto length = str.length();
+	std::vector<MultiScriptFont> ownedFonts{baseFont};
 
 	return {
 		.str = std::move(str),
-		.fontRuns{&baseFont, length},
+		.fontRuns{&ownedFonts.front(), length},
 		.colorRuns{std::move(baseColor), length},
+		.strokeRuns{baseStroke, length},
 		.strikethroughRuns{false, length},
 		.underlineRuns{false, length},
+		.ownedFonts = std::move(ownedFonts),
 	};
 }
 
 RichText::Result RichText::parse(const std::string& text, std::string& contentText,
-		const MultiScriptFont& baseFont, Color baseColor) {
-	RichTextParser parser(text, baseFont, std::move(baseColor));
+		const MultiScriptFont& baseFont, Color baseColor, const StrokeState& baseStroke) {
+	RichTextParser parser(text, baseFont, std::move(baseColor), baseStroke);
 	parser.parse();
 	return parser.get_result(contentText);
 }
 
 // RichTextParser
 
-RichTextParser::RichTextParser(const std::string& text, const MultiScriptFont& baseFont, Color&& baseColor)
+RichTextParser::RichTextParser(const std::string& text, const MultiScriptFont& baseFont, Color&& baseColor,
+			const StrokeState& baseStroke)
 		: m_text(text)
 		, m_fontRuns{0u}
 		, m_colorRuns{std::move(baseColor)}
+		, m_strokeRuns{baseStroke}
 		, m_strikethroughRuns{false}
 		, m_underlineRuns{false}
 		, m_ownedFonts{baseFont} {
@@ -135,7 +137,7 @@ RichTextParser::RichTextParser(const std::string& text, const MultiScriptFont& b
 RichText::Result RichTextParser::get_result(std::string& contentText) {
 	if (m_error) {
 		return RichText::make_default_runs(m_text, contentText, m_ownedFonts.front(),
-				m_colorRuns.get_base_value());
+				m_colorRuns.get_base_value(), m_strokeRuns.get_base_value());
 	}
 	else {
 		m_output.toUTF8String(contentText);
@@ -145,6 +147,7 @@ RichText::Result RichTextParser::get_result(std::string& contentText) {
 			.str = std::move(m_output),
 			.fontRuns{fontIndexRuns.get_value_count()},
 			.colorRuns = m_colorRuns.get(),
+			.strokeRuns = m_strokeRuns.get(),
 			.strikethroughRuns = m_strikethroughRuns.get(),
 			.underlineRuns = m_underlineRuns.get(),
 			.ownedFonts = std::move(m_ownedFonts),
@@ -269,7 +272,7 @@ void RichTextParser::parse_s_tag() {
 			// FIXME: parse_smallcaps();
 			break;
 		case 't':
-			// FIXME: parse_stroke();
+			parse_stroke();
 			break;
 		default:
 			raise_error();
@@ -310,6 +313,7 @@ void RichTextParser::parse_font() {
 	}
 
 	auto fontAttribs = parse_font_attributes();
+
 	auto& currFont = m_ownedFonts[m_fontRuns.get_current_value()];
 	bool hasFontChange = (fontAttribs.family != FontCache::INVALID_FAMILY
 			&& fontAttribs.family != currFont.get_family())
@@ -347,13 +351,15 @@ FontAttributes RichTextParser::parse_font_attributes() {
 	for (;;) {
 		switch (UTEXT_NEXT32(&m_iter)) {
 			case 'c':
-				parse_font_color(result);
+				parse_attribute(U"olor=\"", result.color);
+				result.colorChange = true;
 				break;
 			case 'f':
 				parse_font_face(result);
 				break;
 			case 's':
-				parse_font_size(result);
+				parse_attribute(U"ize=\"", result.size);
+				result.sizeChange = true;
 				break;
 			case ' ':
 				break;
@@ -367,76 +373,18 @@ FontAttributes RichTextParser::parse_font_attributes() {
 	return result;
 }
 
-void RichTextParser::parse_font_color(FontAttributes& attribs) {
-	if (!consume_word(U"olor=\"")) {
-		return;
-	}
-
-	uint32_t color{};
-	if (!parse_color(color)) {
-		return;
-	}
-
-	if (!consume_char('"')) {
-		return;
-	}
-
-	attribs.color = Color::from_rgb_uint(color);
-	attribs.colorChange = true;
-}
-
 void RichTextParser::parse_font_face(FontAttributes& attribs) {
-	if (!consume_word(U"ace=\"")) {
+	auto faceName = parse_attribute(U"ace=\"");
+	if (faceName.empty()) {
+		raise_error();
 		return;
 	}
 
-	auto start = UTEXT_GETNATIVEINDEX(&m_iter);
+	auto& cache = *m_ownedFonts[m_fontRuns.get_current_value()].get_font_cache();
+	attribs.family = cache.get_font_family(faceName);
 
-	for (;;) {
-		auto end = UTEXT_GETNATIVEINDEX(&m_iter);
-		auto c = UTEXT_NEXT32(&m_iter);
-
-		if (c == '"') {
-			auto& cache = *m_ownedFonts[m_fontRuns.get_current_value()].get_font_cache();
-			attribs.family = cache.get_font_family(std::string_view(m_text.data() + start, end - start));
-
-			if (attribs.family == FontCache::INVALID_FAMILY) {
-				raise_error();
-			}
-
-			return;
-		}
-		else if (c == U_SENTINEL) {
-			raise_error();
-			return;
-		}
-	}
-}
-
-void RichTextParser::parse_font_size(FontAttributes& attribs) {
-	if (!consume_word(U"ize=\"")) {
-		return;
-	}
-
-	// Max decimal digits that can represent a 32 bit uint: 10
-	char buffer[10]{};
-	size_t i = 0;
-
-	for (;;) {
-		auto c = UTEXT_NEXT32(&m_iter);
-
-		if (c >= '0' && c <= '9' && i < 10) {
-			buffer[i++] = c;
-		}
-		else if (c == '"') {
-			std::from_chars(buffer, buffer + i, attribs.size);
-			attribs.sizeChange = true;
-			return;
-		}
-		else {
-			raise_error();
-			return;
-		}
+	if (attribs.family == FontCache::INVALID_FAMILY) {
+		raise_error();
 	}
 }
 
@@ -450,6 +398,149 @@ void RichTextParser::parse_underline() {
 	m_underlineRuns.push(m_output.length(), true);
 	parse_content(U"u>");
 	m_underlineRuns.pop(m_output.length());
+}
+
+void RichTextParser::parse_stroke() {
+	if (!consume_word(U"roke")) {
+		raise_error();
+		return;
+	}
+
+	auto state = parse_stroke_attributes();
+
+	m_strokeRuns.push(m_output.length(), state); 
+
+	parse_content(U"stroke>");
+
+	m_strokeRuns.pop(m_output.length());
+}
+
+StrokeState RichTextParser::parse_stroke_attributes() {
+	StrokeState result{
+		.color = {0.f, 0.f, 0.f, 1.f}, 
+		.thickness = 1,
+		.joins = StrokeType::ROUND,
+	};
+
+	for (;;) {
+		switch (UTEXT_NEXT32(&m_iter)) {
+			case 'c':
+			{
+				Color c{};
+				parse_attribute(U"olor=\"", c);
+				result.color = {c.r, c.g, c.b, result.color.a};
+			}
+				break;
+			case 'j':
+				parse_stroke_joins(result);
+				break;
+			case 't':
+				switch (UTEXT_NEXT32(&m_iter)) {
+					case 'h':
+						parse_attribute(U"ickness=\"", result.thickness);
+						break;
+					case 'r':
+						parse_attribute(U"ansparency=\"", result.color.a);
+						result.color.a = 1.f - result.color.a;
+						break;
+					default:
+						raise_error();
+				}
+
+				break;
+			case ' ':
+				break;
+			case '>':
+				return result;
+			default:
+				raise_error();
+		}
+	}
+
+	return result;
+}
+
+void RichTextParser::parse_stroke_joins(StrokeState& attribs) {
+	if (!consume_word(U"oins=\"")) {
+		return;
+	}
+
+	auto start = UTEXT_GETNATIVEINDEX(&m_iter);
+
+	for (;;) {
+		auto end = UTEXT_GETNATIVEINDEX(&m_iter);
+		auto c = UTEXT_NEXT32(&m_iter);
+
+		if (c == '"') {
+			std::string_view typeName(m_text.data() + start, end - start);
+
+			if (typeName.compare("round") == 0) {
+				attribs.joins = StrokeType::ROUND;
+			}
+			else if (typeName.compare("bevel") == 0) {
+				attribs.joins = StrokeType::BEVEL;
+			}
+			else if (typeName.compare("miter") == 0) {
+				attribs.joins = StrokeType::MITER;
+			}
+			else {
+				raise_error();
+			}
+			
+			return;
+		}
+		else if (c == U_SENTINEL) {
+			raise_error();
+			return;
+		}
+	}
+}
+
+std::string_view RichTextParser::parse_attribute(std::u32string_view name) {
+	if (!consume_word(name)) {
+		return {};
+	}
+
+	auto start = UTEXT_GETNATIVEINDEX(&m_iter);
+
+	for (;;) {
+		auto end = UTEXT_GETNATIVEINDEX(&m_iter);
+		auto c = UTEXT_NEXT32(&m_iter);
+
+		if (c == '"') {
+			return std::string_view(m_text.data() + start, end - start);
+		}
+		else if (c == U_SENTINEL) {
+			raise_error();
+			return {};
+		}
+	}
+}
+
+template <typename T> requires std::is_arithmetic_v<T>
+void RichTextParser::parse_attribute(std::u32string_view name, T& value) {
+	auto attrib = parse_attribute(name);
+	if (auto [ptr, ec] = std::from_chars(attrib.data(), attrib.data() + attrib.size(), value);
+			ec != std::errc{}) {
+		raise_error();
+	}
+}
+
+void RichTextParser::parse_attribute(std::u32string_view name, Color& value) {
+	if (!consume_word(name)) {
+		return;
+	}
+
+	uint32_t color{};
+	if (!parse_color(color)) {
+		return;
+	}
+
+	if (!consume_char('"')) {
+		return;
+	}
+
+	value = Color::from_rgb_uint(color);
 }
 
 bool RichTextParser::parse_color(uint32_t& color) {
@@ -568,6 +659,7 @@ void RichTextParser::raise_error() {
 void RichTextParser::finalize_runs() {
 	m_fontRuns.pop(m_output.length());
 	m_colorRuns.pop(m_output.length());
+	m_strokeRuns.pop(m_output.length());
 	m_strikethroughRuns.pop(m_output.length());
 	m_underlineRuns.pop(m_output.length());
 }
