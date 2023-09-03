@@ -1,3 +1,8 @@
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "")
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "")
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "")
+set(GLFW_INSTALL OFF CACHE BOOL "")
+
 set(ICU_CHARSET_IS_UTF8 ON CACHE BOOL "")
 
 set(MSDFGEN_BUILD_STANDALONE OFF CACHE BOOL "")
@@ -10,11 +15,15 @@ set(MSDFGEN_USE_SKIA OFF CACHE BOOL "")
 set(MSDFGEN_USE_VCPKG OFF CACHE BOOL "")
 
 add_subdirectory(freetype)
+add_subdirectory(glfw)
 add_subdirectory(harfbuzz)
 add_subdirectory(icu_cmake)
-add_subdirectory(minifb)
 add_subdirectory(msdfgen)
 add_subdirectory(simdjson)
+
+add_library(glad STATIC "")
+target_sources(glad PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/glad/src/glad.c")
+target_include_directories(glad PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/glad/include")
 
 if (MINGW)
 	target_compile_options(harfbuzz PRIVATE -Wa,-mbig-obj)
