@@ -9,16 +9,22 @@
 namespace RichText { struct Result; }
 namespace RichText { template <typename> class TextRuns; }
 
+class Image;
+class Pipeline;
+
 struct TextRect {
 	float x;
 	float y;
-	Bitmap texture;
+	float width;
+	float height;
+	float texCoords[4];
+	Image* texture;
 	Color color;
 };
 
 class TextBox {
 	public:
-		void render(Bitmap& target);
+		void render(const Pipeline&, const float* invHalfScreenSize);
 
 		void set_font(MultiScriptFont);
 		void set_text(std::string);

@@ -15,6 +15,8 @@ class Pipeline final {
 		void operator=(const Pipeline&) = delete;
 
 		void set_uniform(unsigned uniform, int) const;
+		void set_uniform_float2(unsigned uniform, const float*) const;
+		void set_uniform_float4(unsigned uniform, const float*) const;
 
 		void bind() const;
 	private:

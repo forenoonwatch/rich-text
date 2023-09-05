@@ -3,21 +3,37 @@
 #include "font.hpp"
 #include "font_cache.hpp"
 #include "rich_text.hpp"
+#include "image.hpp"
+#include "pipeline.hpp"
+#include "text_atlas.hpp"
 
 #include <layout/ParagraphLayout.h>
 #include <layout/RunArrays.h>
 
 #include <unicode/utext.h>
 
+#include <glad/glad.h>
+
 static constexpr const UChar32 CH_LF = 0x000A;
 static constexpr const UChar32 CH_CR = 0x000D;
 static constexpr const UChar32 CH_LSEP = 0x2028;
 static constexpr const UChar32 CH_PSEP = 0x2029;
 
-void TextBox::render(Bitmap& target) {
+void TextBox::render(const Pipeline& pipeline, const float* invScreenSize) {
+	pipeline.bind();
+	pipeline.set_uniform_float2(0, invScreenSize);
+
 	for (auto& rect : m_textRects) {
-		target.blit_alpha(rect.texture, static_cast<int32_t>(m_position[0] + rect.x),
-				static_cast<int32_t>(m_position[1] + rect.y), rect.color);
+		if (!rect.texture) {
+			continue;
+		}
+
+		rect.texture->bind();
+		float extents[] = {m_position[0] + rect.x, m_position[1] + rect.y, rect.width, rect.height}; 
+		pipeline.set_uniform_float4(1, extents);
+		pipeline.set_uniform_float4(2, rect.texCoords);
+		pipeline.set_uniform_float4(3, reinterpret_cast<const float*>(&rect.color));
+		glDrawArrays(GL_TRIANGLES, 0, 6);
 	}
 }
 
@@ -149,13 +165,20 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 					auto pY = posData[2 * i + 1];
 
 					float strokeOffset[2]{};
-					auto [strokeBitmap, strokeHasColor] = pFont->get_outline_glyph(pGlyphs[i], stroke.thickness,
-							stroke.joins, strokeOffset);
+					float strokeTexCoordExtents[4]{};
+					float strokeSize[2]{};
+					bool strokeHasColor{};
+					auto* pGlyphImage = g_textAtlas->get_stroke_info(*pFont, pGlyphs[i], stroke.thickness,
+							stroke.joins, strokeTexCoordExtents, strokeSize, strokeOffset, strokeHasColor);
 
 					m_textRects.push_back({
 						.x = lineX + pX + strokeOffset[0],
 						.y = lineY + pY + strokeOffset[1],
-						.texture = std::move(strokeBitmap),
+						.width = strokeSize[0],
+						.height = strokeSize[1],
+						.texCoords = {strokeTexCoordExtents[0], strokeTexCoordExtents[1],
+								strokeTexCoordExtents[2], strokeTexCoordExtents[3]},
+						.texture = pGlyphImage,
 						.color = stroke.color,
 					});
 				}
@@ -170,26 +193,34 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 				auto pY = posData[2 * i + 1];
 				auto globalCharIndex = pGlyphChars[i] + charOffset;
 				float glyphOffset[2]{};
-				auto [glyphBitmap, hasColor] = pFont->get_glyph(pGlyphs[i], glyphOffset);
-				auto textColor = hasColor ? Color{1.f, 1.f, 1.f, 1.f}
+				float glyphTexCoordExtents[4]{};
+				float glyphSize[2]{};
+				bool glyphHasColor{};
+				auto* pGlyphImage = g_textAtlas->get_glyph_info(*pFont, pGlyphs[i], glyphTexCoordExtents,
+						glyphSize, glyphOffset, glyphHasColor);
+				auto textColor = glyphHasColor ? Color{1.f, 1.f, 1.f, 1.f}
 						: textInfo.colorRuns.get_value(globalCharIndex);
 
 				if (textInfo.strikethroughRuns.get_value(globalCharIndex)) {
-					auto height = static_cast<uint32_t>(pFont->get_strikethrough_thickness() + 0.5f);
+					auto height = pFont->get_strikethrough_thickness() + 0.5f;
 					m_textRects.push_back({
 						.x = lineX + pX + glyphOffset[0],
 						.y = lineY + pY + pFont->get_strikethrough_position(),
-						.texture = Bitmap(glyphBitmap.get_width(), height, {1.f, 1.f, 1.f, 1.f}),
+						.width = glyphSize[0],
+						.height = height,
+						.texture = g_textAtlas->get_default_texture(),
 						.color = textColor,
 					});
 				}
 
 				if (textInfo.underlineRuns.get_value(globalCharIndex)) {
-					auto height = static_cast<uint32_t>(pFont->get_underline_thickness() + 0.5f);
+					auto height = pFont->get_underline_thickness() + 0.5f;
 					m_textRects.push_back({
 						.x = lineX + pX + glyphOffset[0],
 						.y = lineY + pY + pFont->get_underline_position(),
-						.texture = Bitmap(glyphBitmap.get_width(), height, {1.f, 1.f, 1.f, 1.f}),
+						.width = glyphSize[0],
+						.height = height,
+						.texture = g_textAtlas->get_default_texture(),
 						.color = textColor,
 					});
 				}
@@ -197,7 +228,11 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 				m_textRects.push_back({
 					.x = lineX + pX + glyphOffset[0],
 					.y = lineY + pY + glyphOffset[1],
-					.texture = std::move(glyphBitmap),
+					.width = glyphSize[0],
+					.height = glyphSize[1],
+					.texCoords = {glyphTexCoordExtents[0], glyphTexCoordExtents[1], glyphTexCoordExtents[2],
+							glyphTexCoordExtents[3]},
+					.texture = pGlyphImage,
 					.color = textColor,
 				});
 			}

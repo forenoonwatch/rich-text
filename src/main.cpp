@@ -9,15 +9,21 @@
 
 #include "image.hpp"
 #include "pipeline.hpp"
+#include "text_atlas.hpp"
 
-#include "fullscreen_triangle_shader.hpp"
+#include "rect_shader.hpp"
 
-static Bitmap g_bitmap;
+static Pipeline g_rectPipeline;
+
 static TextBox g_textBox;
 
-static Pipeline g_fullscreenTriangle;
+static int g_width = 640;
+static int g_height = 480;
 
+static void on_key_event(GLFWwindow* window, int key, int scancode, int action, int mods);
 static void on_resize(GLFWwindow* window, int width, int height);
+
+static void render();
 
 static void GLAPIENTRY gl_message_callback(GLenum source, GLenum type, GLuint id, GLenum severity,
 		GLsizei length, const GLchar* message, const void* userParam) {
@@ -31,6 +37,26 @@ int main() {
 	FontCache fontCache("fonts/families");
 	auto famIdx = fontCache.get_font_family("Noto Sans"); 
 	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 24);
+
+	glfwInit();
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	auto* window = glfwCreateWindow(g_width, g_height, "Font Tests", nullptr, nullptr);
+
+	glfwMakeContextCurrent(window);
+	gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress));
+
+	glEnable(GL_DEBUG_OUTPUT);
+	glDebugMessageCallback(gl_message_callback, 0);
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	g_rectPipeline = Pipeline(RectShader::vertexShader, RectShader::fragmentShader);
+
+	TextAtlas textAtlas;
+	g_textAtlas = &textAtlas;
 
 	g_textBox.set_rich_text(true);
 
@@ -48,31 +74,13 @@ int main() {
 
 	g_textBox.set_font(std::move(font));
 
-	glfwInit();
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-	auto* window = glfwCreateWindow(640, 480, "Font Tests", nullptr, nullptr);
+	on_resize(window, g_width, g_height);
 
-	glfwMakeContextCurrent(window);
-	gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress));
-
-	glEnable(GL_DEBUG_OUTPUT);
-	glDebugMessageCallback(gl_message_callback, 0);
-
-	g_fullscreenTriangle = Pipeline(FullscreenTriangle::vertexShader, FullscreenTriangle::fragmentShader);
-
-	on_resize(window, 640, 480);
-
-	Image image(GL_RGBA8, GL_BGRA, 640, 480, GL_UNSIGNED_BYTE, g_bitmap.data());
-
+	glfwSetKeyCallback(window, on_key_event);
 	glfwSetFramebufferSizeCallback(window, on_resize);
 
 	while (!glfwWindowShouldClose(window)) {
-		glClear(GL_COLOR_BUFFER_BIT);
-		image.bind();
-		g_fullscreenTriangle.bind();
-		glDrawArrays(GL_TRIANGLES, 0, 3);
+		render();
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
@@ -80,14 +88,28 @@ int main() {
 	glfwTerminate();
 }
 
+static void on_key_event(GLFWwindow* window, int key, int scancode, int action, int mods) {
+	if (key == GLFW_KEY_ESCAPE) {
+		glfwSetWindowShouldClose(window, true);
+	}
+}
+
 static void on_resize(GLFWwindow* window, int width, int height) {
 	glViewport(0, 0, width, height);
+	g_width = width;
+	g_height = height;
 
 	g_textBox.set_size(static_cast<float>(width), static_cast<float>(height));
 
-	g_bitmap = Bitmap(width, height);
-	g_bitmap.clear({1.f, 1.f, 1.f, 1.f});
+}
 
-	g_textBox.render(g_bitmap);
+static void render() {
+	float invScreenSize[] = {1.f / static_cast<float>(g_width), 1.f / static_cast<float>(g_height)};
+
+	glClearColor(1.f, 1.f, 1.f, 1.f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	g_textBox.render(g_rectPipeline, invScreenSize);
+
 }
 

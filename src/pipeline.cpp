@@ -46,6 +46,14 @@ void Pipeline::set_uniform(unsigned uniform, int value) const {
 	glUniform1i(uniform, value);
 }
 
+void Pipeline::set_uniform_float2(unsigned uniform, const float* value) const {
+	glUniform2fv(uniform, 1, value);
+}
+
+void Pipeline::set_uniform_float4(unsigned uniform, const float* value) const {
+	glUniform4fv(uniform, 1, value);
+}
+
 void Pipeline::bind() const {
 	glBindVertexArray(m_vao);
 	glUseProgram(m_program);
