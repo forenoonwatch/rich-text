@@ -540,7 +540,8 @@ void RichTextParser::parse_attribute(std::u32string_view name, Color& value) {
 		return;
 	}
 
-	value = Color::from_rgb_uint(color);
+	value = Color::from_abgr_uint(color);
+	value.a = 1.f;
 }
 
 bool RichTextParser::parse_color(uint32_t& color) {

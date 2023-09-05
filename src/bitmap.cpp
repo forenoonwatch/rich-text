@@ -3,22 +3,6 @@
 #include <algorithm>
 #include <cstring>
 
-constexpr uint32_t make_argb(float r, float g, float b, float a) {
-	return ((static_cast<uint32_t>(r * 255.f) & 0xFFu) << 16)
-			| ((static_cast<uint32_t>(g * 255.f) & 0xFFu) << 8)
-			| ((static_cast<uint32_t>(b * 255.f) & 0xFFu) << 0)
-			| ((static_cast<uint32_t>(a * 255.f) & 0xFFu) << 24);
-}
-
-constexpr uint32_t make_argb(const Color& color) {
-	return make_argb(color.r, color.g, color.b, color.a);
-}
-
-constexpr Color make_color(uint32_t argb) {
-	return {static_cast<float>((argb >> 16) & 0xFFu) / 255.f, static_cast<float>((argb >> 8) & 0xFFu) / 255.f,
-			static_cast<float>(argb & 0xFFu) / 255.f, static_cast<float>((argb >> 24) & 0xFFu) / 255.f};
-}
-
 Bitmap::Bitmap(uint32_t width, uint32_t height)
 		: m_data(std::make_unique<uint32_t[]>(width * height))
 		, m_width(width)
@@ -32,7 +16,7 @@ Bitmap::Bitmap(uint32_t width, uint32_t height, const Color& color)
 }
 
 void Bitmap::clear(const Color& color) {
-	auto value = make_argb(color);
+	auto value = Color::to_argb(color);
 	std::fill_n(m_data.get(), m_width * m_height, value);
 }
 
@@ -40,7 +24,7 @@ void Bitmap::fill_rect(int32_t x, int32_t y, uint32_t width, uint32_t height, co
 	x = std::max(0, x);
 	y = std::max(0, y);
 
-	auto value = make_argb(color);
+	auto value = Color::to_argb(color);
 	auto* pPixels = &m_data[y * m_width + x];
 
 	width = std::min(width, m_width - x);
@@ -77,17 +61,22 @@ void Bitmap::blit_alpha(const Bitmap& src, int32_t x, int32_t y, const Color& co
 			auto srcColor = src.get_pixel(ix - x, iy - y) * color;
 			auto dstColor = get_pixel(ix, iy);
 
-			set_pixel(ix, iy, Color::blend(srcColor, dstColor));
+			if (dstColor.a > 0.f) {
+				set_pixel(ix, iy, Color::blend(srcColor, dstColor));
+			}
+			else {
+				set_pixel(ix, iy, srcColor);
+			}
 		}
 	}
 }
 
 void Bitmap::set_pixel(uint32_t x, uint32_t y, const Color& color) {
-	m_data[y * m_width + x] = make_argb(color);
+	m_data[y * m_width + x] = Color::to_argb(color);
 }
 
 Color Bitmap::get_pixel(uint32_t x, uint32_t y) const {
-	return make_color(m_data[y * m_width + x]);
+	return Color::from_argb_uint(m_data[y * m_width + x]);
 }
 
 uint32_t Bitmap::get_width() const {

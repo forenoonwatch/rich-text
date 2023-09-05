@@ -20,8 +20,8 @@ TextAtlas::TextAtlas() {
 	m_defaultImage = Image(GL_R8, GL_RED, 8, 8, GL_UNSIGNED_BYTE, imageData);
 }
 
-Image* TextAtlas::get_glyph_info(const Font& font, uint32_t glyphIndex, float* texCoordExtentsOut, float* sizeOut,
-		float* offsetOut, bool& hasColorOut) {
+Image* TextAtlas::get_glyph_info(const Font& font, uint32_t glyphIndex, float* texCoordExtentsOut,
+		float* sizeOut, float* offsetOut, bool& hasColorOut) {
 	GlyphKey key{font.get_size(), glyphIndex, font.get_face()};
 
 	if (auto it = m_glyphs.find(key); it != m_glyphs.end()) {
@@ -124,7 +124,7 @@ TextAtlas::Page* TextAtlas::get_or_create_target_page(uint32_t width, uint32_t h
 	}
 
 	auto page = std::make_unique<Page>();
-	page->image = Image(GL_RGBA8, GL_BGRA, TEXTURE_EXTENT, TEXTURE_EXTENT, GL_UNSIGNED_BYTE);
+	page->image = Image(GL_RGBA8, GL_RGBA, TEXTURE_EXTENT, TEXTURE_EXTENT, GL_UNSIGNED_BYTE);
 	page->xOffset = 0;
 	page->yOffset = 0;
 	page->lineHeight = 0;
