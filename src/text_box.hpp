@@ -20,11 +20,12 @@ struct TextRect {
 	float texCoords[4];
 	Image* texture;
 	Color color;
+	bool msdf;
 };
 
 class TextBox {
 	public:
-		void render(const Pipeline&, const float* invHalfScreenSize);
+		void render(const Pipeline& rectPipeline, const Pipeline& msdfPipeline, const float* invScreenSize);
 
 		void set_font(MultiScriptFont);
 		void set_text(std::string);

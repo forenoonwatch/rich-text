@@ -10,10 +10,13 @@
 #include "image.hpp"
 #include "pipeline.hpp"
 #include "text_atlas.hpp"
+#include "msdf_text_atlas.hpp"
 
+#include "msdf_shader.hpp"
 #include "rect_shader.hpp"
 
 static Pipeline g_rectPipeline;
+static Pipeline g_msdfPipeline;
 
 static TextBox g_textBox;
 
@@ -54,9 +57,13 @@ int main() {
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	g_rectPipeline = Pipeline(RectShader::vertexShader, RectShader::fragmentShader);
+	g_msdfPipeline = Pipeline(MSDFShader::vertexShader, MSDFShader::fragmentShader);
 
 	TextAtlas textAtlas;
 	g_textAtlas = &textAtlas;
+
+	MSDFTextAtlas msdfTextAtlas;
+	g_msdfTextAtlas = &msdfTextAtlas;
 
 	g_textBox.set_rich_text(true);
 
@@ -109,7 +116,7 @@ static void render() {
 	glClearColor(1.f, 1.f, 1.f, 1.f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	g_textBox.render(g_rectPipeline, invScreenSize);
+	g_textBox.render(g_rectPipeline, g_msdfPipeline, invScreenSize);
 
 }
 

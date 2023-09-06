@@ -6,6 +6,7 @@
 #include "image.hpp"
 #include "pipeline.hpp"
 #include "text_atlas.hpp"
+#include "msdf_text_atlas.hpp"
 
 #include <layout/ParagraphLayout.h>
 #include <layout/RunArrays.h>
@@ -14,25 +15,48 @@
 
 #include <glad/glad.h>
 
+static constexpr const bool g_useMSDF = false;
+
 static constexpr const UChar32 CH_LF = 0x000A;
 static constexpr const UChar32 CH_CR = 0x000D;
 static constexpr const UChar32 CH_LSEP = 0x2028;
 static constexpr const UChar32 CH_PSEP = 0x2029;
 
-void TextBox::render(const Pipeline& pipeline, const float* invScreenSize) {
-	pipeline.bind();
-	pipeline.set_uniform_float2(0, invScreenSize);
+void TextBox::render(const Pipeline& rectPipeline, const Pipeline& msdfPipeline, const float* invScreenSize) {
+	bool usingMSDF = false;
+	rectPipeline.bind();
+	rectPipeline.set_uniform_float2(0, invScreenSize);
 
 	for (auto& rect : m_textRects) {
 		if (!rect.texture) {
 			continue;
 		}
 
+		if (rect.msdf != usingMSDF) {
+			usingMSDF = rect.msdf;
+
+			if (usingMSDF) {
+				msdfPipeline.bind();
+				msdfPipeline.set_uniform_float2(0, invScreenSize);
+			}
+			else {
+				rectPipeline.bind();
+				rectPipeline.set_uniform_float2(0, invScreenSize);
+			}
+		}
+
 		rect.texture->bind();
 		float extents[] = {m_position[0] + rect.x, m_position[1] + rect.y, rect.width, rect.height}; 
-		pipeline.set_uniform_float4(1, extents);
-		pipeline.set_uniform_float4(2, rect.texCoords);
-		pipeline.set_uniform_float4(3, reinterpret_cast<const float*>(&rect.color));
+		if (rect.msdf) {
+			msdfPipeline.set_uniform_float4(1, extents);
+			msdfPipeline.set_uniform_float4(2, rect.texCoords);
+			msdfPipeline.set_uniform_float4(3, reinterpret_cast<const float*>(&rect.color));
+		}
+		else {
+			rectPipeline.set_uniform_float4(1, extents);
+			rectPipeline.set_uniform_float4(2, rect.texCoords);
+			rectPipeline.set_uniform_float4(3, reinterpret_cast<const float*>(&rect.color));
+		}
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 	}
 }
@@ -168,7 +192,10 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 					float strokeTexCoordExtents[4]{};
 					float strokeSize[2]{};
 					bool strokeHasColor{};
-					auto* pGlyphImage = g_textAtlas->get_stroke_info(*pFont, pGlyphs[i], stroke.thickness,
+					auto* pGlyphImage = g_useMSDF ? g_msdfTextAtlas->get_stroke_info(*pFont, pGlyphs[i],
+							stroke.thickness, stroke.joins, strokeTexCoordExtents, strokeSize, strokeOffset,
+							strokeHasColor)
+							: g_textAtlas->get_stroke_info(*pFont, pGlyphs[i], stroke.thickness,
 							stroke.joins, strokeTexCoordExtents, strokeSize, strokeOffset, strokeHasColor);
 
 					m_textRects.push_back({
@@ -180,6 +207,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 								strokeTexCoordExtents[2], strokeTexCoordExtents[3]},
 						.texture = pGlyphImage,
 						.color = stroke.color,
+						.msdf = g_useMSDF,
 					});
 				}
 			}
@@ -196,7 +224,9 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 				float glyphTexCoordExtents[4]{};
 				float glyphSize[2]{};
 				bool glyphHasColor{};
-				auto* pGlyphImage = g_textAtlas->get_glyph_info(*pFont, pGlyphs[i], glyphTexCoordExtents,
+				auto* pGlyphImage = g_useMSDF ? g_msdfTextAtlas->get_glyph_info(*pFont, pGlyphs[i],
+						glyphTexCoordExtents, glyphSize, glyphOffset, glyphHasColor)
+						: g_textAtlas->get_glyph_info(*pFont, pGlyphs[i], glyphTexCoordExtents,
 						glyphSize, glyphOffset, glyphHasColor);
 				auto textColor = glyphHasColor ? Color{1.f, 1.f, 1.f, 1.f}
 						: textInfo.colorRuns.get_value(globalCharIndex);
@@ -210,6 +240,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 						.height = height,
 						.texture = g_textAtlas->get_default_texture(),
 						.color = textColor,
+						.msdf = false,
 					});
 				}
 
@@ -222,6 +253,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 						.height = height,
 						.texture = g_textAtlas->get_default_texture(),
 						.color = textColor,
+						.msdf = false,
 					});
 				}
 
@@ -234,6 +266,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 							glyphTexCoordExtents[3]},
 					.texture = pGlyphImage,
 					.color = textColor,
+					.msdf = g_useMSDF,
 				});
 			}
 		}

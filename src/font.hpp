@@ -26,6 +26,10 @@ class Font final : public icu::LEFontInstance {
 		FontGlyphResult get_outline_glyph(uint32_t glyphIndex, uint8_t thickness, StrokeType,
 				float* offsetOut) const;
 
+		Bitmap get_msdf_glyph(uint32_t glyphIndex, float* offsetOut) const;
+		Bitmap get_msdf_outline_glyph(uint32_t glyphIndex, uint8_t thickness, StrokeType,
+				float* offsetOut) const;
+
 		float get_underline_position() const;
 		float get_underline_thickness() const;
 
