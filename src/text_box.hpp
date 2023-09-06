@@ -2,6 +2,7 @@
 
 #include "bitmap.hpp"
 #include "multi_script_font.hpp"
+#include "pipeline.hpp"
 
 #include <string>
 #include <vector>
@@ -20,12 +21,12 @@ struct TextRect {
 	float texCoords[4];
 	Image* texture;
 	Color color;
-	bool msdf;
+	PipelineIndex pipeline;
 };
 
 class TextBox {
 	public:
-		void render(const Pipeline& rectPipeline, const Pipeline& msdfPipeline, const float* invScreenSize);
+		void render(const float* invScreenSize);
 
 		void set_font(MultiScriptFont);
 		void set_text(std::string);

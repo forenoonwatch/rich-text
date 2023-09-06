@@ -22,42 +22,28 @@ static constexpr const UChar32 CH_CR = 0x000D;
 static constexpr const UChar32 CH_LSEP = 0x2028;
 static constexpr const UChar32 CH_PSEP = 0x2029;
 
-void TextBox::render(const Pipeline& rectPipeline, const Pipeline& msdfPipeline, const float* invScreenSize) {
-	bool usingMSDF = false;
-	rectPipeline.bind();
-	rectPipeline.set_uniform_float2(0, invScreenSize);
+void TextBox::render(const float* invScreenSize) {
+	PipelineIndex pipelineIndex{PipelineIndex::INVALID};
+	Pipeline* pPipeline = nullptr;
 
 	for (auto& rect : m_textRects) {
 		if (!rect.texture) {
 			continue;
 		}
 
-		if (rect.msdf != usingMSDF) {
-			usingMSDF = rect.msdf;
-
-			if (usingMSDF) {
-				msdfPipeline.bind();
-				msdfPipeline.set_uniform_float2(0, invScreenSize);
-			}
-			else {
-				rectPipeline.bind();
-				rectPipeline.set_uniform_float2(0, invScreenSize);
-			}
+		if (rect.pipeline != pipelineIndex) {
+			pipelineIndex = rect.pipeline;
+			pPipeline = &g_pipelines[static_cast<size_t>(pipelineIndex)];
+			pPipeline->bind();
+			pPipeline->set_uniform_float2(0, invScreenSize);
 		}
 
 		rect.texture->bind();
 		float extents[] = {m_position[0] + rect.x, m_position[1] + rect.y, rect.width, rect.height}; 
-		if (rect.msdf) {
-			msdfPipeline.set_uniform_float4(1, extents);
-			msdfPipeline.set_uniform_float4(2, rect.texCoords);
-			msdfPipeline.set_uniform_float4(3, reinterpret_cast<const float*>(&rect.color));
-		}
-		else {
-			rectPipeline.set_uniform_float4(1, extents);
-			rectPipeline.set_uniform_float4(2, rect.texCoords);
-			rectPipeline.set_uniform_float4(3, reinterpret_cast<const float*>(&rect.color));
-		}
-		glDrawArrays(GL_TRIANGLES, 0, 6);
+		pPipeline->set_uniform_float4(1, extents);
+		pPipeline->set_uniform_float4(2, rect.texCoords);
+		pPipeline->set_uniform_float4(3, reinterpret_cast<const float*>(&rect.color));
+		pPipeline->draw();
 	}
 }
 
@@ -207,7 +193,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 								strokeTexCoordExtents[2], strokeTexCoordExtents[3]},
 						.texture = pGlyphImage,
 						.color = stroke.color,
-						.msdf = g_useMSDF,
+						.pipeline = g_useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT,
 					});
 				}
 			}
@@ -240,7 +226,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 						.height = height,
 						.texture = g_textAtlas->get_default_texture(),
 						.color = textColor,
-						.msdf = false,
+						.pipeline = PipelineIndex::RECT,
 					});
 				}
 
@@ -253,7 +239,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 						.height = height,
 						.texture = g_textAtlas->get_default_texture(),
 						.color = textColor,
-						.msdf = false,
+						.pipeline = PipelineIndex::RECT,
 					});
 				}
 
@@ -266,7 +252,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 							glyphTexCoordExtents[3]},
 					.texture = pGlyphImage,
 					.color = textColor,
-					.msdf = g_useMSDF,
+					.pipeline = g_useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT,
 				});
 			}
 		}

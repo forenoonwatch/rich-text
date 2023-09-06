@@ -2,14 +2,32 @@
 
 #include "image.hpp"
 
+#include "rect_shader.hpp"
+#include "msdf_shader.hpp"
+#include "outline_shader.hpp"
+
 #include <glad/glad.h>
+
+#include <utility>
 
 #include <cstdio>
 
 static void try_compile_program(const char* vertexSource, const char* fragmentSource, unsigned& outProgram);
 static bool try_compile_shader(const char* source, GLenum type, unsigned& outShader);
 
-Pipeline::Pipeline(const char* vertexSource, const char* fragmentSource) {
+void init_pipelines() {
+	g_pipelines[static_cast<size_t>(PipelineIndex::RECT)] = Pipeline(RectShader::vertexShader,
+			RectShader::fragmentShader, GL_TRIANGLES, 6);
+	g_pipelines[static_cast<size_t>(PipelineIndex::MSDF)] = Pipeline(MSDFShader::vertexShader,
+			MSDFShader::fragmentShader, GL_TRIANGLES, 6);
+	g_pipelines[static_cast<size_t>(PipelineIndex::OUTLINE)] = Pipeline(OutlineShader::vertexShader,
+			OutlineShader::fragmentShader, GL_LINE_LOOP, 4);
+}
+
+Pipeline::Pipeline(const char* vertexSource, const char* fragmentSource, unsigned primitive,
+			unsigned vertexCount)
+		: m_primitive(primitive)
+		, m_vertexCount(vertexCount) {
 	glCreateVertexArrays(1, &m_vao);
 	try_compile_program(vertexSource, fragmentSource, m_program);
 }
@@ -26,18 +44,18 @@ Pipeline::~Pipeline() {
 
 Pipeline::Pipeline(Pipeline&& other) noexcept
 		: m_vao(other.m_vao)
-		, m_program(other.m_program) {
+		, m_program(other.m_program)
+		, m_primitive(other.m_primitive)
+		, m_vertexCount(other.m_vertexCount) {
 	other.m_vao = 0;
 	other.m_program = 0;
 }
 
 Pipeline& Pipeline::operator=(Pipeline&& other) noexcept {
-	this->~Pipeline();
-
-	m_vao = other.m_vao;
-	m_program = other.m_program;
-	other.m_vao = 0;
-	other.m_program = 0;
+	std::swap(m_vao, other.m_vao);
+	std::swap(m_program, other.m_program);
+	m_primitive = other.m_primitive;
+	m_vertexCount = other.m_vertexCount;
 
 	return *this;
 }
@@ -57,6 +75,10 @@ void Pipeline::set_uniform_float4(unsigned uniform, const float* value) const {
 void Pipeline::bind() const {
 	glBindVertexArray(m_vao);
 	glUseProgram(m_program);
+}
+
+void Pipeline::draw() const {
+	glDrawArrays(m_primitive, 0, m_vertexCount);
 }
 
 static void try_compile_program(const char* vertexSource, const char* fragmentSource, unsigned& outProgram) {
