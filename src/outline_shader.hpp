@@ -14,7 +14,7 @@ layout (location = 0) out vec4 v_color;
 
 void main() {
 	uint b = 1 << (gl_VertexID % 4);
-	vec2 baseCoord = vec2((0xA & b) != 0, (0xC & b) != 0);
+	vec2 baseCoord = vec2((0x6 & b) != 0, (0xC & b) != 0);
 	gl_Position = vec4(floor(fma(baseCoord, u_extents.zw, u_extents.xy)) * u_invScreenSize, 0, 1);
 	gl_Position.xy = fma(gl_Position.xy, vec2(2.0, -2.0), vec2(-1.0, 1.0));
 	v_color = u_color;
