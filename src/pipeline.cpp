@@ -24,6 +24,12 @@ void init_pipelines() {
 			OutlineShader::fragmentShader, GL_LINE_LOOP, 4);
 }
 
+void deinit_pipelines() {
+	for (size_t i = 0; i < static_cast<size_t>(PipelineIndex::COUNT); ++i) {
+		g_pipelines[i] = {};
+	}
+}
+
 Pipeline::Pipeline(const char* vertexSource, const char* fragmentSource, unsigned primitive,
 			unsigned vertexCount)
 		: m_primitive(primitive)

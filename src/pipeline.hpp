@@ -16,8 +16,7 @@ class Pipeline final {
 		void operator=(const Pipeline&) = delete;
 
 		void set_uniform(unsigned uniform, int) const;
-		void set_uniform_float2(unsigned uniform, const float*) const;
-		void set_uniform_float4(unsigned uniform, const float*) const;
+		void set_uniform_float2(unsigned uniform, const float*) const; void set_uniform_float4(unsigned uniform, const float*) const;
 
 		void bind() const;
 		void draw() const;
@@ -39,4 +38,5 @@ enum class PipelineIndex {
 inline Pipeline g_pipelines[static_cast<unsigned long long>(PipelineIndex::COUNT)]{};
 
 void init_pipelines();
+void deinit_pipelines();
 

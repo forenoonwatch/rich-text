@@ -53,11 +53,8 @@ int main() {
 
 	init_pipelines();
 
-	TextAtlas textAtlas;
-	g_textAtlas = &textAtlas;
-
-	MSDFTextAtlas msdfTextAtlas;
-	g_msdfTextAtlas = &msdfTextAtlas;
+	g_textAtlas = new TextAtlas;
+	g_msdfTextAtlas = new MSDFTextAtlas;
 
 	g_textBox.set_rich_text(true);
 
@@ -84,6 +81,11 @@ int main() {
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
+
+	delete g_msdfTextAtlas;
+	delete g_textAtlas;
+
+	deinit_pipelines();
 
 	glfwTerminate();
 }
