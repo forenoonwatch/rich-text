@@ -45,6 +45,9 @@ set(ICULIBS_TOOLUTIL icu${TOOLUTIL_STUBNAME})
 set(ICULIBS_LX icu${LAYOUTEX_STUBNAME})
 set(ICULIBS_CTESTFW icu${CTESTFW_STUBNAME})
 
+include(CheckIncludeFiles)
+check_include_files(elf.h ICU_HAVE_ELF_H)
+
 add_subdirectory(common)
 add_subdirectory(i18n)
 add_subdirectory(stubdata)

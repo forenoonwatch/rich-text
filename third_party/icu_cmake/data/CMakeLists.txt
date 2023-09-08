@@ -42,10 +42,7 @@ endif()
 
 set(ICUPKG_INC ${CMAKE_CURRENT_BINARY_DIR}/icupkg.inc)
 
-set(ECHO_COMMAND "${CMAKE_COMMAND} -E echo")
-if (WIN32)
-	set(ECHO_COMMAND "echo")
-endif()
+set(ECHO_COMMAND "echo")
 configure_file(${CMAKE_CURRENT_LIST_DIR}/icupkg.inc.cmake ${ICUPKG_INC} @ONLY)
 
 set(DATA_EXTRACT_DIR "${CMAKE_CURRENT_BINARY_DIR}/build")
@@ -128,6 +125,10 @@ set(ICUDATA_LINK_FLAGS " ")
 
 if (MSVC)
 	set(ICUDATA_LINK_FLAGS "-base:\"0x4ad00000\" -NOENTRY")
+endif()
+
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
+	set(ICUDATA_LINK_FLAGS "${ICUDATA_LINK_FLAGS} -nodefaultlibs -nostdlib")
 endif()
 
 set_target_properties(${lib_NAME} PROPERTIES

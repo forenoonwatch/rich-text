@@ -9,6 +9,11 @@ set_target_properties(ICU_toolutil PROPERTIES
 		${STATIC_PREFIX}${ICULIBS_TOOLUTIL}${ICULIBSUFFIX_VERSION}${ICULIBSUFFIX_DEBUG}
 )
 target_compile_definitions(ICU_toolutil PRIVATE U_TOOLUTIL_IMPLEMENTATION)
+
+if (ICU_HAVE_ELF_H)
+	target_compile_definitions(ICU_toolutil PUBLIC U_HAVE_ELF_H)
+endif()
+
 file(GLOB_RECURSE ICU_TOOLS_TOOLUTIL_SOURCE_FILES "${ICU_SOURCE_DIR}/tools/toolutil/*.cpp")
 target_sources(ICU_toolutil PRIVATE ${ICU_TOOLS_TOOLUTIL_SOURCE_FILES})
 target_include_directories(ICU_toolutil PUBLIC "${ICU_SOURCE_DIR}/tools/toolutil")
@@ -26,14 +31,14 @@ add_executable(pkgdata
 	"${ICU_SOURCE_DIR}/tools/pkgdata/pkgdata.cpp"
 	"${ICU_SOURCE_DIR}/tools/pkgdata/pkgtypes.c"
 )
-target_link_libraries(pkgdata PUBLIC ICU_toolutil ICU_stubdata)
+target_link_libraries(pkgdata PUBLIC ICU_toolutil ICU_i18n ICU_common ICU_stubdata)
 
 
 add_executable(ICU::pkgdata ALIAS pkgdata)
 
 # icupkg
 add_executable(icupkg "${ICU_SOURCE_DIR}/tools/icupkg/icupkg.cpp")
-target_link_libraries(icupkg PUBLIC ICU_toolutil ICU_stubdata)
+target_link_libraries(icupkg PUBLIC ICU_toolutil ICU_i18n ICU_common ICU_stubdata)
 
 add_executable(ICU::icupkg ALIAS icupkg)
 

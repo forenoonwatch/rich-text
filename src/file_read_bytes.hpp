@@ -6,9 +6,9 @@
 #include <cstddef>
 
 inline std::vector<char> file_read_bytes(const char* fileName) {
-	FILE* file{};
+	FILE* file = std::fopen(fileName, "rb");
 
-	if (fopen_s(&file, fileName, "rb") != 0) {
+	if (!file) {
 		return {};
 	}
 
