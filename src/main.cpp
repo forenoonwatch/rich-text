@@ -63,14 +63,13 @@ int main() {
 
 	{
 		std::vector<char> fileData;
-		if (fileData = file_read_bytes("Sample.txt"); fileData.empty()) {
-			puts("File Sample.txt must be present!");
-			return 1;
+		if (fileData = file_read_bytes("Sample.txt"); !fileData.empty()) {
+			std::string str(fileData.data(), fileData.size());
+			g_textBox.set_text(std::move(str));
 		}
-
-		std::string str(fileData.data(), fileData.size());
-
-		g_textBox.set_text(std::move(str));
+		else {
+			g_textBox.set_text("Error: Sample.txt must be present in the build directory");
+		}
 	}
 
 	g_textBox.set_font(std::move(font));
