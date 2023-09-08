@@ -18,7 +18,7 @@ add_library(ICU::toolutil ALIAS ICU_toolutil)
 
 add_custom_command(TARGET ICU_toolutil POST_BUILD
 	COMMAND
-		${CMAKE_COMMAND} -E copy_if_different "${PROJECT_BINARY_DIR}/stubdata/libicudt.dll" $<TARGET_FILE_DIR:ICU_toolutil>
+		${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:ICU::stubdata> $<TARGET_FILE_DIR:ICU_toolutil>
 )
 
 # pkgdata

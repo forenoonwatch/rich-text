@@ -124,6 +124,12 @@ set(lib_NAME_SUFFIX ${DATA_STUBNAME})
 
 add_library(${lib_NAME} SHARED "")
 
+set(ICUDATA_LINK_FLAGS " ")
+
+if (MSVC)
+	set(ICUDATA_LINK_FLAGS "-base:\"0x4ad00000\" -NOENTRY")
+endif()
+
 set_target_properties(${lib_NAME} PROPERTIES
 	LINKER_LANGUAGE C
 	EXPORT_NAME ${lib_NAME_SUFFIX}
@@ -131,6 +137,7 @@ set_target_properties(${lib_NAME} PROPERTIES
 		${STATIC_PREFIX}${lib_NAME}${ICULIBSUFFIX_DEBUG}
 	RUNTIME_OUTPUT_NAME
 		${STATIC_PREFIX}${lib_NAME}${ICULIBSUFFIX_VERSION}${ICULIBSUFFIX_DEBUG}
+	LINK_FLAGS ${ICUDATA_LINK_FLAGS}
 )
 
 target_include_directories(${lib_NAME} PRIVATE

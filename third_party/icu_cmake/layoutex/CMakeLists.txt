@@ -8,7 +8,7 @@ set_target_properties(ICU_layoutex PROPERTIES
 	RUNTIME_OUTPUT_NAME
 		${STATIC_PREFIX}${ICULIBS_LX}${ICULIBSUFFIX_VERSION}${ICULIBSUFFIX_DEBUG}
 )
-target_compile_definitions(ICU_layoutex PRIVATE U_TOOLUTIL_IMPLEMENTATION)
+target_compile_definitions(ICU_layoutex PRIVATE U_LAYOUTEX_IMPLEMENTATION)
 file(GLOB ICU_LAYOUTEX_SOURCE_FILES "${ICU_SOURCE_DIR}/layoutex/*.cpp")
 target_sources(ICU_layoutex PRIVATE ${ICU_LAYOUTEX_SOURCE_FILES})
 target_include_directories(ICU_layoutex PUBLIC "${ICU_SOURCE_DIR}/layoutex")

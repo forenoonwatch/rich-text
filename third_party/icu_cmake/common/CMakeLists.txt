@@ -8,6 +8,9 @@ set_target_properties(ICU_common PROPERTIES
 	RUNTIME_OUTPUT_NAME
 		${STATIC_PREFIX}${ICULIBS_UC}${ICULIBSUFFIX_VERSION}${ICULIBSUFFIX_DEBUG}
 )
+target_compile_options(ICU_common PUBLIC "$<$<C_COMPILER_ID:MSVC>:/utf-8>")
+target_compile_options(ICU_common PUBLIC "$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
+target_compile_definitions(ICU_common PUBLIC U_STATIC_IMPLEMENTATION)
 target_compile_definitions(ICU_common PRIVATE U_COMMON_IMPLEMENTATION)
 file(GLOB_RECURSE ICU_COMMON_SOURCE_FILES "${ICU_SOURCE_DIR}/common/*.cpp")
 target_sources(ICU_common PRIVATE ${ICU_COMMON_SOURCE_FILES})
