@@ -19,6 +19,9 @@ static int g_width = 640;
 static int g_height = 480;
 
 static void on_key_event(GLFWwindow* window, int key, int scancode, int action, int mods);
+static void on_mouse_button_event(GLFWwindow* window, int button, int action, int mods);
+static void on_text_event(GLFWwindow* window, unsigned codepoint);
+static void on_focus_event(GLFWwindow* window, int focused);
 static void on_resize(GLFWwindow* window, int width, int height);
 
 static void render();
@@ -74,6 +77,9 @@ int main() {
 	on_resize(window, g_width, g_height);
 
 	glfwSetKeyCallback(window, on_key_event);
+	glfwSetMouseButtonCallback(window, on_mouse_button_event);
+	glfwSetCharCallback(window, on_text_event);
+	glfwSetWindowFocusCallback(window, on_focus_event);
 	glfwSetFramebufferSizeCallback(window, on_resize);
 
 	while (!glfwWindowShouldClose(window)) {
@@ -94,6 +100,28 @@ static void on_key_event(GLFWwindow* window, int key, int scancode, int action, 
 	if (key == GLFW_KEY_ESCAPE) {
 		glfwSetWindowShouldClose(window, true);
 	}
+	else {
+		g_textBox.handle_key_press(key, action, mods);
+	}
+}
+
+static void on_mouse_button_event(GLFWwindow* window, int button, int action, int mods) {
+	double mouseX, mouseY;
+	glfwGetCursorPos(window, &mouseX, &mouseY);
+
+	g_textBox.handle_mouse_button(button, mouseX, mouseY);
+}
+
+static void on_text_event(GLFWwindow* window, unsigned codepoint) {
+	g_textBox.handle_text_input(codepoint);
+}
+
+static void on_focus_event(GLFWwindow* window, int focused) {
+	if (!focused) {
+		if (auto* pFocusedTextBox = TextBox::get_focused_text_box()) {
+			pFocusedTextBox->release_focus();
+		}
+	}
 }
 
 static void on_resize(GLFWwindow* window, int width, int height) {
@@ -102,7 +130,6 @@ static void on_resize(GLFWwindow* window, int width, int height) {
 	g_height = height;
 
 	g_textBox.set_size(static_cast<float>(width), static_cast<float>(height));
-
 }
 
 static void render() {

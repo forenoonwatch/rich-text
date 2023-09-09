@@ -14,6 +14,7 @@
 #include <unicode/utext.h>
 
 #include <glad/glad.h>
+#include <GLFW/glfw3.h>
 
 static constexpr const bool g_useMSDF = false;
 
@@ -21,6 +22,65 @@ static constexpr const UChar32 CH_LF = 0x000A;
 static constexpr const UChar32 CH_CR = 0x000D;
 static constexpr const UChar32 CH_LSEP = 0x2028;
 static constexpr const UChar32 CH_PSEP = 0x2029;
+
+static TextBox* g_focusedTextBox = nullptr;
+
+TextBox* TextBox::get_focused_text_box() {
+	return g_focusedTextBox;
+}
+
+TextBox::~TextBox() {
+	release_focus();
+}
+
+bool TextBox::handle_mouse_button(int button, double mouseX, double mouseY) {
+	bool mouseInside = is_mouse_inside(mouseX, mouseY);
+
+	if (g_focusedTextBox == this) {
+		if (is_mouse_inside(mouseX, mouseY)) {
+			// FIXME: click inside focused text box - move cursor or something
+		}
+		else {
+			release_focus();
+		}
+	}
+	else {
+		capture_focus();
+	}
+
+	return mouseInside;
+}
+
+bool TextBox::handle_key_press(int key, int action, int mods) {
+	return g_focusedTextBox == this;
+}
+
+bool TextBox::handle_text_input(unsigned codepoint) {
+	return g_focusedTextBox == this;
+}
+
+void TextBox::capture_focus() {
+	if (g_focusedTextBox == this) {
+		return;
+	}
+	else if (g_focusedTextBox) {
+		g_focusedTextBox->release_focus();
+	}
+
+	g_focusedTextBox = this;
+
+	recalc_text_internal(false);
+}
+
+void TextBox::release_focus() {
+	if (g_focusedTextBox != this) {
+		return;
+	}
+
+	g_focusedTextBox = nullptr;
+
+	recalc_text();
+}
 
 void TextBox::render(const float* invScreenSize) {
 	PipelineIndex pipelineIndex{PipelineIndex::INVALID};
@@ -47,7 +107,18 @@ void TextBox::render(const float* invScreenSize) {
 	}
 }
 
+bool TextBox::is_mouse_inside(double mouseX, double mouseY) const {
+	return mouseX >= m_position[0] && mouseY >= m_position[1] && mouseX - m_position[0] <= m_size[0]
+			&& mouseY - m_position[1] <= m_size[1];
+}
+
+// Private Methods
+
 void TextBox::recalc_text() {
+	recalc_text_internal(m_richText);
+}
+
+void TextBox::recalc_text_internal(bool richText) {
 	m_textRects.clear();
 
 	if (!m_font) {
@@ -55,7 +126,7 @@ void TextBox::recalc_text() {
 	}
 
 	RichText::StrokeState strokeState{};
-	auto runs = m_richText ? RichText::parse(m_text, m_contentText, m_font, m_textColor, strokeState)
+	auto runs = richText ? RichText::parse(m_text, m_contentText, m_font, m_textColor, strokeState)
 			: RichText::make_default_runs(m_text, m_contentText, m_font, m_textColor, strokeState);
 
 	if (m_contentText.empty()) {
