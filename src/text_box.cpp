@@ -17,6 +17,7 @@
 #include <GLFW/glfw3.h>
 
 static constexpr const bool g_useMSDF = false;
+static constexpr const bool g_showGlyphOutlines = false;
 
 static constexpr const UChar32 CH_LF = 0x000A;
 static constexpr const UChar32 CH_CR = 0x000D;
@@ -104,6 +105,21 @@ void TextBox::render(const float* invScreenSize) {
 		pPipeline->set_uniform_float4(2, rect.texCoords);
 		pPipeline->set_uniform_float4(3, reinterpret_cast<const float*>(&rect.color));
 		pPipeline->draw();
+
+		if (g_showGlyphOutlines && rect.pipeline != PipelineIndex::OUTLINE) {
+			if (pipelineIndex != PipelineIndex::OUTLINE) {
+				pipelineIndex = PipelineIndex::OUTLINE;
+				pPipeline = &g_pipelines[static_cast<size_t>(pipelineIndex)];
+				pPipeline->bind();
+				pPipeline->set_uniform_float2(0, invScreenSize);
+			}
+
+			Color outlineColor{0.f, 0.5f, 0.f, 1.f};
+			pPipeline->set_uniform_float4(1, extents);
+			pPipeline->set_uniform_float4(2, rect.texCoords);
+			pPipeline->set_uniform_float4(3, reinterpret_cast<const float*>(&outlineColor));
+			pPipeline->draw();
+		}
 	}
 }
 
