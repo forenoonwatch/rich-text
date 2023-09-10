@@ -2,6 +2,14 @@
 
 #include <unicode/utext.h>
 
+static bool find_offset_in_run_ltr(const icu::ParagraphLayout::VisualRun& run, int32_t cursorIndex,
+		float& outOffset);
+static bool find_offset_in_run_rtl(const icu::ParagraphLayout::VisualRun& run, int32_t cursorIndex,
+		float& outOffset);
+
+static float find_cluster_position_ltr(const icu::ParagraphLayout::VisualRun& run, int32_t glyphIndex);
+static float find_cluster_position_rtl(const icu::ParagraphLayout::VisualRun& run, int32_t glyphIndex);
+
 void Text::build_line_layout_info(RichText::Result& textInfo, float lineWidth, LayoutInfo& layoutInfo) {
 	RichText::TextRuns<const MultiScriptFont*> subsetFontRuns(textInfo.fontRuns.get_value_count());
 
@@ -105,15 +113,13 @@ float Text::get_cursor_offset_in_line(const icu::ParagraphLayout::Line* pLine, i
 
 	for (le_int32 runID = 0; runID < pLine->countRuns(); ++runID) {
 		auto* run = pLine->getVisualRun(runID);
-		auto* glyphChars = run->getGlyphToCharMap();
-		auto* posData = run->getPositions();
+		float offset;
+		// FIXME: I don't need to iterate the entire run to know if the cursor is in it
+		bool found = run->getDirection() == UBIDI_RTL ? find_offset_in_run_rtl(*run, cursorIndex, offset)
+				: find_offset_in_run_ltr(*run, cursorIndex, offset);
 
-		// FIXME: This might never be true with a compound glyph, need to find greatest char <= cursorIndex
-		// instead
-		for (le_int32 i = 0; i < run->getGlyphCount(); ++i) {
-			if (glyphChars[i] == cursorIndex) {
-				return posData[2 * i];
-			}
+		if (found) {
+			return offset;
 		}
 	}
 
@@ -129,5 +135,99 @@ float Text::get_line_end_position(const icu::ParagraphLayout::Line* pLine) {
 	else {
 		return 0.f;
 	}
+}
+
+// Static Functions
+
+static bool find_offset_in_run_ltr(const icu::ParagraphLayout::VisualRun& run, int32_t cursorIndex,
+		float& outOffset) {
+	auto* glyphs = run.getGlyphs();
+	auto* glyphChars = run.getGlyphToCharMap();
+	auto* posData = run.getPositions();
+
+	for (le_int32 i = 0; i < run.getGlyphCount(); ++i) {
+		if (glyphChars[i] == cursorIndex) {
+			if (glyphs[i] == 0xFFFF) {
+				outOffset = find_cluster_position_ltr(run, i);
+			}
+			else {
+				outOffset = posData[2 * i];
+			}
+
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static bool find_offset_in_run_rtl(const icu::ParagraphLayout::VisualRun& run, int32_t cursorIndex,
+		float& outOffset) {
+	auto* glyphs = run.getGlyphs();
+	auto* glyphChars = run.getGlyphToCharMap();
+	auto* posData = run.getPositions();
+
+	for (le_int32 i = 0; i < run.getGlyphCount(); ++i) {
+		if (glyphChars[i] == cursorIndex) {
+			if (glyphs[i] == 0xFFFF || (i > 0 && glyphs[i - 1] == 0xFFFF)) {
+				outOffset = find_cluster_position_rtl(run, i);
+			}
+			else {
+				outOffset = posData[2 * i];
+			}
+
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static float find_cluster_position_ltr(const icu::ParagraphLayout::VisualRun& run, int32_t glyphIndex) {
+	auto* glyphs = run.getGlyphs();
+	auto* glyphChars = run.getGlyphToCharMap();
+	auto* posData = run.getPositions();
+
+	auto clusterStart = glyphIndex;
+	auto clusterEnd = glyphIndex;
+
+	while (clusterStart > 0 && glyphs[clusterStart] == 0xFFFF) {
+		--clusterStart;
+	}
+
+	while (clusterEnd < run.getGlyphCount() && glyphs[clusterEnd] == 0xFFFF) {
+		++clusterEnd;
+	}
+
+	auto startPos = posData[2 * clusterStart];
+	auto endPos = posData[2 * clusterEnd];
+
+	return startPos + (endPos - startPos) * static_cast<float>(glyphIndex - clusterStart)
+			/ static_cast<float>(clusterEnd - clusterStart);
+}
+
+static float find_cluster_position_rtl(const icu::ParagraphLayout::VisualRun& run, int32_t glyphIndex) {
+	auto* glyphs = run.getGlyphs();
+	auto* glyphChars = run.getGlyphToCharMap();
+	auto* posData = run.getPositions();
+
+	auto clusterStart = glyphIndex - (glyphIndex != 0);
+	auto clusterEnd = glyphIndex;
+
+	while (clusterStart > 0 && glyphs[clusterStart] == 0xFFFF) {
+		--clusterStart;
+	}
+
+	while (clusterEnd < run.getGlyphCount() && glyphs[clusterEnd] == 0xFFFF) {
+		++clusterEnd;
+	}
+
+	++clusterEnd;
+
+	auto startPos = posData[2 * clusterStart];
+	auto endPos = posData[2 * clusterEnd];
+
+	return startPos + (endPos - startPos) * static_cast<float>(glyphIndex - clusterStart)
+			/ static_cast<float>(clusterEnd - clusterStart);
 }
 
