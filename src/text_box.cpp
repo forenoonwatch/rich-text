@@ -10,6 +10,8 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
+#include <unicode/brkiter.h>
+
 static constexpr const bool g_useMSDF = false;
 static constexpr const bool g_showGlyphOutlines = false;
 
@@ -18,6 +20,9 @@ static constexpr const UChar32 CH_CR = 0x000D;
 static constexpr const UChar32 CH_LSEP = 0x2028;
 static constexpr const UChar32 CH_PSEP = 0x2029;
 
+static icu::UnicodeString g_unicodeString;
+static icu::BreakIterator* g_charBreakIter = nullptr;
+static icu::BreakIterator* g_wordBreakIter = nullptr;
 static TextBox* g_focusedTextBox = nullptr;
 
 TextBox* TextBox::get_focused_text_box() {
@@ -47,7 +52,36 @@ bool TextBox::handle_mouse_button(int button, double mouseX, double mouseY) {
 }
 
 bool TextBox::handle_key_press(int key, int action, int mods) {
-	return g_focusedTextBox == this;
+	if (action == GLFW_RELEASE) {
+		return false;
+	}
+
+	if (is_focused()) {
+		switch (key) {
+			case GLFW_KEY_LEFT:
+				if (mods & GLFW_MOD_CONTROL) {
+					cursor_move_to_prev_word();
+				}
+				else {
+					cursor_move_to_prev_character();
+				}
+				return true;
+			case GLFW_KEY_RIGHT:
+				if (mods & GLFW_MOD_CONTROL) {
+					cursor_move_to_next_word();
+				}
+				else {
+					cursor_move_to_next_character();
+				}
+				return true;
+			default:
+				break;
+		}
+
+		return true;
+	}
+
+	return false;
 }
 
 bool TextBox::handle_text_input(unsigned codepoint) {
@@ -63,6 +97,15 @@ void TextBox::capture_focus() {
 	}
 
 	g_focusedTextBox = this;
+	g_unicodeString = icu::UnicodeString::fromUTF8(m_text);
+
+	icu::Locale loc("en_US");
+	UErrorCode errc{};
+
+	g_charBreakIter = icu::BreakIterator::createCharacterInstance(loc, errc);
+	g_charBreakIter->setText(g_unicodeString);
+	g_wordBreakIter = icu::BreakIterator::createWordInstance(loc, errc);
+	g_wordBreakIter->setText(g_unicodeString);
 
 	recalc_text_internal(false);
 }
@@ -72,6 +115,9 @@ void TextBox::release_focus() {
 		return;
 	}
 
+	delete g_wordBreakIter;
+	delete g_charBreakIter;
+	g_unicodeString = icu::UnicodeString{};
 	g_focusedTextBox = nullptr;
 
 	recalc_text();
@@ -122,7 +168,45 @@ bool TextBox::is_mouse_inside(double mouseX, double mouseY) const {
 			&& mouseY - m_position[1] <= m_size[1];
 }
 
+bool TextBox::is_focused() const {
+	return g_focusedTextBox == this;
+}
+
 // Private Methods
+
+void TextBox::cursor_move_to_next_character() {
+	if (auto nextIndex = g_charBreakIter->following(m_cursorPosition); nextIndex != icu::BreakIterator::DONE) {
+		m_cursorPosition = nextIndex;
+	}
+
+	recalc_text_internal(false);
+}
+
+void TextBox::cursor_move_to_prev_character() {
+	if (auto nextIndex = g_charBreakIter->preceding(m_cursorPosition); nextIndex != icu::BreakIterator::DONE) {
+		m_cursorPosition = nextIndex;
+	}
+
+	recalc_text_internal(false);
+}
+
+void TextBox::cursor_move_to_next_word() {
+	// FIXME: Word iteration should not use word break iterators
+	if (auto nextIndex = g_wordBreakIter->following(m_cursorPosition); nextIndex != icu::BreakIterator::DONE) {
+		m_cursorPosition = nextIndex;
+	}
+
+	recalc_text_internal(false);
+}
+
+void TextBox::cursor_move_to_prev_word() {
+	// FIXME: Word iteration should not use word break iterators
+	if (auto nextIndex = g_wordBreakIter->preceding(m_cursorPosition); nextIndex != icu::BreakIterator::DONE) {
+		m_cursorPosition = nextIndex;
+	}
+
+	recalc_text_internal(false);
+}
 
 void TextBox::recalc_text() {
 	recalc_text_internal(m_richText);
@@ -178,6 +262,45 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 				.texture = pGlyphImage,
 				.color = stroke.color,
 				.pipeline = g_useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT,
+			});
+		}
+	});
+
+	Text::for_each_line(layoutInfo, m_size[0], [&](auto lineNumber, auto* pLine, auto charOffset, auto lineX,
+			auto lineY) {
+		float offset = 0.f;
+		bool found = false;
+
+		auto lineStart = Text::get_line_char_start_index(pLine, charOffset);
+		auto lineEnd = Text::get_line_char_end_index(pLine, charOffset);
+
+		if (m_cursorPosition >= lineStart && m_cursorPosition <= lineEnd) {
+			offset = Text::get_cursor_offset_in_line(pLine, m_cursorPosition - charOffset);
+			found = true;
+		}
+		else if (m_cursorPosition >= lineEnd && lineNumber < layoutInfo.lines.size() - 1) {
+			auto* pNextLine = layoutInfo.lines[lineNumber + 1].get();
+			auto nextOffset = layoutInfo.offsetRunsByLine.get_value(static_cast<int32_t>(lineNumber + 1));
+
+			if (m_cursorPosition < Text::get_line_char_start_index(pNextLine, nextOffset)) {
+				offset = Text::get_line_end_position(pLine);
+				found = true;
+			}
+		}
+		else if (m_cursorPosition >= lineEnd) {
+			offset = Text::get_line_end_position(pLine);
+			found = true;
+		}
+
+		if (found) {
+			m_textRects.push_back({
+				.x = lineX + offset,
+				.y = lineY - layoutInfo.lineY,
+				.width = 1,
+				.height = layoutInfo.lineHeight,
+				.texture = g_textAtlas->get_default_texture(),
+				.color = {0, 0, 0, 1},
+				.pipeline = PipelineIndex::RECT,
 			});
 		}
 	});

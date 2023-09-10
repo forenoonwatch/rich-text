@@ -58,6 +58,7 @@ void Text::build_line_layout_info(RichText::Result& textInfo, float lineWidth, L
 			}
 			else {
 				layoutInfo.lines.emplace_back();
+				layoutInfo.offsetRunsByLine.add(static_cast<int32_t>(layoutInfo.lines.size()), byteIndex);
 			}
 
 			if (c == U_SENTINEL) {
@@ -73,5 +74,60 @@ void Text::build_line_layout_info(RichText::Result& textInfo, float lineWidth, L
 
 	layoutInfo.lineY = static_cast<float>(maxAscent);
 	layoutInfo.lineHeight = static_cast<float>(maxDescent + maxAscent);
+}
+
+int32_t Text::get_line_char_start_index(const icu::ParagraphLayout::Line* pLine, int32_t charOffset) {
+	if (pLine && pLine->countRuns() > 0) {
+		auto* pFirstRun = pLine->getVisualRun(0);
+		auto* firstRunChars = pFirstRun->getGlyphToCharMap();
+		return std::min(firstRunChars[0], firstRunChars[pFirstRun->getGlyphCount() - 1]) + charOffset;
+	}
+	else {
+		return charOffset;
+	}
+}
+
+int32_t Text::get_line_char_end_index(const icu::ParagraphLayout::Line* pLine, int32_t charOffset) {
+	if (pLine && pLine->countRuns() > 0) {
+		auto* pLastRun = pLine->getVisualRun(pLine->countRuns() - 1);
+		auto* lastRunChars = pLastRun->getGlyphToCharMap();
+		return std::max(lastRunChars[0], lastRunChars[pLastRun->getGlyphCount() - 1]) + charOffset;
+	}
+	else {
+		return charOffset;
+	}
+}
+
+float Text::get_cursor_offset_in_line(const icu::ParagraphLayout::Line* pLine, int32_t cursorIndex) {
+	if (!pLine || pLine->countRuns() == 0) {
+		return 0.f;
+	}
+
+	for (le_int32 runID = 0; runID < pLine->countRuns(); ++runID) {
+		auto* run = pLine->getVisualRun(runID);
+		auto* glyphChars = run->getGlyphToCharMap();
+		auto* posData = run->getPositions();
+
+		// FIXME: This might never be true with a compound glyph, need to find greatest char <= cursorIndex
+		// instead
+		for (le_int32 i = 0; i < run->getGlyphCount(); ++i) {
+			if (glyphChars[i] == cursorIndex) {
+				return posData[2 * i];
+			}
+		}
+	}
+
+	// FIXME: Assert unreachable?
+	return 0.f;
+}
+
+float Text::get_line_end_position(const icu::ParagraphLayout::Line* pLine) {
+	if (pLine && pLine->countRuns() > 0) {
+		auto* run = pLine->getVisualRun(pLine->countRuns() - 1);
+		return run->getPositions()[2 * run->getGlyphCount()];
+	}
+	else {
+		return 0.f;
+	}
 }
 

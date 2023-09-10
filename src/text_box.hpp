@@ -48,6 +48,7 @@ class TextBox {
 		void set_rich_text(bool);
 
 		bool is_mouse_inside(double mouseX, double mouseY) const;
+		bool is_focused() const;
 	private:
 		MultiScriptFont m_font{};
 		float m_position[2]{};
@@ -61,6 +62,15 @@ class TextBox {
 		bool m_richText = false;
 
 		std::vector<TextRect> m_textRects;
+
+		void cursor_move_to_next_character();
+		void cursor_move_to_prev_character();
+
+		void cursor_move_to_next_word();
+		void cursor_move_to_prev_word();
+
+		void cursor_move_to_next_line();
+		void cursor_move_to_prev_line();
 
 		void recalc_text();
 		void recalc_text_internal(bool richText);

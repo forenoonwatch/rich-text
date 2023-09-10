@@ -22,27 +22,37 @@ struct LayoutInfo {
 };
 
 void build_line_layout_info(RichText::Result& textInfo, float lineWidth, LayoutInfo& layoutInfo);
+int32_t get_line_char_start_index(const icu::ParagraphLayout::Line*, int32_t charOffset); 
+int32_t get_line_char_end_index(const icu::ParagraphLayout::Line*, int32_t charOffset); 
+float get_cursor_offset_in_line(const icu::ParagraphLayout::Line*, int32_t cursorIndex);
+float get_line_end_position(const icu::ParagraphLayout::Line*);
 
 template <typename Functor>
-void for_each_run(const LayoutInfo& info, float lineWidth, Functor&& func) {
+void for_each_line(const LayoutInfo& info, float lineWidth, Functor&& func) {
 	auto lineY = info.lineY;
 
 	for (size_t lineNumber = 0; lineNumber < info.lines.size(); ++lineNumber) {
-		if (!info.lines[lineNumber]) {
-			lineY += info.lineHeight;
-			continue;
-		}
-
 		auto charOffset = info.offsetRunsByLine.get_value(static_cast<int32_t>(lineNumber));
-		auto lineX = info.paragraphLevel == UBIDI_RTL ? lineWidth - info.lines[lineNumber]->getWidth() : 0.f;
+		auto* pLine = info.lines[lineNumber].get();
+		auto lineX = pLine && info.paragraphLevel == UBIDI_RTL ? lineWidth - pLine->getWidth() : 0.f;
 
-		for (le_int32 runID = 0; runID < info.lines[lineNumber]->countRuns(); ++runID) {
-			auto* run = info.lines[lineNumber]->getVisualRun(runID);
-			func(*run, charOffset, lineX, lineY);
-		}
+		func(lineNumber, pLine, charOffset, lineX, lineY);
 
 		lineY += info.lineHeight;
 	}
+}
+
+template <typename Functor>
+void for_each_run(const LayoutInfo& info, float lineWidth, Functor&& func) {
+	for_each_line(info, lineWidth, [&](auto /*lineNumber*/, auto* pLine, auto charOffset, auto lineX,
+			auto lineY) {
+		if (pLine) {
+			for (le_int32 runID = 0; runID < pLine->countRuns(); ++runID) {
+				auto* run = pLine->getVisualRun(runID);
+				func(*run, charOffset, lineX, lineY);
+			}
+		}
+	});
 }
 
 template <typename Functor>
