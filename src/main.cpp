@@ -13,7 +13,7 @@
 #include "msdf_text_atlas.hpp"
 
 
-static TextBox g_textBox;
+static TextBox* g_textBox = nullptr;
 
 static int g_width = 640;
 static int g_height = 480;
@@ -59,20 +59,21 @@ int main() {
 	g_textAtlas = new TextAtlas;
 	g_msdfTextAtlas = new MSDFTextAtlas;
 
-	g_textBox.set_rich_text(true);
+	g_textBox = new TextBox;
+	g_textBox->set_rich_text(true);
 
 	{
 		std::vector<char> fileData;
 		if (fileData = file_read_bytes("Sample.txt"); !fileData.empty()) {
 			std::string str(fileData.data(), fileData.size());
-			g_textBox.set_text(std::move(str));
+			g_textBox->set_text(std::move(str));
 		}
 		else {
-			g_textBox.set_text("Error: Sample.txt must be present in the build directory");
+			g_textBox->set_text("Error: Sample.txt must be present in the build directory");
 		}
 	}
 
-	g_textBox.set_font(std::move(font));
+	g_textBox->set_font(std::move(font));
 
 	on_resize(window, g_width, g_height);
 
@@ -88,6 +89,8 @@ int main() {
 		glfwPollEvents();
 	}
 
+	delete g_textBox;
+
 	delete g_msdfTextAtlas;
 	delete g_textAtlas;
 
@@ -101,7 +104,7 @@ static void on_key_event(GLFWwindow* window, int key, int scancode, int action, 
 		glfwSetWindowShouldClose(window, true);
 	}
 	else {
-		g_textBox.handle_key_press(key, action, mods);
+		g_textBox->handle_key_press(key, action, mods);
 	}
 }
 
@@ -109,11 +112,11 @@ static void on_mouse_button_event(GLFWwindow* window, int button, int action, in
 	double mouseX, mouseY;
 	glfwGetCursorPos(window, &mouseX, &mouseY);
 
-	g_textBox.handle_mouse_button(button, mouseX, mouseY);
+	g_textBox->handle_mouse_button(button, mouseX, mouseY);
 }
 
 static void on_text_event(GLFWwindow* window, unsigned codepoint) {
-	g_textBox.handle_text_input(codepoint);
+	g_textBox->handle_text_input(codepoint);
 }
 
 static void on_focus_event(GLFWwindow* window, int focused) {
@@ -129,7 +132,7 @@ static void on_resize(GLFWwindow* window, int width, int height) {
 	g_width = width;
 	g_height = height;
 
-	g_textBox.set_size(static_cast<float>(width), static_cast<float>(height));
+	g_textBox->set_size(static_cast<float>(width), static_cast<float>(height));
 }
 
 static void render() {
@@ -138,7 +141,7 @@ static void render() {
 	glClearColor(1.f, 1.f, 1.f, 1.f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	g_textBox.render(invScreenSize);
+	g_textBox->render(invScreenSize);
 
 }
 
