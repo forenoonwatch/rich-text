@@ -22,8 +22,9 @@ static constexpr const UChar32 CH_PSEP = 0x2029;
 
 static icu::UnicodeString g_unicodeString;
 static icu::BreakIterator* g_charBreakIter = nullptr;
-static icu::BreakIterator* g_wordBreakIter = nullptr;
 static TextBox* g_focusedTextBox = nullptr;
+
+static bool is_line_break(UChar32 c);
 
 TextBox* TextBox::get_focused_text_box() {
 	return g_focusedTextBox;
@@ -104,8 +105,6 @@ void TextBox::capture_focus() {
 
 	g_charBreakIter = icu::BreakIterator::createCharacterInstance(loc, errc);
 	g_charBreakIter->setText(g_unicodeString);
-	g_wordBreakIter = icu::BreakIterator::createWordInstance(loc, errc);
-	g_wordBreakIter->setText(g_unicodeString);
 
 	recalc_text_internal(false);
 }
@@ -115,7 +114,6 @@ void TextBox::release_focus() {
 		return;
 	}
 
-	delete g_wordBreakIter;
 	delete g_charBreakIter;
 	g_unicodeString = icu::UnicodeString{};
 	g_focusedTextBox = nullptr;
@@ -191,18 +189,54 @@ void TextBox::cursor_move_to_prev_character() {
 }
 
 void TextBox::cursor_move_to_next_word() {
-	// FIXME: Word iteration should not use word break iterators
-	if (auto nextIndex = g_wordBreakIter->following(m_cursorPosition); nextIndex != icu::BreakIterator::DONE) {
+	bool lastWhitespace = u_isWhitespace(g_unicodeString.char32At(m_cursorPosition));
+
+	for (;;) {
+		auto nextIndex = g_charBreakIter->following(m_cursorPosition);
+
+		if (nextIndex == icu::BreakIterator::DONE) {
+			break;
+		}
+
 		m_cursorPosition = nextIndex;
+		auto c = g_unicodeString.char32At(nextIndex);
+		bool whitespace = u_isWhitespace(c);
+
+		if (!whitespace && lastWhitespace || is_line_break(c)) {
+			break;
+		}
+
+		lastWhitespace = whitespace;
 	}
 
 	recalc_text_internal(false);
 }
 
 void TextBox::cursor_move_to_prev_word() {
-	// FIXME: Word iteration should not use word break iterators
-	if (auto nextIndex = g_wordBreakIter->preceding(m_cursorPosition); nextIndex != icu::BreakIterator::DONE) {
+	bool lastWhitespace = true;
+
+	for (;;) {
+		auto nextIndex = g_charBreakIter->preceding(m_cursorPosition);
+
+		if (nextIndex == icu::BreakIterator::DONE) {
+			break;
+		}
+
+		auto c = g_unicodeString.char32At(nextIndex);
+
+		bool whitespace = u_isWhitespace(c);
+
+		if (whitespace && !lastWhitespace) {
+			break;
+		}
+
+		if (is_line_break(c)) {
+			m_cursorPosition = nextIndex;
+			break;
+		}
+
 		m_cursorPosition = nextIndex;
+		lastWhitespace = whitespace;
 	}
 
 	recalc_text_internal(false);
@@ -393,5 +427,11 @@ void TextBox::set_text_wrapped(bool wrapped) {
 void TextBox::set_rich_text(bool richText) {
 	m_richText = richText;
 	recalc_text();
+}
+
+// Static Functions
+
+static bool is_line_break(UChar32 c) {
+	return c == CH_LF || c == CH_CR || c == CH_LSEP || c == CH_PSEP;
 }
 
