@@ -199,6 +199,27 @@ int32_t Text::find_line_end_containing_index(const LayoutInfo& info, int32_t ind
 	return {};
 }
 
+float Text::get_line_x_start(const LayoutInfo& info, float textWidth, TextXAlignment align,
+		const icu::ParagraphLayout::Line* pLine) {
+	float lineWidth = pLine ? pLine->getWidth() : 0.f;
+
+	switch (align) {
+		case TextXAlignment::LEFT:
+			return info.paragraphLevel == UBIDI_RTL ? textWidth - lineWidth : 0.f;
+		case TextXAlignment::RIGHT:
+			return textWidth - lineWidth;
+		case TextXAlignment::CENTER:
+			return 0.5f * (textWidth - lineWidth);
+	}
+
+	// FIXME: Assert unreachable
+	return 0.f;
+}
+
+float Text::get_text_height(const LayoutInfo& info) {
+	return info.lineHeight * static_cast<float>(info.lines.size());
+}
+
 // Static Functions
 
 static bool find_offset_in_run_ltr(const icu::ParagraphLayout::VisualRun& run, int32_t cursorIndex,

@@ -327,6 +327,8 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayoutOp) {
 	Text::LayoutInfo layoutInfo{};
 	Text::build_line_layout_info(textInfo, m_size[0], layoutInfo);
+	auto textHeight = Text::get_text_height(layoutInfo);
+	auto yStart = static_cast<float>(m_textYAlignment) * (m_size[1] - textHeight) * 0.5f;
 
 	if (postLayoutOp) {
 		m_cursorPosition = apply_cursor_move(layoutInfo,
@@ -334,8 +336,8 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 	}
 
 	// Add Stroke Glyphs
-	Text::for_each_glyph(layoutInfo, m_size[0], [&](auto glyphID, auto charIndex, auto* position, auto& font,
-			auto lineX, auto lineY) {
+	Text::for_each_glyph(layoutInfo, m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
+			auto* position, auto& font, auto lineX, auto lineY) {
 		auto stroke = textInfo.strokeRuns.get_value(charIndex);
 
 		if (stroke.color.a > 0.f) {
@@ -353,7 +355,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 
 			m_textRects.push_back({
 				.x = lineX + pX + offset[0],
-				.y = lineY + pY + offset[1],
+				.y = yStart + lineY + pY + offset[1],
 				.width = glyphSize[0],
 				.height = glyphSize[1],
 				.texCoords = {texCoordExtents[0], texCoordExtents[1],
@@ -366,8 +368,8 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 	});
 
 	// Add cursor
-	Text::for_each_line(layoutInfo, m_size[0], [&](auto lineNumber, auto* pLine, auto charOffset, auto lineX,
-			auto lineY) {
+	Text::for_each_line(layoutInfo, m_size[0], m_textXAlignment, [&](auto lineNumber, auto* pLine,
+			auto charOffset, auto lineX, auto lineY) {
 		float offset = 0.f;
 		bool found = false;
 
@@ -395,7 +397,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 		if (found) {
 			m_textRects.push_back({
 				.x = lineX + offset,
-				.y = lineY - layoutInfo.lineY,
+				.y = yStart + lineY - layoutInfo.lineY,
 				.width = 1,
 				.height = layoutInfo.lineHeight,
 				.texture = g_textAtlas->get_default_texture(),
@@ -406,8 +408,8 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 	});
 
 	// Add Main Glyphs
-	Text::for_each_glyph(layoutInfo, m_size[0], [&](auto glyphID, auto charIndex, auto* position, auto& font,
-			auto lineX, auto lineY) {
+	Text::for_each_glyph(layoutInfo, m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
+			auto* position, auto& font, auto lineX, auto lineY) {
 		auto pX = position[0];
 		auto pY = position[1];
 
@@ -426,7 +428,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 			auto height = font.get_strikethrough_thickness() + 0.5f;
 			m_textRects.push_back({
 				.x = lineX + pX + offset[0],
-				.y = lineY + pY + font.get_strikethrough_position(),
+				.y = yStart + lineY + pY + font.get_strikethrough_position(),
 				.width = glyphSize[0],
 				.height = height,
 				.texture = g_textAtlas->get_default_texture(),
@@ -439,7 +441,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 			auto height = font.get_underline_thickness() + 0.5f;
 			m_textRects.push_back({
 				.x = lineX + pX + offset[0],
-				.y = lineY + pY + font.get_underline_position(),
+				.y = yStart + lineY + pY + font.get_underline_position(),
 				.width = glyphSize[0],
 				.height = height,
 				.texture = g_textAtlas->get_default_texture(),
@@ -450,7 +452,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 
 		m_textRects.push_back({
 			.x = lineX + pX + offset[0],
-			.y = lineY + pY + offset[1],
+			.y = yStart + lineY + pY + offset[1],
 			.width = glyphSize[0],
 			.height = glyphSize[1],
 			.texCoords = {texCoordExtents[0], texCoordExtents[1], texCoordExtents[2], texCoordExtents[3]},
@@ -482,6 +484,16 @@ void TextBox::set_position(float x, float y) {
 void TextBox::set_size(float width, float height) {
 	m_size[0] = width;
 	m_size[1] = height;
+	recalc_text();
+}
+
+void TextBox::set_text_x_alignment(TextXAlignment align) {
+	m_textXAlignment = align;
+	recalc_text();
+}
+
+void TextBox::set_text_y_alignment(TextYAlignment align) {
+	m_textYAlignment = align;
 	recalc_text();
 }
 

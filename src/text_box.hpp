@@ -3,6 +3,7 @@
 #include "bitmap.hpp"
 #include "multi_script_font.hpp"
 #include "pipeline.hpp"
+#include "text_alignment.hpp"
 
 #include <string>
 #include <vector>
@@ -44,6 +45,8 @@ class TextBox {
 		void set_text(std::string);
 		void set_position(float x, float y);
 		void set_size(float width, float height);
+		void set_text_x_alignment(TextXAlignment);
+		void set_text_y_alignment(TextYAlignment);
 		void set_text_wrapped(bool);
 		void set_rich_text(bool);
 
@@ -58,6 +61,8 @@ class TextBox {
 		Color m_textColor{0.f, 0.f, 0.f, 1.f};
 		int32_t m_cursorPosition{};
 		int32_t m_selectionStart{-1};
+		TextXAlignment m_textXAlignment{TextXAlignment::LEFT};
+		TextYAlignment m_textYAlignment{TextYAlignment::TOP};
 		bool m_textWrapped = false;
 		bool m_richText = false;
 

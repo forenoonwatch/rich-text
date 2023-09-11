@@ -2,6 +2,7 @@
 
 #include "font.hpp"
 #include "rich_text.hpp"
+#include "text_alignment.hpp"
 
 #include <layout/ParagraphLayout.h>
 #include <layout/RunArrays.h>
@@ -30,14 +31,17 @@ float get_line_end_position(const icu::ParagraphLayout::Line*);
 int32_t find_line_start_containing_index(const LayoutInfo&, int32_t index);
 int32_t find_line_end_containing_index(const LayoutInfo&, int32_t index, int32_t textEnd, icu::BreakIterator&);
 
+float get_line_x_start(const LayoutInfo&, float textWidth, TextXAlignment, const icu::ParagraphLayout::Line*);
+float get_text_height(const LayoutInfo&);
+
 template <typename Functor>
-void for_each_line(const LayoutInfo& info, float lineWidth, Functor&& func) {
+void for_each_line(const LayoutInfo& info, float textWidth, TextXAlignment textXAlignment, Functor&& func) {
 	auto lineY = info.lineY;
 
 	for (size_t lineNumber = 0; lineNumber < info.lines.size(); ++lineNumber) {
 		auto charOffset = info.offsetRunsByLine.get_value(static_cast<int32_t>(lineNumber));
 		auto* pLine = info.lines[lineNumber].get();
-		auto lineX = pLine && info.paragraphLevel == UBIDI_RTL ? lineWidth - pLine->getWidth() : 0.f;
+		auto lineX = get_line_x_start(info, textWidth, textXAlignment, pLine);
 
 		func(lineNumber, pLine, charOffset, lineX, lineY);
 
@@ -46,9 +50,9 @@ void for_each_line(const LayoutInfo& info, float lineWidth, Functor&& func) {
 }
 
 template <typename Functor>
-void for_each_run(const LayoutInfo& info, float lineWidth, Functor&& func) {
-	for_each_line(info, lineWidth, [&](auto /*lineNumber*/, auto* pLine, auto charOffset, auto lineX,
-			auto lineY) {
+void for_each_run(const LayoutInfo& info, float textWidth, TextXAlignment textXAlignment, Functor&& func) {
+	for_each_line(info, textWidth, textXAlignment, [&](auto /*lineNumber*/, auto* pLine, auto charOffset,
+			auto lineX, auto lineY) {
 		if (pLine) {
 			for (le_int32 runID = 0; runID < pLine->countRuns(); ++runID) {
 				auto* run = pLine->getVisualRun(runID);
@@ -59,8 +63,8 @@ void for_each_run(const LayoutInfo& info, float lineWidth, Functor&& func) {
 }
 
 template <typename Functor>
-void for_each_glyph(const LayoutInfo& info, float lineWidth, Functor&& func) {
-	for_each_run(info, lineWidth, [&](auto& run, auto charOffset, auto lineX, auto lineY) {
+void for_each_glyph(const LayoutInfo& info, float textWidth, TextXAlignment textXAlignment, Functor&& func) {
+	for_each_run(info, textWidth, textXAlignment, [&](auto& run, auto charOffset, auto lineX, auto lineY) {
 		auto* pFont = static_cast<const Font*>(run.getFont());
 		auto* posData = run.getPositions();
 		auto* glyphs = run.getGlyphs();
