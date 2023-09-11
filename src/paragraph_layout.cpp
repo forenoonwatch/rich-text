@@ -173,7 +173,7 @@ static bool find_offset_in_run_rtl(const icu::ParagraphLayout::VisualRun& run, i
 				outOffset = find_cluster_position_rtl(run, i);
 			}
 			else {
-				outOffset = posData[2 * i];
+				outOffset = posData[2 * i + 2];
 			}
 
 			return true;
@@ -227,7 +227,7 @@ static float find_cluster_position_rtl(const icu::ParagraphLayout::VisualRun& ru
 	auto startPos = posData[2 * clusterStart];
 	auto endPos = posData[2 * clusterEnd];
 
-	return startPos + (endPos - startPos) * static_cast<float>(glyphIndex - clusterStart)
+	return startPos + (endPos - startPos) * static_cast<float>(glyphIndex + 1 - clusterStart)
 			/ static_cast<float>(clusterEnd - clusterStart);
 }
 
