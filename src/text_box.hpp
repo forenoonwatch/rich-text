@@ -72,8 +72,14 @@ class TextBox {
 		void cursor_move_to_next_line();
 		void cursor_move_to_prev_line();
 
+		void cursor_move_to_line_start();
+		void cursor_move_to_line_end();
+
+		void cursor_move_to_text_start();
+		void cursor_move_to_text_end();
+
 		void recalc_text();
-		void recalc_text_internal(bool richText);
-		void create_text_rects(RichText::Result&);
+		void recalc_text_internal(bool richText, const void* postLayoutOp);
+		void create_text_rects(RichText::Result&, const void* postLayoutOp);
 };
 

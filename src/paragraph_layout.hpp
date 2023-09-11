@@ -27,6 +27,9 @@ int32_t get_line_char_end_index(const icu::ParagraphLayout::Line*, int32_t charO
 float get_cursor_offset_in_line(const icu::ParagraphLayout::Line*, int32_t cursorIndex);
 float get_line_end_position(const icu::ParagraphLayout::Line*);
 
+int32_t find_line_start_containing_index(const LayoutInfo&, int32_t index);
+int32_t find_line_end_containing_index(const LayoutInfo&, int32_t index, int32_t textEnd, icu::BreakIterator&);
+
 template <typename Functor>
 void for_each_line(const LayoutInfo& info, float lineWidth, Functor&& func) {
 	auto lineY = info.lineY;

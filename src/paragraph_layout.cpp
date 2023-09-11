@@ -130,11 +130,73 @@ float Text::get_cursor_offset_in_line(const icu::ParagraphLayout::Line* pLine, i
 float Text::get_line_end_position(const icu::ParagraphLayout::Line* pLine) {
 	if (pLine && pLine->countRuns() > 0) {
 		auto* run = pLine->getVisualRun(pLine->countRuns() - 1);
-		return run->getPositions()[2 * run->getGlyphCount()];
+		return run->getDirection() == UBIDI_RTL ? run->getPositions()[0]
+				: run->getPositions()[2 * run->getGlyphCount()];
 	}
 	else {
 		return 0.f;
 	}
+}
+
+int32_t Text::find_line_start_containing_index(const LayoutInfo& info, int32_t index) {
+	for (size_t lineNumber = 0; lineNumber < info.lines.size(); ++lineNumber) {
+		auto charOffset = info.offsetRunsByLine.get_value(static_cast<int32_t>(lineNumber));
+		auto* pLine = info.lines[lineNumber].get();
+
+		if (pLine) {
+			auto lineStart = get_line_char_start_index(pLine, charOffset);
+			auto lineEnd = get_line_char_end_index(pLine, charOffset);
+
+			if (index >= lineStart && lineNumber < info.lines.size() - 1) {
+				auto* pNextLine = info.lines[lineNumber + 1].get();
+				auto nextOffset = info.offsetRunsByLine.get_value(static_cast<int32_t>(lineNumber + 1));
+				auto nextStart = get_line_char_start_index(pNextLine, nextOffset);
+
+				if (index < nextStart) {
+					return lineStart;
+				}
+			}
+			else if (index >= lineStart) {
+				return lineStart;
+			}
+		}
+		else if (index == charOffset) {
+			return charOffset;
+		}
+	}
+
+	return {};
+}
+
+int32_t Text::find_line_end_containing_index(const LayoutInfo& info, int32_t index, int32_t textEnd,
+		icu::BreakIterator& iter) {
+	for (size_t lineNumber = 0; lineNumber < info.lines.size(); ++lineNumber) {
+		auto charOffset = info.offsetRunsByLine.get_value(static_cast<int32_t>(lineNumber));
+		auto* pLine = info.lines[lineNumber].get();
+
+		if (pLine) {
+			auto lineStart = get_line_char_start_index(pLine, charOffset);
+			auto lineEnd = get_line_char_end_index(pLine, charOffset);
+
+			if (index >= lineStart && lineNumber < info.lines.size() - 1) {
+				auto* pNextLine = info.lines[lineNumber + 1].get();
+				auto nextOffset = info.offsetRunsByLine.get_value(static_cast<int32_t>(lineNumber + 1));
+				auto nextStart = get_line_char_start_index(pNextLine, nextOffset);
+
+				if (index < nextStart) {
+					return iter.following(lineEnd);
+				}
+			}
+			else if (index >= lineStart) {
+				return textEnd;
+			}
+		}
+		else if (index == charOffset) {
+			return charOffset;
+		}
+	}
+
+	return {};
 }
 
 // Static Functions

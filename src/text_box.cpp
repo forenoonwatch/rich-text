@@ -12,6 +12,27 @@
 
 #include <unicode/brkiter.h>
 
+namespace {
+
+enum class PostLayoutCursorMoveType {
+	LINE_START,
+	LINE_END,
+	LINE_ABOVE,
+	LINE_BELOW,
+	MOUSE_POSITION
+};
+
+struct PostLayoutCursorMove {
+	PostLayoutCursorMoveType type;
+};
+
+struct CursorToMouse : public PostLayoutCursorMove {
+	double mouseX;
+	double mouseY;
+};
+
+}
+
 static constexpr const bool g_useMSDF = false;
 static constexpr const bool g_showGlyphOutlines = false;
 
@@ -23,6 +44,9 @@ static constexpr const UChar32 CH_PSEP = 0x2029;
 static icu::UnicodeString g_unicodeString;
 static icu::BreakIterator* g_charBreakIter = nullptr;
 static TextBox* g_focusedTextBox = nullptr;
+
+static int32_t apply_cursor_move(const Text::LayoutInfo& layoutInfo, const PostLayoutCursorMove& op,
+		int32_t cursorPos);
 
 static bool is_line_break(UChar32 c);
 
@@ -75,6 +99,22 @@ bool TextBox::handle_key_press(int key, int action, int mods) {
 					cursor_move_to_next_character();
 				}
 				return true;
+			case GLFW_KEY_HOME:
+				if (mods & GLFW_MOD_CONTROL) {
+					cursor_move_to_text_start();
+				}
+				else {
+					cursor_move_to_line_start();
+				}
+				break;
+			case GLFW_KEY_END:
+				if (mods & GLFW_MOD_CONTROL) {
+					cursor_move_to_text_end();
+				}
+				else {
+					cursor_move_to_line_end();
+				}
+				break;
 			default:
 				break;
 		}
@@ -106,7 +146,7 @@ void TextBox::capture_focus() {
 	g_charBreakIter = icu::BreakIterator::createCharacterInstance(loc, errc);
 	g_charBreakIter->setText(g_unicodeString);
 
-	recalc_text_internal(false);
+	recalc_text_internal(false, nullptr);
 }
 
 void TextBox::release_focus() {
@@ -177,7 +217,7 @@ void TextBox::cursor_move_to_next_character() {
 		m_cursorPosition = nextIndex;
 	}
 
-	recalc_text_internal(false);
+	recalc_text_internal(false, nullptr);
 }
 
 void TextBox::cursor_move_to_prev_character() {
@@ -185,7 +225,7 @@ void TextBox::cursor_move_to_prev_character() {
 		m_cursorPosition = nextIndex;
 	}
 
-	recalc_text_internal(false);
+	recalc_text_internal(false, nullptr);
 }
 
 void TextBox::cursor_move_to_next_word() {
@@ -209,7 +249,7 @@ void TextBox::cursor_move_to_next_word() {
 		lastWhitespace = whitespace;
 	}
 
-	recalc_text_internal(false);
+	recalc_text_internal(false, nullptr);
 }
 
 void TextBox::cursor_move_to_prev_word() {
@@ -239,14 +279,34 @@ void TextBox::cursor_move_to_prev_word() {
 		lastWhitespace = whitespace;
 	}
 
-	recalc_text_internal(false);
+	recalc_text_internal(false, nullptr);
+}
+
+void TextBox::cursor_move_to_line_start() {
+	PostLayoutCursorMove op{PostLayoutCursorMoveType::LINE_START};
+	recalc_text_internal(false, &op);
+}
+
+void TextBox::cursor_move_to_line_end() {
+	PostLayoutCursorMove op{PostLayoutCursorMoveType::LINE_END};
+	recalc_text_internal(false, &op);
+}
+
+void TextBox::cursor_move_to_text_start() {
+	m_cursorPosition = 0;
+	recalc_text_internal(false, nullptr);
+}
+
+void TextBox::cursor_move_to_text_end() {
+	m_cursorPosition = g_unicodeString.length();
+	recalc_text_internal(false, nullptr);
 }
 
 void TextBox::recalc_text() {
-	recalc_text_internal(m_richText);
+	recalc_text_internal(m_richText, nullptr);
 }
 
-void TextBox::recalc_text_internal(bool richText) {
+void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 	m_textRects.clear();
 
 	if (!m_font) {
@@ -261,12 +321,17 @@ void TextBox::recalc_text_internal(bool richText) {
 		return;
 	}
 
-	create_text_rects(runs);
+	create_text_rects(runs, postLayoutOp);
 }
 
-void TextBox::create_text_rects(RichText::Result& textInfo) {
+void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayoutOp) {
 	Text::LayoutInfo layoutInfo{};
 	Text::build_line_layout_info(textInfo, m_size[0], layoutInfo);
+
+	if (postLayoutOp) {
+		m_cursorPosition = apply_cursor_move(layoutInfo,
+				*reinterpret_cast<const PostLayoutCursorMove*>(postLayoutOp), m_cursorPosition);
+	}
 
 	// Add Stroke Glyphs
 	Text::for_each_glyph(layoutInfo, m_size[0], [&](auto glyphID, auto charIndex, auto* position, auto& font,
@@ -300,6 +365,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo) {
 		}
 	});
 
+	// Add cursor
 	Text::for_each_line(layoutInfo, m_size[0], [&](auto lineNumber, auto* pLine, auto charOffset, auto lineX,
 			auto lineY) {
 		float offset = 0.f;
@@ -430,6 +496,21 @@ void TextBox::set_rich_text(bool richText) {
 }
 
 // Static Functions
+
+static int32_t apply_cursor_move(const Text::LayoutInfo& layoutInfo, const PostLayoutCursorMove& op,
+		int32_t cursorPos) {
+	switch (op.type) {
+		case PostLayoutCursorMoveType::LINE_START:
+			return Text::find_line_start_containing_index(layoutInfo, cursorPos);
+		case PostLayoutCursorMoveType::LINE_END:
+			return Text::find_line_end_containing_index(layoutInfo, cursorPos, g_unicodeString.length(),
+					*g_charBreakIter);
+		default:
+			break;
+	}
+
+	return cursorPos;
+}
 
 static bool is_line_break(UChar32 c) {
 	return c == CH_LF || c == CH_CR || c == CH_LSEP || c == CH_PSEP;
