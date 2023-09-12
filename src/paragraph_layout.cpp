@@ -10,6 +10,10 @@ static bool find_offset_in_run_rtl(const icu::ParagraphLayout::VisualRun& run, i
 static float find_cluster_position_ltr(const icu::ParagraphLayout::VisualRun& run, int32_t glyphIndex);
 static float find_cluster_position_rtl(const icu::ParagraphLayout::VisualRun& run, int32_t glyphIndex);
 
+static bool find_position_in_run(const icu::ParagraphLayout::VisualRun& run, float cursorX, int32_t& result);
+static bool find_position_in_run_ltr(const icu::ParagraphLayout::VisualRun& run, float cursorX, int32_t& result);
+static bool find_position_in_run_rtl(const icu::ParagraphLayout::VisualRun& run, float cursorX, int32_t& result);
+
 void Text::build_line_layout_info(RichText::Result& textInfo, float lineWidth, LayoutInfo& layoutInfo) {
 	RichText::TextRuns<const MultiScriptFont*> subsetFontRuns(textInfo.fontRuns.get_value_count());
 
@@ -100,6 +104,32 @@ int32_t Text::get_line_char_end_index(const icu::ParagraphLayout::Line* pLine, i
 		auto* pLastRun = pLine->getVisualRun(pLine->countRuns() - 1);
 		auto* lastRunChars = pLastRun->getGlyphToCharMap();
 		return std::max(lastRunChars[0], lastRunChars[pLastRun->getGlyphCount() - 1]) + charOffset;
+	}
+	else {
+		return charOffset;
+	}
+}
+
+int32_t Text::get_leftmost_char_index(const icu::ParagraphLayout::Line* pLine, int32_t charOffset,
+		icu::BreakIterator& iter) {
+	if (pLine && pLine->countRuns() > 0) {
+		auto* pFirstRun = pLine->getVisualRun(0);
+		auto* firstRunChars = pFirstRun->getGlyphToCharMap();
+		auto idx = firstRunChars[0] + charOffset;
+		return pFirstRun->getDirection() == UBIDI_LTR ? idx : iter.following(idx);
+	}
+	else {
+		return charOffset;
+	}
+}
+
+int32_t Text::get_rightmost_char_index(const icu::ParagraphLayout::Line* pLine, int32_t charOffset,
+		icu::BreakIterator& iter) {
+	if (pLine && pLine->countRuns() > 0) {
+		auto* pLastRun = pLine->getVisualRun(pLine->countRuns() - 1);
+		auto* lastRunChars = pLastRun->getGlyphToCharMap();
+		auto idx = lastRunChars[pLastRun->getGlyphCount() - 1] + charOffset;
+		return pLastRun->getDirection() == UBIDI_LTR ? iter.following(idx) : idx;
 	}
 	else {
 		return charOffset;
@@ -197,6 +227,55 @@ int32_t Text::find_line_end_containing_index(const LayoutInfo& info, int32_t ind
 	}
 
 	return {};
+}
+
+int32_t Text::find_closest_cursor_position(const LayoutInfo& info, float textWidth,
+		TextXAlignment textXAlignment, int32_t textLength, icu::BreakIterator& iter, size_t lineNumber,
+		float cursorX) {
+	auto* pLine = info.lines[lineNumber].get();
+	auto charOffset = info.offsetRunsByLine.get_value(static_cast<int32_t>(lineNumber));
+	auto lineX = get_line_x_start(info, textWidth, textXAlignment, pLine);
+	float lineEndPos = lineX;
+	if (pLine) {
+		auto* lastRun = pLine->getVisualRun(pLine->countRuns() - 1);
+		auto* lastRunsPositions = lastRun->getPositions();
+		lineEndPos = lineX + std::max(lastRunsPositions[0], lastRunsPositions[2 * lastRun->getGlyphCount()]);
+	}
+	int32_t result = 0;
+
+	if (cursorX <= lineX) {
+		return get_leftmost_char_index(pLine, charOffset, iter);
+	}
+	else if (cursorX >= lineEndPos) {
+		return get_rightmost_char_index(pLine, charOffset, iter);
+	}
+
+	if (pLine) {
+		for (le_int32 runID = 0; runID < pLine->countRuns(); ++runID) {
+			auto* run = pLine->getVisualRun(runID);
+
+			if (find_position_in_run(*run, cursorX - lineX, result)) {
+				if (result == run->getGlyphCount()) {
+					if (runID < pLine->countRuns() - 1) {
+						return charOffset + pLine->getVisualRun(runID + 1)->getGlyphToCharMap()[result];
+					}
+					else {
+						return run->getDirection() == UBIDI_LTR
+								? iter.following(get_line_char_end_index(pLine, charOffset))
+								: get_line_char_start_index(pLine, charOffset);
+					}
+				}
+				else {
+					return charOffset + run->getGlyphToCharMap()[result];
+				}
+			}
+		}
+	}
+	else {
+		return charOffset;
+	}
+
+	return result;
 }
 
 float Text::get_line_x_start(const LayoutInfo& info, float textWidth, TextXAlignment align,
@@ -312,5 +391,91 @@ static float find_cluster_position_rtl(const icu::ParagraphLayout::VisualRun& ru
 
 	return startPos + (endPos - startPos) * static_cast<float>(glyphIndex + 1 - clusterStart)
 			/ static_cast<float>(clusterEnd - clusterStart);
+}
+
+static bool find_position_in_run(const icu::ParagraphLayout::VisualRun& run, float cursorX, int32_t& result) {
+	// FIXME: Doesn't currently find cluster positions
+	return run.getDirection() == UBIDI_RTL ? find_position_in_run_rtl(run, cursorX, result)
+			: find_position_in_run_ltr(run, cursorX, result);
+}
+
+static bool find_position_in_run_ltr(const icu::ParagraphLayout::VisualRun& run, float cursorX,
+		int32_t& result) {
+	auto* posData = run.getPositions();
+	auto* glyphs = run.getGlyphs();
+	auto* glyphChars = run.getGlyphToCharMap();
+
+	for (le_int32 i = 0; i < run.getGlyphCount(); ++i) {
+		// Cluster
+		if (i < run.getGlyphCount() - 1 && glyphs[i + 1] == 0xFFFF) {
+			auto clusterEnd = i + 1;
+			while (clusterEnd < run.getGlyphCount() && glyphs[clusterEnd] == 0xFFFF) {
+				++clusterEnd;
+			}
+
+			auto posX = posData[2 * i];
+			auto nextPosX = posData[2 * clusterEnd];
+
+			if (cursorX >= posX && cursorX <= nextPosX) {
+				result = i + static_cast<int32_t>((clusterEnd - i) * (cursorX - posX) / (nextPosX - posX)
+						+ 0.5f);
+				return true;
+			}
+
+			i = clusterEnd - 1;
+		}
+		else {
+			auto posX = posData[2 * i];
+			auto nextPosX = posData[2 * i + 2];
+
+			if (cursorX >= posX && cursorX <= nextPosX) {
+				result = cursorX - posX < nextPosX - cursorX ? i : i + 1;
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+static bool find_position_in_run_rtl(const icu::ParagraphLayout::VisualRun& run, float cursorX,
+		int32_t& result) {
+	auto* posData = run.getPositions();
+	auto* glyphs = run.getGlyphs();
+	auto* glyphChars = run.getGlyphToCharMap();
+
+	for (le_int32 i = run.getGlyphCount(); i > 0; --i) {
+		// Cluster
+		if (i > 2 && glyphs[i - 2] == 0xFFFF) {
+			auto clusterStart = i - 1;
+			auto clusterEnd = i - 2;
+			while (clusterEnd > 0 && glyphs[clusterEnd] == 0xFFFF) {
+				--clusterEnd;
+			}
+
+			auto posX = posData[2 * clusterEnd];
+			auto nextPosX = posData[2 * clusterStart + 2];
+
+			if (cursorX >= posX && cursorX <= nextPosX) {
+				auto clusterSize = clusterStart - clusterEnd + 1;
+				result = clusterEnd + static_cast<int32_t>(clusterSize * (cursorX - posX) / (nextPosX - posX)
+						+ 0.5f) - 1;
+				return true;
+			}
+
+			i = clusterEnd;
+		}
+		else {
+			auto posX = posData[2 * i - 2];
+			auto nextPosX = posData[2 * i];
+
+			if (cursorX >= posX && cursorX <= nextPosX) {
+				result = cursorX - posX <= nextPosX - cursorX ? i - 2 : i - 1;
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 

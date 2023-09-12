@@ -23,13 +23,21 @@ struct LayoutInfo {
 };
 
 void build_line_layout_info(RichText::Result& textInfo, float lineWidth, LayoutInfo& layoutInfo);
+
 int32_t get_line_char_start_index(const icu::ParagraphLayout::Line*, int32_t charOffset); 
 int32_t get_line_char_end_index(const icu::ParagraphLayout::Line*, int32_t charOffset); 
+
+int32_t get_leftmost_char_index(const icu::ParagraphLayout::Line*, int32_t charOffset, icu::BreakIterator&);
+int32_t get_rightmost_char_index(const icu::ParagraphLayout::Line*, int32_t charOffset, icu::BreakIterator&);
+
 float get_cursor_offset_in_line(const icu::ParagraphLayout::Line*, int32_t cursorIndex);
 float get_line_end_position(const icu::ParagraphLayout::Line*);
 
 int32_t find_line_start_containing_index(const LayoutInfo&, int32_t index);
 int32_t find_line_end_containing_index(const LayoutInfo&, int32_t index, int32_t textEnd, icu::BreakIterator&);
+
+int32_t find_closest_cursor_position(const LayoutInfo&, float textWidth, TextXAlignment, int32_t textLength,
+		icu::BreakIterator&, size_t lineNumber, float cursorX);
 
 float get_line_x_start(const LayoutInfo&, float textWidth, TextXAlignment, const icu::ParagraphLayout::Line*);
 float get_text_height(const LayoutInfo&);

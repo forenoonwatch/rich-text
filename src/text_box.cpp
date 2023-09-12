@@ -47,12 +47,13 @@ static TextBox* g_focusedTextBox = nullptr;
 static float g_cursorPixelX = 0.f;
 static float g_cursorPixelY = 0.f;
 static float g_cursorHeight = 0.f;
+static size_t g_lineNumber = 0; 
 
-static int32_t apply_cursor_move(const Text::LayoutInfo& layoutInfo, const PostLayoutCursorMove& op,
-		int32_t cursorPos);
+static int32_t apply_cursor_move(const Text::LayoutInfo& layoutInfo, float textWidth,
+		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, int32_t cursorPos);
 static void calc_cursor_pixel_pos(const Text::LayoutInfo& layoutInfo, float textWidth,
 		TextXAlignment textXAlignment, float yStart, int32_t cursorPosition, float& outX, float& outY,
-		float& outHeight);
+		float& outHeight, size_t& outLineNumber);
 
 static bool is_line_break(UChar32 c);
 
@@ -89,6 +90,12 @@ bool TextBox::handle_key_press(int key, int action, int mods) {
 
 	if (is_focused()) {
 		switch (key) {
+			case GLFW_KEY_UP:
+				cursor_move_to_prev_line();
+				return true;
+			case GLFW_KEY_DOWN:
+				cursor_move_to_next_line();
+				return true;
 			case GLFW_KEY_LEFT:
 				if (mods & GLFW_MOD_CONTROL) {
 					cursor_move_to_prev_word();
@@ -303,6 +310,16 @@ void TextBox::cursor_move_to_prev_word() {
 	recalc_text_internal(false, nullptr);
 }
 
+void TextBox::cursor_move_to_next_line() {
+	PostLayoutCursorMove op{PostLayoutCursorMoveType::LINE_BELOW};
+	recalc_text_internal(false, &op);
+}
+
+void TextBox::cursor_move_to_prev_line() {
+	PostLayoutCursorMove op{PostLayoutCursorMoveType::LINE_ABOVE};
+	recalc_text_internal(false, &op);
+}
+
 void TextBox::cursor_move_to_line_start() {
 	PostLayoutCursorMove op{PostLayoutCursorMoveType::LINE_START};
 	recalc_text_internal(false, &op);
@@ -352,12 +369,12 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 	auto yStart = static_cast<float>(m_textYAlignment) * (m_size[1] - textHeight) * 0.5f;
 
 	if (postLayoutOp) {
-		m_cursorPosition = apply_cursor_move(layoutInfo,
+		m_cursorPosition = apply_cursor_move(layoutInfo, m_size[0], m_textXAlignment,
 				*reinterpret_cast<const PostLayoutCursorMove*>(postLayoutOp), m_cursorPosition);
 	}
 
 	calc_cursor_pixel_pos(layoutInfo, m_size[0], m_textXAlignment, yStart, m_cursorPosition, g_cursorPixelX,
-			g_cursorPixelY, g_cursorHeight);
+			g_cursorPixelY, g_cursorHeight, g_lineNumber);
 
 	// Add Stroke Glyphs
 	Text::for_each_glyph(layoutInfo, m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
@@ -493,14 +510,24 @@ void TextBox::set_rich_text(bool richText) {
 
 // Static Functions
 
-static int32_t apply_cursor_move(const Text::LayoutInfo& layoutInfo, const PostLayoutCursorMove& op,
-		int32_t cursorPos) {
+static int32_t apply_cursor_move(const Text::LayoutInfo& layoutInfo, float textWidth,
+		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, int32_t cursorPos) {
 	switch (op.type) {
 		case PostLayoutCursorMoveType::LINE_START:
 			return Text::find_line_start_containing_index(layoutInfo, cursorPos);
 		case PostLayoutCursorMoveType::LINE_END:
 			return Text::find_line_end_containing_index(layoutInfo, cursorPos, g_unicodeString.length(),
 					*g_charBreakIter);
+		case PostLayoutCursorMoveType::LINE_ABOVE:
+			return g_lineNumber > 0
+					? Text::find_closest_cursor_position(layoutInfo, textWidth, textXAlignment,
+							g_unicodeString.length(), *g_charBreakIter, g_lineNumber - 1, g_cursorPixelX)
+					: cursorPos;
+		case PostLayoutCursorMoveType::LINE_BELOW:
+			return g_lineNumber < layoutInfo.lines.size() - 1
+					? Text::find_closest_cursor_position(layoutInfo, textWidth, textXAlignment,
+							g_unicodeString.length(), *g_charBreakIter, g_lineNumber + 1, g_cursorPixelX)
+					: cursorPos;
 		default:
 			break;
 	}
@@ -510,7 +537,7 @@ static int32_t apply_cursor_move(const Text::LayoutInfo& layoutInfo, const PostL
 
 static void calc_cursor_pixel_pos(const Text::LayoutInfo& layoutInfo, float textWidth,
 		TextXAlignment textXAlignment, float yStart, int32_t cursorPosition, float& outX, float& outY,
-		float& outHeight) {
+		float& outHeight, size_t& outLineNumber) {
 	Text::for_each_line(layoutInfo, textWidth, textXAlignment, [&](auto lineNumber, auto* pLine,
 			auto charOffset, auto lineX, auto lineY) {
 		float offset = 0.f;
@@ -541,6 +568,7 @@ static void calc_cursor_pixel_pos(const Text::LayoutInfo& layoutInfo, float text
 			outX = lineX + offset;
 			outY = yStart + lineY - layoutInfo.lineY;
 			outHeight = layoutInfo.lineHeight;
+			outLineNumber = lineNumber;
 		}
 	});
 }
