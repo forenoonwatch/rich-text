@@ -44,9 +44,15 @@ static constexpr const UChar32 CH_PSEP = 0x2029;
 static icu::UnicodeString g_unicodeString;
 static icu::BreakIterator* g_charBreakIter = nullptr;
 static TextBox* g_focusedTextBox = nullptr;
+static float g_cursorPixelX = 0.f;
+static float g_cursorPixelY = 0.f;
+static float g_cursorHeight = 0.f;
 
 static int32_t apply_cursor_move(const Text::LayoutInfo& layoutInfo, const PostLayoutCursorMove& op,
 		int32_t cursorPos);
+static void calc_cursor_pixel_pos(const Text::LayoutInfo& layoutInfo, float textWidth,
+		TextXAlignment textXAlignment, float yStart, int32_t cursorPosition, float& outX, float& outY,
+		float& outHeight);
 
 static bool is_line_break(UChar32 c);
 
@@ -199,6 +205,21 @@ void TextBox::render(const float* invScreenSize) {
 			pPipeline->draw();
 		}
 	}
+
+	// Draw Cursor
+	if (is_focused()) {
+		float cursorExtents[] = {m_position[0] + g_cursorPixelX, m_position[1] + g_cursorPixelY, 1,
+				g_cursorHeight};
+		Color cursorColor{0, 0, 0, 1};
+
+		pPipeline = &g_pipelines[static_cast<size_t>(PipelineIndex::RECT)];
+		pPipeline->bind();
+		pPipeline->set_uniform_float2(0, invScreenSize);
+		pPipeline->set_uniform_float4(1, cursorExtents);
+		pPipeline->set_uniform_float4(3, reinterpret_cast<const float*>(&cursorColor));
+		g_textAtlas->get_default_texture()->bind();
+		pPipeline->draw();
+	}
 }
 
 bool TextBox::is_mouse_inside(double mouseX, double mouseY) const {
@@ -334,6 +355,9 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 		m_cursorPosition = apply_cursor_move(layoutInfo,
 				*reinterpret_cast<const PostLayoutCursorMove*>(postLayoutOp), m_cursorPosition);
 	}
+
+	calc_cursor_pixel_pos(layoutInfo, m_size[0], m_textXAlignment, yStart, m_cursorPosition, g_cursorPixelX,
+			g_cursorPixelY, g_cursorHeight);
 
 	// Add Stroke Glyphs
 	Text::for_each_glyph(layoutInfo, m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
@@ -522,6 +546,43 @@ static int32_t apply_cursor_move(const Text::LayoutInfo& layoutInfo, const PostL
 	}
 
 	return cursorPos;
+}
+
+static void calc_cursor_pixel_pos(const Text::LayoutInfo& layoutInfo, float textWidth,
+		TextXAlignment textXAlignment, float yStart, int32_t cursorPosition, float& outX, float& outY,
+		float& outHeight) {
+	Text::for_each_line(layoutInfo, textWidth, textXAlignment, [&](auto lineNumber, auto* pLine,
+			auto charOffset, auto lineX, auto lineY) {
+		float offset = 0.f;
+		bool found = false;
+
+		auto lineStart = Text::get_line_char_start_index(pLine, charOffset);
+		auto lineEnd = Text::get_line_char_end_index(pLine, charOffset);
+
+		if (cursorPosition >= lineStart && cursorPosition <= lineEnd) {
+			offset = Text::get_cursor_offset_in_line(pLine, cursorPosition - charOffset);
+			found = true;
+		}
+		else if (cursorPosition >= lineEnd && lineNumber < layoutInfo.lines.size() - 1) {
+			auto* pNextLine = layoutInfo.lines[lineNumber + 1].get();
+			auto nextOffset = layoutInfo.offsetRunsByLine.get_value(static_cast<int32_t>(lineNumber + 1));
+
+			if (cursorPosition < Text::get_line_char_start_index(pNextLine, nextOffset)) {
+				offset = Text::get_line_end_position(pLine);
+				found = true;
+			}
+		}
+		else if (cursorPosition >= lineEnd) {
+			offset = Text::get_line_end_position(pLine);
+			found = true;
+		}
+
+		if (found) {
+			outX = lineX + offset;
+			outY = yStart + lineY - layoutInfo.lineY;
+			outHeight = layoutInfo.lineHeight;
+		}
+	});
 }
 
 static bool is_line_break(UChar32 c) {
