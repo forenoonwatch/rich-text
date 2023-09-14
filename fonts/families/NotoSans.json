@@ -50,6 +50,10 @@
 				{
 					"uri": "fonts/NotoSans/NotoNaskhArabic-Regular.ttf",
 					"scripts": [2]
+				},
+				{
+					"uri": "fonts/NotoSans/NotoSansEgyptianHieroglyphs-Regular.ttf",
+					"scripts": [71]
 				}
 			]
 		},

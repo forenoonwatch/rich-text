@@ -32,6 +32,12 @@
 			"weight": 400,
 			"style": "normal",
 			"uri": "C:/Windows/Fonts/cambria.ttc"
+		},
+		{
+			"name": "Segoe UI Historic",
+			"weight": 400,
+			"style": "normal",
+			"uri": "C:/Windows/Fonts/seguihis.ttf"
 		}
 	]
 }
