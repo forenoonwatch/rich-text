@@ -1,4 +1,4 @@
-#include "paragraph_layout.hpp"
+#include "text_utils.hpp"
 
 #include <unicode/utext.h>
 
@@ -394,7 +394,6 @@ static float find_cluster_position_rtl(const icu::ParagraphLayout::VisualRun& ru
 }
 
 static bool find_position_in_run(const icu::ParagraphLayout::VisualRun& run, float cursorX, int32_t& result) {
-	// FIXME: Doesn't currently find cluster positions
 	return run.getDirection() == UBIDI_RTL ? find_position_in_run_rtl(run, cursorX, result)
 			: find_position_in_run_ltr(run, cursorX, result);
 }

@@ -6,7 +6,7 @@
 #include "pipeline.hpp"
 #include "text_atlas.hpp"
 #include "msdf_text_atlas.hpp"
-#include "paragraph_layout.hpp"
+#include "text_utils.hpp"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
