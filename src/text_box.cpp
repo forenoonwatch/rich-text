@@ -1,5 +1,6 @@
 #include "text_box.hpp"
 
+#include "config_vars.hpp"
 #include "font_cache.hpp"
 #include "image.hpp"
 #include "pipeline.hpp"
@@ -32,9 +33,6 @@ struct CursorToMouse : public PostLayoutCursorMove {
 };
 
 }
-
-static constexpr const bool g_useMSDF = false;
-static constexpr const bool g_showGlyphOutlines = false;
 
 static constexpr const UChar32 CH_LF = 0x000A;
 static constexpr const UChar32 CH_CR = 0x000D;
@@ -197,7 +195,7 @@ void TextBox::render(const float* invScreenSize) {
 		pPipeline->set_uniform_float4(3, reinterpret_cast<const float*>(&rect.color));
 		pPipeline->draw();
 
-		if (g_showGlyphOutlines && rect.pipeline != PipelineIndex::OUTLINE) {
+		if (CVars::showGlyphOutlines && rect.pipeline != PipelineIndex::OUTLINE) {
 			if (pipelineIndex != PipelineIndex::OUTLINE) {
 				pipelineIndex = PipelineIndex::OUTLINE;
 				pPipeline = &g_pipelines[static_cast<size_t>(pipelineIndex)];
@@ -389,7 +387,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 			float texCoordExtents[4]{};
 			float glyphSize[2]{};
 			bool strokeHasColor{};
-			auto* pGlyphImage = g_useMSDF ? g_msdfTextAtlas->get_stroke_info(font, glyphID, stroke.thickness,
+			auto* pGlyphImage = CVars::useMSDF ? g_msdfTextAtlas->get_stroke_info(font, glyphID, stroke.thickness,
 					stroke.joins, texCoordExtents, glyphSize, offset, strokeHasColor)
 					: g_textAtlas->get_stroke_info(font, glyphID, stroke.thickness, stroke.joins,
 					texCoordExtents, glyphSize, offset, strokeHasColor);
@@ -403,7 +401,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 						texCoordExtents[2], texCoordExtents[3]},
 				.texture = pGlyphImage,
 				.color = stroke.color,
-				.pipeline = g_useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT,
+				.pipeline = CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT,
 			});
 		}
 	});
@@ -419,7 +417,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 		float glyphSize[2]{};
 		bool glyphHasColor{};
 
-		auto* pGlyphImage = g_useMSDF ? g_msdfTextAtlas->get_glyph_info(font, glyphID, texCoordExtents,
+		auto* pGlyphImage = CVars::useMSDF ? g_msdfTextAtlas->get_glyph_info(font, glyphID, texCoordExtents,
 				glyphSize, offset, glyphHasColor)
 				: g_textAtlas->get_glyph_info(font, glyphID, texCoordExtents, glyphSize, offset,
 				glyphHasColor);
@@ -459,9 +457,48 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 			.texCoords = {texCoordExtents[0], texCoordExtents[1], texCoordExtents[2], texCoordExtents[3]},
 			.texture = pGlyphImage,
 			.color = std::move(textColor),
-			.pipeline = g_useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT,
+			.pipeline = CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT,
 		});
 	});
+
+	// Debug render run outlines
+	if (CVars::showRunOutlines) {
+		Text::for_each_run(layoutInfo, m_size[0], m_textXAlignment, [&](auto& run, auto charOffset, auto lineX,
+				auto lineY) {
+			auto minBound = run.getPositions()[0];
+			auto maxBound = run.getPositions()[2 * run.getGlyphCount()];
+
+			m_textRects.push_back({
+				.x = lineX + minBound,
+				.y = lineY - layoutInfo.lineY,
+				.width = maxBound - minBound,
+				.height = layoutInfo.lineHeight,
+				.texture = g_textAtlas->get_default_texture(),
+				.color = {0, 0.5, 0, 1},
+				.pipeline = PipelineIndex::OUTLINE,
+			});
+		});
+	}
+
+	// Debug render glyph boundaries
+	if (CVars::showGlyphBoundaries) {
+		Text::for_each_run(layoutInfo, m_size[0], m_textXAlignment, [&](auto& run, auto charOffset, auto lineX,
+				auto lineY) {
+			auto* positions = run.getPositions();
+
+			for (le_int32 i = 0; i <= run.getGlyphCount(); ++i) {
+				m_textRects.push_back({
+					.x = lineX + positions[2 * i],
+					.y = lineY - layoutInfo.lineY,
+					.width = 0.5f,
+					.height = layoutInfo.lineHeight,
+					.texture = g_textAtlas->get_default_texture(),
+					.color = {0, 0.5, 0, 1},
+					.pipeline = PipelineIndex::OUTLINE,
+				});
+			}
+		});
+	}
 }
 
 // Setters
