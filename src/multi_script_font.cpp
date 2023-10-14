@@ -123,11 +123,13 @@ float MultiScriptFont::getScaleFactorY() const {
 }
 
 le_int32 MultiScriptFont::getAscent() const {
-	return 0;
+	return m_fontCache->get_font_for_script(get_family(), get_weight(), get_style(), USCRIPT_LATIN,
+			get_size())->getAscent();
 }
 
 le_int32 MultiScriptFont::getDescent() const {
-	return 0;
+	return m_fontCache->get_font_for_script(get_family(), get_weight(), get_style(), USCRIPT_LATIN,
+			get_size())->getDescent();
 }
 
 le_int32 MultiScriptFont::getLeading() const {
