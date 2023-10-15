@@ -82,7 +82,21 @@ CursorPositionResult ParagraphLayout::calc_cursor_pixel_pos(float textWidth, Tex
 			return charIndices[index] < cursor.get_position();
 		});
 
+		auto nextCharIndex = glyphIndex == lastGlyphIndex && runIndex == lines[lineIndex].visualRunsEndIndex - 1
+				? lines[lineIndex].lastStringIndex - lines[lineIndex].lastCharDiff
+				: charIndices[glyphIndex];
+		auto clusterDiff = nextCharIndex - cursor.get_position();
+
 		glyphOffset = glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex)];
+
+		if (clusterDiff > 0 && glyphIndex > 0) {
+			auto clusterCodeUnitCount = nextCharIndex - charIndices[glyphIndex - 1];
+			auto prevGlyphOffset = glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex - 1)];
+			auto scaleFactor = static_cast<float>(clusterCodeUnitCount - clusterDiff)
+					/ static_cast<float>(clusterCodeUnitCount);
+
+			glyphOffset = prevGlyphOffset + (glyphOffset - prevGlyphOffset) * scaleFactor;
+		}
 	}
 
 	return {
@@ -103,9 +117,13 @@ size_t ParagraphLayout::get_run_containing_cursor(CursorPosition cursor, size_t&
 
 	auto firstRunIndex = get_first_run_index(lines[outLineNumber]);
 	auto lastRunIndex = lines[outLineNumber].visualRunsEndIndex;
+	// Last `lastStringIndex` is always strlen
+	auto stringEnd = lines.back().lastStringIndex;
 
 	auto runIndex = binary_search(firstRunIndex, lastRunIndex - firstRunIndex, [&](auto index) {
-		return charIndices[visualRuns[index].glyphEndIndex - 1] < cursor.get_position();
+		auto glyphIndex = visualRuns[index].glyphEndIndex;
+		auto charIndex = glyphIndex == charIndices.size() ? stringEnd : charIndices[glyphIndex];
+		return charIndex <= cursor.get_position();
 	});
 
 	if (runIndex == 0) {
@@ -121,7 +139,7 @@ size_t ParagraphLayout::get_run_containing_cursor(CursorPosition cursor, size_t&
 	// Cursor is on the boundary of 2 runs
 	if (cursor.get_position() == charIndices[prevRun.glyphEndIndex]) {
 		auto lineFirstRunIndex = outLineNumber == 0 ? 0 : lines[outLineNumber - 1].visualRunsEndIndex;
-		printf("%u is line first run %s\n", cursor.get_position(), lineFirstRunIndex == runIndex ? "y" : "n");
+		//printf("%u is line first run %s\n", cursor.get_position(), lineFirstRunIndex == runIndex ? "y" : "n");
 
 		// Case 1: Current run is the first run of a line, meaning we are at a line break
 		/*if (lineFirstRunIndex == runIndex) {
@@ -427,6 +445,10 @@ static void build_paragraph_layout_icu(ParagraphLayout& result, const char16_t* 
 			}
 
 			byteIndex = UTEXT_GETNATIVEINDEX(&iter);
+
+			if (!result.lines.empty()) {
+				result.lines.back().lastCharDiff = byteIndex - idx;
+			}
 		}
 	}
 
@@ -469,8 +491,8 @@ static uint32_t handle_line_icu(ParagraphLayout& result, icu::ParagraphLayout::L
 		}
 
 		if (pRun->getDirection() != UBIDI_LTR) {
-			result.glyphPositions.emplace_back(pGlyphPositions[0]);
-			result.glyphPositions.emplace_back(pGlyphPositions[1]);
+			result.glyphPositions.emplace_back(pGlyphPositions[2 * pRun->getGlyphCount()]);
+			result.glyphPositions.emplace_back(pGlyphPositions[2 * pRun->getGlyphCount() + 1]);
 		}
 
 		for (int32_t j = 0; j < pRun->getGlyphCount(); ++j) {

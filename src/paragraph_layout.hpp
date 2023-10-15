@@ -44,6 +44,9 @@ struct LineInfo {
 	// Total descent from the top of the paragraph to the bottom of this line. The difference between
 	// this and the `totalDescent` of the previous line is the height
 	float totalDescent;
+	// The difference between the `lastStringIndex` and the end of the last rendered char of the line.
+	// Used to correct for line break characters
+	uint32_t lastCharDiff;
 };
 
 struct ParagraphLayout {
