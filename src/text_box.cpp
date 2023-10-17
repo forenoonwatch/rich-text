@@ -7,6 +7,7 @@
 #include "text_atlas.hpp"
 #include "msdf_text_atlas.hpp"
 #include "text_utils.hpp"
+#include "paragraph_layout.hpp"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -47,11 +48,8 @@ static float g_cursorPixelY = 0.f;
 static float g_cursorHeight = 0.f;
 static size_t g_lineNumber = 0; 
 
-static int32_t apply_cursor_move(const Text::LayoutInfo& layoutInfo, float textWidth,
-		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, int32_t cursorPos);
-static void calc_cursor_pixel_pos(const Text::LayoutInfo& layoutInfo, float textWidth,
-		TextXAlignment textXAlignment, float yStart, int32_t cursorPosition, float& outX, float& outY,
-		float& outHeight, size_t& outLineNumber);
+static CursorPosition apply_cursor_move(const ParagraphLayout& paragraphLayout, float textWidth,
+		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor);
 
 static bool is_line_break(UChar32 c);
 
@@ -239,32 +237,34 @@ bool TextBox::is_focused() const {
 // Private Methods
 
 void TextBox::cursor_move_to_next_character() {
-	if (auto nextIndex = g_charBreakIter->following(m_cursorPosition); nextIndex != icu::BreakIterator::DONE) {
-		m_cursorPosition = nextIndex;
+	if (auto nextIndex = g_charBreakIter->following(m_cursorPosition.get_position());
+			nextIndex != icu::BreakIterator::DONE) {
+		m_cursorPosition = {static_cast<uint32_t>(nextIndex)};
 	}
 
 	recalc_text_internal(false, nullptr);
 }
 
 void TextBox::cursor_move_to_prev_character() {
-	if (auto nextIndex = g_charBreakIter->preceding(m_cursorPosition); nextIndex != icu::BreakIterator::DONE) {
-		m_cursorPosition = nextIndex;
+	if (auto nextIndex = g_charBreakIter->preceding(m_cursorPosition.get_position());
+			nextIndex != icu::BreakIterator::DONE) {
+		m_cursorPosition = {static_cast<uint32_t>(nextIndex)};
 	}
 
 	recalc_text_internal(false, nullptr);
 }
 
 void TextBox::cursor_move_to_next_word() {
-	bool lastWhitespace = u_isWhitespace(g_unicodeString.char32At(m_cursorPosition));
+	bool lastWhitespace = u_isWhitespace(g_unicodeString.char32At(m_cursorPosition.get_position()));
 
 	for (;;) {
-		auto nextIndex = g_charBreakIter->following(m_cursorPosition);
+		auto nextIndex = g_charBreakIter->following(m_cursorPosition.get_position());
 
 		if (nextIndex == icu::BreakIterator::DONE) {
 			break;
 		}
 
-		m_cursorPosition = nextIndex;
+		m_cursorPosition = {static_cast<uint32_t>(nextIndex)};
 		auto c = g_unicodeString.char32At(nextIndex);
 		bool whitespace = u_isWhitespace(c);
 
@@ -282,7 +282,7 @@ void TextBox::cursor_move_to_prev_word() {
 	bool lastWhitespace = true;
 
 	for (;;) {
-		auto nextIndex = g_charBreakIter->preceding(m_cursorPosition);
+		auto nextIndex = g_charBreakIter->preceding(m_cursorPosition.get_position());
 
 		if (nextIndex == icu::BreakIterator::DONE) {
 			break;
@@ -297,11 +297,11 @@ void TextBox::cursor_move_to_prev_word() {
 		}
 
 		if (is_line_break(c)) {
-			m_cursorPosition = nextIndex;
+			m_cursorPosition = {static_cast<uint32_t>(nextIndex)};
 			break;
 		}
 
-		m_cursorPosition = nextIndex;
+		m_cursorPosition = {static_cast<uint32_t>(nextIndex)};
 		lastWhitespace = whitespace;
 	}
 
@@ -329,12 +329,12 @@ void TextBox::cursor_move_to_line_end() {
 }
 
 void TextBox::cursor_move_to_text_start() {
-	m_cursorPosition = 0;
+	m_cursorPosition = {};
 	recalc_text_internal(false, nullptr);
 }
 
 void TextBox::cursor_move_to_text_end() {
-	m_cursorPosition = g_unicodeString.length();
+	m_cursorPosition = {static_cast<uint32_t>(g_unicodeString.length())};
 	recalc_text_internal(false, nullptr);
 }
 
@@ -361,21 +361,23 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 }
 
 void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayoutOp) {
-	Text::LayoutInfo layoutInfo{};
-	Text::build_line_layout_info(textInfo, m_size[0], layoutInfo);
-	auto textHeight = Text::get_text_height(layoutInfo);
-	auto yStart = static_cast<float>(m_textYAlignment) * (m_size[1] - textHeight) * 0.5f;
+	ParagraphLayout paragraphLayout{};
+	build_paragraph_layout(paragraphLayout, textInfo.str.getBuffer(), textInfo.str.length(), textInfo.fontRuns,
+			m_size[0], m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);
 
 	if (postLayoutOp) {
-		m_cursorPosition = apply_cursor_move(layoutInfo, m_size[0], m_textXAlignment,
+		m_cursorPosition = apply_cursor_move(paragraphLayout, m_size[0], m_textXAlignment,
 				*reinterpret_cast<const PostLayoutCursorMove*>(postLayoutOp), m_cursorPosition);
 	}
 
-	calc_cursor_pixel_pos(layoutInfo, m_size[0], m_textXAlignment, yStart, m_cursorPosition, g_cursorPixelX,
-			g_cursorPixelY, g_cursorHeight, g_lineNumber);
+	auto cursorPixelInfo = paragraphLayout.calc_cursor_pixel_pos(m_size[0], m_textXAlignment, m_cursorPosition);
+	g_cursorPixelX = cursorPixelInfo.x;
+	g_cursorPixelY = cursorPixelInfo.y;
+	g_cursorHeight = cursorPixelInfo.height;
+	g_lineNumber = cursorPixelInfo.lineNumber;
 
 	// Add Stroke Glyphs
-	Text::for_each_glyph(layoutInfo, m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
+	paragraphLayout.for_each_glyph(m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
 			auto* position, auto& font, auto lineX, auto lineY) {
 		auto stroke = textInfo.strokeRuns.get_value(charIndex);
 
@@ -394,7 +396,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 
 			m_textRects.push_back({
 				.x = lineX + pX + offset[0],
-				.y = yStart + lineY + pY + offset[1],
+				.y = paragraphLayout.textStartY + lineY + pY + offset[1],
 				.width = glyphSize[0],
 				.height = glyphSize[1],
 				.texCoords = {texCoordExtents[0], texCoordExtents[1],
@@ -407,7 +409,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 	});
 
 	// Add Main Glyphs
-	Text::for_each_glyph(layoutInfo, m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
+	paragraphLayout.for_each_glyph(m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
 			auto* position, auto& font, auto lineX, auto lineY) {
 		auto pX = position[0];
 		auto pY = position[1];
@@ -427,7 +429,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 			auto height = font.get_strikethrough_thickness() + 0.5f;
 			m_textRects.push_back({
 				.x = lineX + pX + offset[0],
-				.y = yStart + lineY + pY + font.get_strikethrough_position(),
+				.y = paragraphLayout.textStartY + lineY + pY + font.get_strikethrough_position(),
 				.width = glyphSize[0],
 				.height = height,
 				.texture = g_textAtlas->get_default_texture(),
@@ -440,7 +442,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 			auto height = font.get_underline_thickness() + 0.5f;
 			m_textRects.push_back({
 				.x = lineX + pX + offset[0],
-				.y = yStart + lineY + pY + font.get_underline_position(),
+				.y = paragraphLayout.textStartY + lineY + pY + font.get_underline_position(),
 				.width = glyphSize[0],
 				.height = height,
 				.texture = g_textAtlas->get_default_texture(),
@@ -451,7 +453,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 
 		m_textRects.push_back({
 			.x = lineX + pX + offset[0],
-			.y = yStart + lineY + pY + offset[1],
+			.y = paragraphLayout.textStartY + lineY + pY + offset[1],
 			.width = glyphSize[0],
 			.height = glyphSize[1],
 			.texCoords = {texCoordExtents[0], texCoordExtents[1], texCoordExtents[2], texCoordExtents[3]},
@@ -463,16 +465,17 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 
 	// Debug render run outlines
 	if (CVars::showRunOutlines) {
-		Text::for_each_run(layoutInfo, m_size[0], m_textXAlignment, [&](auto& run, auto charOffset, auto lineX,
+		paragraphLayout.for_each_run(m_size[0], m_textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
 				auto lineY) {
-			auto minBound = run.getPositions()[0];
-			auto maxBound = run.getPositions()[2 * run.getGlyphCount()];
+			auto* positions = paragraphLayout.get_run_positions(runIndex);
+			auto minBound = positions[0];
+			auto maxBound = positions[2 * paragraphLayout.get_run_glyph_count(runIndex)]; 
 
 			m_textRects.push_back({
 				.x = lineX + minBound,
-				.y = lineY - layoutInfo.lineY,
+				.y = lineY - paragraphLayout.lines[lineIndex].ascent,
 				.width = maxBound - minBound,
-				.height = layoutInfo.lineHeight,
+				.height = paragraphLayout.get_line_height(lineIndex),
 				.texture = g_textAtlas->get_default_texture(),
 				.color = {0, 0.5, 0, 1},
 				.pipeline = PipelineIndex::OUTLINE,
@@ -482,16 +485,16 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 
 	// Debug render glyph boundaries
 	if (CVars::showGlyphBoundaries) {
-		Text::for_each_run(layoutInfo, m_size[0], m_textXAlignment, [&](auto& run, auto charOffset, auto lineX,
+		paragraphLayout.for_each_run(m_size[0], m_textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
 				auto lineY) {
-			auto* positions = run.getPositions();
+			auto* positions = paragraphLayout.get_run_positions(runIndex);
 
-			for (le_int32 i = 0; i <= run.getGlyphCount(); ++i) {
+			for (le_int32 i = 0; i <= paragraphLayout.get_run_glyph_count(runIndex); ++i) {
 				m_textRects.push_back({
 					.x = lineX + positions[2 * i],
-					.y = lineY - layoutInfo.lineY,
+					.y = lineY - paragraphLayout.lines[lineIndex].ascent,
 					.width = 0.5f,
-					.height = layoutInfo.lineHeight,
+					.height = paragraphLayout.get_line_height(lineIndex),
 					.texture = g_textAtlas->get_default_texture(),
 					.color = {0, 0.5, 0, 1},
 					.pipeline = PipelineIndex::OUTLINE,
@@ -547,67 +550,28 @@ void TextBox::set_rich_text(bool richText) {
 
 // Static Functions
 
-static int32_t apply_cursor_move(const Text::LayoutInfo& layoutInfo, float textWidth,
-		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, int32_t cursorPos) {
+static CursorPosition apply_cursor_move(const ParagraphLayout& paragraphLayout, float textWidth,
+		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor) {
 	switch (op.type) {
 		case PostLayoutCursorMoveType::LINE_START:
-			return Text::find_line_start_containing_index(layoutInfo, cursorPos);
+			return paragraphLayout.get_line_start_position(g_lineNumber);
 		case PostLayoutCursorMoveType::LINE_END:
-			return Text::find_line_end_containing_index(layoutInfo, cursorPos, g_unicodeString.length(),
-					*g_charBreakIter);
+			return paragraphLayout.get_line_end_position(g_lineNumber);
 		case PostLayoutCursorMoveType::LINE_ABOVE:
 			return g_lineNumber > 0
-					? Text::find_closest_cursor_position(layoutInfo, textWidth, textXAlignment,
-							g_unicodeString.length(), *g_charBreakIter, g_lineNumber - 1, g_cursorPixelX)
-					: cursorPos;
+					? paragraphLayout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,
+							g_lineNumber - 1, g_cursorPixelX)
+					: cursor;
 		case PostLayoutCursorMoveType::LINE_BELOW:
-			return g_lineNumber < layoutInfo.lines.size() - 1
-					? Text::find_closest_cursor_position(layoutInfo, textWidth, textXAlignment,
-							g_unicodeString.length(), *g_charBreakIter, g_lineNumber + 1, g_cursorPixelX)
-					: cursorPos;
+			return g_lineNumber < paragraphLayout.lines.size() - 1
+					? paragraphLayout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,
+							g_lineNumber + 1, g_cursorPixelX)
+					: cursor;
 		default:
 			break;
 	}
 
-	return cursorPos;
-}
-
-static void calc_cursor_pixel_pos(const Text::LayoutInfo& layoutInfo, float textWidth,
-		TextXAlignment textXAlignment, float yStart, int32_t cursorPosition, float& outX, float& outY,
-		float& outHeight, size_t& outLineNumber) {
-	Text::for_each_line(layoutInfo, textWidth, textXAlignment, [&](auto lineNumber, auto* pLine,
-			auto charOffset, auto lineX, auto lineY) {
-		float offset = 0.f;
-		bool found = false;
-
-		auto lineStart = Text::get_line_char_start_index(pLine, charOffset);
-		auto lineEnd = Text::get_line_char_end_index(pLine, charOffset);
-
-		if (cursorPosition >= lineStart && cursorPosition <= lineEnd) {
-			offset = Text::get_cursor_offset_in_line(pLine, cursorPosition - charOffset);
-			found = true;
-		}
-		else if (cursorPosition >= lineEnd && lineNumber < layoutInfo.lines.size() - 1) {
-			auto* pNextLine = layoutInfo.lines[lineNumber + 1].get();
-			auto nextOffset = layoutInfo.offsetRunsByLine.get_value(static_cast<int32_t>(lineNumber + 1));
-
-			if (cursorPosition < Text::get_line_char_start_index(pNextLine, nextOffset)) {
-				offset = Text::get_line_end_position(pLine);
-				found = true;
-			}
-		}
-		else if (cursorPosition >= lineEnd) {
-			offset = Text::get_line_end_position(pLine);
-			found = true;
-		}
-
-		if (found) {
-			outX = lineX + offset;
-			outY = yStart + lineY - layoutInfo.lineY;
-			outHeight = layoutInfo.lineHeight;
-			outLineNumber = lineNumber;
-		}
-	});
+	return cursor;
 }
 
 static bool is_line_break(UChar32 c) {
