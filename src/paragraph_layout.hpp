@@ -8,7 +8,6 @@
 
 #include <cstdint>
 
-namespace icu_73 { class LEFontInstance; }
 namespace icu_73 { class BreakIterator; }
 
 class MultiScriptFont;
@@ -94,18 +93,13 @@ struct ParagraphLayout {
 	 */
 	size_t get_closest_line_to_height(float y) const;
 
+	CursorPosition get_line_start_position(size_t lineIndex) const;
+	CursorPosition get_line_end_position(size_t lineIndex) const;
+
+	CursorPosition find_closest_cursor_position(float textWidth, TextXAlignment, icu_73::BreakIterator&,
+			size_t lineNumber, float cursorX) const;
+
 	float get_line_x_start(const LineInfo&, float textWidth, TextXAlignment) const;
-	int32_t get_line_char_start_index(const LineInfo&) const;
-	int32_t get_line_char_end_index(const LineInfo&) const;
-	float get_cursor_offset_in_line(const LineInfo&, int32_t cursorIndex) const;
-	float get_line_end_position(const LineInfo&) const;
-	int32_t find_line_start_containing_index(int32_t index) const;
-	int32_t find_line_end_containing_index(int32_t index, int32_t textEnd, icu::BreakIterator&) const;
-	int32_t find_closest_cursor_position(float textWidth, TextXAlignment, int32_t textLength,
-			icu_73::BreakIterator&, size_t lineNumber, float cursorX) const;
-	int32_t get_leftmost_char_index(const LineInfo&, icu::BreakIterator&) const;
-	int32_t get_rightmost_char_index(const LineInfo&, icu::BreakIterator&) const;
-	float get_rightmost_line_position(const LineInfo&) const;
 
 	uint32_t get_first_run_index(const LineInfo&) const;
 	uint32_t get_first_glyph_index(const VisualRun&) const;
@@ -115,6 +109,8 @@ struct ParagraphLayout {
 
 	const float* get_run_positions(const VisualRun&) const;
 	uint32_t get_run_glyph_count(const VisualRun&) const;
+
+	bool is_empty_line(size_t lineIndex) const;
 
 	template <typename Functor>
 	void for_each_line(float textWidth, TextXAlignment textXAlignment, Functor&& func) const;
@@ -159,10 +155,6 @@ void ParagraphLayout::for_each_glyph(float textWidth, TextXAlignment textXAlignm
 		glyphPosIndex += 2 * run.rightToLeft;
 
 		for (; glyphIndex < run.glyphEndIndex; ++glyphIndex, glyphPosIndex += 2) {
-			if (glyphs[glyphIndex] == 0xFFFFu) {
-				continue;
-			}
-
 			func(glyphs[glyphIndex], charIndices[glyphIndex], glyphPositions.data() + glyphPosIndex,
 					*run.pFont, lineX, lineY);
 		}

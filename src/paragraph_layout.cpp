@@ -18,21 +18,6 @@ static void build_paragraph_layout_icu(ParagraphLayout& result, const char16_t* 
 		TextYAlignment textYAlignment, ParagraphLayoutFlags flags);
 static uint32_t handle_line_icu(ParagraphLayout& result, icu::ParagraphLayout::Line& line, int32_t charOffset);
 
-static bool find_offset_in_run_ltr(const ParagraphLayout& pl, const VisualRun& run, int32_t cursorIndex,
-		float& outOffset);
-static bool find_offset_in_run_rtl(const ParagraphLayout& pl, const VisualRun& run, int32_t cursorIndex,
-		float& outOffset);
-
-static float find_cluster_position_ltr(const ParagraphLayout& pl, const VisualRun& run, int32_t glyphIndex);
-static float find_cluster_position_rtl(const ParagraphLayout& pl, const VisualRun& run, int32_t glyphIndex);
-
-static bool find_position_in_run(const ParagraphLayout& pl, const VisualRun& run, float cursorX,
-		int32_t& result);
-static bool find_position_in_run_ltr(const ParagraphLayout& pl, const VisualRun& run, float cursorX,
-		int32_t& result);
-static bool find_position_in_run_rtl(const ParagraphLayout& pl, const VisualRun& run, float cursorX,
-		int32_t& result);
-
 template <typename Condition>
 static constexpr size_t binary_search(size_t first, size_t count, Condition&& cond) {
 	while (count > 0) {
@@ -71,9 +56,7 @@ CursorPositionResult ParagraphLayout::calc_cursor_pixel_pos(float textWidth, Tex
 	auto firstPosIndex = get_first_position_index(visualRuns[runIndex]);
 	auto lineX = get_line_x_start(lines[lineIndex], textWidth, textXAlignment);
 
-	bool isEmptyLine = lines[lineIndex].visualRunsEndIndex == 0
-			|| (lineIndex > 0 && lines[lineIndex - 1].visualRunsEndIndex
-			== lines[lineIndex].visualRunsEndIndex);
+	bool isEmptyLine = is_empty_line(lineIndex);
 
 	float glyphOffset = 0.f;
 
@@ -179,6 +162,14 @@ size_t ParagraphLayout::get_closest_line_to_height(float y) const {
 	});
 }
 
+CursorPosition ParagraphLayout::get_line_start_position(size_t lineIndex) const {
+	return {lineIndex == 0 ? 0 : lines[lineIndex - 1].lastStringIndex};
+}
+
+CursorPosition ParagraphLayout::get_line_end_position(size_t lineIndex) const {
+	return {lines[lineIndex].lastStringIndex - lines[lineIndex].lastCharDiff};
+}
+
 float ParagraphLayout::get_line_x_start(const LineInfo& line, float textWidth, TextXAlignment align) const {
 	auto lineWidth = line.width;
 
@@ -195,157 +186,81 @@ float ParagraphLayout::get_line_x_start(const LineInfo& line, float textWidth, T
 	return 0.f;
 }
 
-int32_t ParagraphLayout::get_line_char_start_index(const LineInfo& line) const {
-	auto& firstRun = visualRuns[get_first_run_index(line)];
-	auto firstGlyphIndex = get_first_glyph_index(firstRun);
-	return std::min(charIndices[firstGlyphIndex], charIndices[firstRun.glyphEndIndex - 1]);
-}
-
-int32_t ParagraphLayout::get_line_char_end_index(const LineInfo& line) const {
-	auto& lastRun = visualRuns[line.visualRunsEndIndex == 0 ? 0 : line.visualRunsEndIndex - 1];
-	auto firstGlyphIndex = get_first_glyph_index(lastRun);
-	return std::max(charIndices[firstGlyphIndex], charIndices[lastRun.glyphEndIndex - 1]);
-}
-
-float ParagraphLayout::get_cursor_offset_in_line(const LineInfo& line, int32_t cursorIndex) const {
-	auto firstRunIndex = &line == lines.data() ? 0 : (&line)[-1].visualRunsEndIndex;
-
-	if (line.visualRunsEndIndex > firstRunIndex) {
-		return 0.f;
+CursorPosition ParagraphLayout::find_closest_cursor_position(float textWidth, TextXAlignment textXAlignment,
+		icu::BreakIterator& iter, size_t lineNumber, float cursorX) const {
+	if (is_empty_line(lineNumber)) {
+		return {lineNumber == 0 ? 0 : lines[lineNumber - 1].lastStringIndex};
 	}
 
-	for (uint32_t i = firstRunIndex; i < line.visualRunsEndIndex; ++i) {
-		auto& run = visualRuns[i];
-		float offset;
-		// FIXME: I don't need to iterate the entire run to know if the cursor is in it
-		bool found = run.rightToLeft ? find_offset_in_run_rtl(*this, run, cursorIndex, offset)
-				: find_offset_in_run_ltr(*this, run, cursorIndex, offset);
+	auto& line = lines[lineNumber];
+	cursorX -= get_line_x_start(line, textWidth, textXAlignment);
 
-		if (found) {
-			return offset;
-		}
-	}
-
-	// FIXME: Assert unreachable?
-	return 0.f;
-}
-
-float ParagraphLayout::get_line_end_position(const LineInfo& line) const {
+	// Find run containing char
 	auto firstRunIndex = get_first_run_index(line);
+	auto lastRunIndex = line.visualRunsEndIndex;
+	auto runIndex = binary_search(firstRunIndex, lastRunIndex - firstRunIndex, [&](auto index) {
+		auto firstPosIndex = index == 0 ? 0 : 2 * (visualRuns[index - 1].glyphEndIndex + index);
+		auto lastPosIndex = 2 * (visualRuns[index].glyphEndIndex + index);
+		auto rightmostIndex = visualRuns[index].rightToLeft ? firstPosIndex : lastPosIndex;
+		return glyphPositions[rightmostIndex] < cursorX;
+	});
 
-	if (line.visualRunsEndIndex > firstRunIndex) {
-		auto& run = visualRuns[line.visualRunsEndIndex - 1];
-		auto firstPosIndex = get_first_position_index(run);
-		return run.rightToLeft ? glyphPositions[firstPosIndex] : glyphPositions[run.glyphPositionEndIndex - 2];
+	if (runIndex == lastRunIndex) {
+		return {line.lastStringIndex - line.lastCharDiff};
+	}
+
+	// Find glyph in run
+	auto firstGlyphIndex = get_first_glyph_index(visualRuns[runIndex]);
+	auto lastGlyphIndex = visualRuns[runIndex].glyphEndIndex;
+	auto glyphIndex = lastGlyphIndex;
+	auto firstPosIndex = runIndex == 0 ? 0 : 2 * (visualRuns[runIndex - 1].glyphEndIndex + runIndex);
+
+	if (visualRuns[runIndex].rightToLeft) {
+		glyphIndex = firstGlyphIndex + binary_search(0, lastGlyphIndex - firstGlyphIndex, [&](auto index) {
+			return cursorX < glyphPositions[firstPosIndex + 2 * index];
+		});
 	}
 	else {
-		return 0.f;
+		glyphIndex = firstGlyphIndex + binary_search(0, lastGlyphIndex - firstGlyphIndex, [&](auto index) {
+			return glyphPositions[firstPosIndex + 2 * index] < cursorX;
+		});
 	}
-}
 
-int32_t ParagraphLayout::find_line_start_containing_index(int32_t index) const {
-	// FIXME: I don't need to iterate all lines to know if the cursor is in it
-	for (size_t lineNumber = 0; lineNumber < lines.size(); ++lineNumber) {
-		auto& line = lines[lineNumber];
+	auto charIndex = glyphIndex == lastGlyphIndex && runIndex == lines[lineNumber].visualRunsEndIndex - 1
+			? lines[lineNumber].lastStringIndex - lines[lineNumber].lastCharDiff
+			: charIndices[glyphIndex];
 
-		auto lineStart = get_line_char_start_index(line);
-		auto lineEnd = get_line_char_end_index(line);
+	// Find sub-position in cluster glyph
+	if (glyphIndex > firstGlyphIndex) {
+		auto firstCharIndex = charIndices[glyphIndex - 1];
+		auto prevCharIndex = iter.preceding(charIndex);
 
-		if (index >= lineStart && lineNumber < lines.size() - 1) {
-			auto& nextLine = lines[lineNumber + 1];
-			auto nextStart = get_line_char_start_index(nextLine);
+		if (prevCharIndex == firstCharIndex) {
+			return {charIndex};
+		}
 
-			if (index < nextStart) {
-				return lineStart;
+		auto firstCharPos = glyphPositions[firstPosIndex + 2 * (glyphIndex - 1 - firstGlyphIndex)];
+		auto charPos = glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex)];
+		auto charStep = (firstCharPos - charPos) / static_cast<float>(charIndex - firstCharIndex);
+
+		charPos += charStep * static_cast<float>(charIndex - prevCharIndex);
+
+		for (;;) {
+			if (cursorX == charPos || ((cursorX > charPos) != visualRuns[runIndex].rightToLeft)) {
+				return {static_cast<uint32_t>(prevCharIndex)};
 			}
-		}
-		else if (index >= lineStart) {
-			return lineStart;
-		}
-	}
 
-	return {};
-}
-
-int32_t ParagraphLayout::find_line_end_containing_index(int32_t index, int32_t textEnd,
-		icu::BreakIterator& iter) const {
-	// FIXME: I don't need to iterate all lines to know if the cursor is in it
-	for (size_t lineNumber = 0; lineNumber < lines.size(); ++lineNumber) {
-		auto& line = lines[lineNumber];
-
-		auto lineStart = get_line_char_start_index(line);
-		auto lineEnd = get_line_char_end_index(line);
-
-		if (index >= lineStart && lineNumber < lines.size() - 1) {
-			auto& nextLine = lines[lineNumber + 1];
-			auto nextStart = get_line_char_start_index(nextLine);
-
-			if (index < nextStart) {
-				return iter.following(lineEnd);
+			if (firstCharIndex >= prevCharIndex) {
+				break;
 			}
-		}
-		else if (index >= lineStart) {
-			return textEnd;
-		}
-	}
 
-	return {};
-}
-
-int32_t ParagraphLayout::find_closest_cursor_position(float textWidth, TextXAlignment textXAlignment,
-		int32_t textLength, icu::BreakIterator& iter, size_t lineNumber, float cursorX) const {
-	auto& line = lines[lineNumber];
-	auto lineX = get_line_x_start(line, textWidth, textXAlignment);
-	auto lineEndPos = lineX + get_rightmost_line_position(line);
-	int32_t result = 0;
-	auto firstRunIndex = get_first_run_index(line);
-
-	if (cursorX <= lineX) {
-		return get_leftmost_char_index(line, iter);
-	}
-	else if (cursorX >= lineEndPos) {
-		return get_rightmost_char_index(line, iter);
-	}
-
-	for (uint32_t runID = firstRunIndex; runID < line.visualRunsEndIndex; ++runID) {
-		auto& run = visualRuns[runID];
-
-		if (find_position_in_run(*this, run, cursorX - lineX, result)) {
-			if (result == run.glyphEndIndex) {
-				if (runID < line.visualRunsEndIndex - 1) {
-					return charIndices[result];
-				}
-				else {
-					return run.rightToLeft ? get_line_char_start_index(line)
-							: iter.following(get_line_char_end_index(line));
-				}
-			}
-			else {
-				return charIndices[result];
-			}
+			auto ci = iter.preceding(prevCharIndex);
+			charPos += charStep * static_cast<float>(prevCharIndex - ci);
+			prevCharIndex = ci;
 		}
 	}
 
-	return result;
-}
-
-int32_t ParagraphLayout::get_leftmost_char_index(const LineInfo& line, icu::BreakIterator& iter) const {
-	auto& firstRun = visualRuns[get_first_run_index(line)];
-	auto firstGlyphIndex = get_first_glyph_index(firstRun);
-	return firstRun.rightToLeft ? iter.following(firstGlyphIndex) : firstGlyphIndex;
-}
-
-int32_t ParagraphLayout::get_rightmost_char_index(const LineInfo& line, icu::BreakIterator& iter) const {
-	auto& lastRun = line.visualRunsEndIndex == 0 ? visualRuns.front() : visualRuns[line.visualRunsEndIndex - 1];
-	auto lastGlyphIndex = lastRun.glyphEndIndex == 0 ? 0 : lastRun.glyphEndIndex - 1;
-	return lastRun.rightToLeft ? lastGlyphIndex : iter.following(lastGlyphIndex);
-}
-
-float ParagraphLayout::get_rightmost_line_position(const LineInfo& line) const {
-	auto& lastRun = line.visualRunsEndIndex == 0 ? visualRuns.front() : visualRuns[line.visualRunsEndIndex - 1];
-	auto firstPosIndex = get_first_position_index(lastRun);
-	auto lastPosIndex = lastRun.glyphPositionEndIndex == 0 ? 0 : lastRun.glyphPositionEndIndex - 2;
-	return std::max(glyphPositions[firstPosIndex], glyphPositions[lastPosIndex]);
+	return {charIndex};
 }
 
 uint32_t ParagraphLayout::get_first_run_index(const LineInfo& line) const {
@@ -370,6 +285,11 @@ const float* ParagraphLayout::get_run_positions(const VisualRun& run) const {
 
 uint32_t ParagraphLayout::get_run_glyph_count(const VisualRun& run) const {
 	return run.glyphEndIndex - get_first_glyph_index(run);
+}
+
+bool ParagraphLayout::is_empty_line(size_t lineIndex) const {
+	return lines[lineIndex].visualRunsEndIndex == 0 || (lineIndex > 0 && lines[lineIndex - 1].visualRunsEndIndex
+			== lines[lineIndex].visualRunsEndIndex);
 }
 
 // Static Functions
@@ -529,177 +449,5 @@ static uint32_t handle_line_icu(ParagraphLayout& result, icu::ParagraphLayout::L
 	});
 
 	return static_cast<uint32_t>(firstCharIndex);
-}
-
-static bool find_offset_in_run_ltr(const ParagraphLayout& pl, const VisualRun& run, int32_t cursorIndex,
-		float& outOffset) {
-	auto firstGlyphIndex = pl.get_first_glyph_index(run);
-	auto posIndex = pl.get_first_position_index(run);
-
-	for (uint32_t i = firstGlyphIndex; i < run.glyphEndIndex; ++i, posIndex += 2) {
-		if (pl.charIndices[i] == cursorIndex) {
-			if (pl.glyphs[i] == 0xFFFF) {
-				outOffset = find_cluster_position_ltr(pl, run, i);
-			}
-			else {
-				outOffset = pl.glyphPositions[posIndex];
-			}
-
-			return true;
-		}
-	}
-
-	return false;
-}
-
-static bool find_offset_in_run_rtl(const ParagraphLayout& pl, const VisualRun& run, int32_t cursorIndex,
-		float& outOffset) {
-	auto firstGlyphIndex = pl.get_first_glyph_index(run);
-	auto posIndex = pl.get_first_position_index(run);
-
-	for (uint32_t i = firstGlyphIndex; i < run.glyphEndIndex; ++i, posIndex += 2) {
-		if (pl.charIndices[i] == cursorIndex) {
-			if (pl.glyphs[i] == 0xFFFF || (i > 0 && pl.glyphs[i - 1] == 0xFFFF)) {
-				outOffset = find_cluster_position_rtl(pl, run, i);
-			}
-			else {
-				outOffset = pl.glyphPositions[posIndex];
-			}
-
-			return true;
-		}
-	}
-
-	return false;
-}
-
-static float find_cluster_position_ltr(const ParagraphLayout& pl, const VisualRun& run, int32_t glyphIndex) {
-	auto firstGlyphIndex = pl.get_first_glyph_index(run);
-	auto* posData = pl.get_run_positions(run);
-
-	auto clusterStart = glyphIndex;
-	auto clusterEnd = glyphIndex;
-
-	while (clusterStart > 0 && pl.glyphs[clusterStart] == 0xFFFF) {
-		--clusterStart;
-	}
-
-	while (clusterEnd < run.glyphEndIndex && pl.glyphs[clusterEnd] == 0xFFFF) {
-		++clusterEnd;
-	}
-
-	auto startPos = posData[2 * (clusterStart - firstGlyphIndex)];
-	auto endPos = posData[2 * (clusterEnd - firstGlyphIndex)];
-
-	return startPos + (endPos - startPos) * static_cast<float>(glyphIndex - clusterStart)
-			/ static_cast<float>(clusterEnd - clusterStart);
-}
-
-static float find_cluster_position_rtl(const ParagraphLayout& pl, const VisualRun& run, int32_t glyphIndex) {
-	auto firstGlyphIndex = pl.get_first_glyph_index(run);
-	auto* posData = pl.get_run_positions(run);
-
-	auto clusterStart = glyphIndex - (glyphIndex != firstGlyphIndex);
-	auto clusterEnd = glyphIndex;
-
-	while (clusterStart > 0 && pl.glyphs[clusterStart] == 0xFFFF) {
-		--clusterStart;
-	}
-
-	while (clusterEnd < run.glyphEndIndex && pl.glyphs[clusterEnd] == 0xFFFF) {
-		++clusterEnd;
-	}
-
-	++clusterEnd;
-
-	auto startPos = posData[2 * (clusterStart - firstGlyphIndex)];
-	auto endPos = posData[2 * (clusterEnd - firstGlyphIndex)];
-
-	return startPos + (endPos - startPos) * static_cast<float>(glyphIndex + 1 - clusterStart)
-			/ static_cast<float>(clusterEnd - clusterStart);
-}
-
-static bool find_position_in_run(const ParagraphLayout& pl, const ::VisualRun& run, float cursorX,
-		int32_t& result) {
-	return run.rightToLeft ? find_position_in_run_rtl(pl, run, cursorX, result)
-			: find_position_in_run_ltr(pl, run, cursorX, result);
-}
-
-static bool find_position_in_run_ltr(const ParagraphLayout& pl, const VisualRun& run, float cursorX,
-		int32_t& result) {
-	auto firstGlyphIndex = pl.get_first_glyph_index(run);
-	auto* posData = pl.get_run_positions(run);
-
-	for (uint32_t i = firstGlyphIndex; i < run.glyphEndIndex; ++i) {
-		// Cluster
-		if (i < run.glyphEndIndex - 1 && pl.glyphs[i + 1] == 0xFFFF) {
-			auto clusterEnd = i + 1;
-			while (clusterEnd < run.glyphEndIndex && pl.glyphs[clusterEnd] == 0xFFFF) {
-				++clusterEnd;
-			}
-
-			auto posX = posData[2 * (i - firstGlyphIndex)];
-			auto nextPosX = posData[2 * (clusterEnd - firstGlyphIndex)];
-
-			if (cursorX >= posX && cursorX <= nextPosX) {
-				result = i + static_cast<int32_t>((clusterEnd - i) * (cursorX - posX) / (nextPosX - posX)
-						+ 0.5f);
-				return true;
-			}
-
-			i = clusterEnd - 1;
-		}
-		else {
-			auto posX = posData[2 * (i - firstGlyphIndex)];
-			auto nextPosX = posData[2 * (i - firstGlyphIndex) + 2];
-
-			if (cursorX >= posX && cursorX <= nextPosX) {
-				result = cursorX - posX < nextPosX - cursorX ? i : i + 1;
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-static bool find_position_in_run_rtl(const ParagraphLayout& pl, const VisualRun& run, float cursorX,
-		int32_t& result) {
-	auto firstGlyphIndex = pl.get_first_glyph_index(run);
-	auto* posData = pl.get_run_positions(run);
-
-	for (uint32_t i = run.glyphEndIndex; i > firstGlyphIndex; --i) {
-		// Cluster
-		if (i > 2 && pl.glyphs[i - 2] == 0xFFFF) {
-			auto clusterStart = i - 1;
-			auto clusterEnd = i - 2;
-			while (clusterEnd > 0 && pl.glyphs[clusterEnd] == 0xFFFF) {
-				--clusterEnd;
-			}
-
-			auto posX = posData[2 * (clusterEnd - firstGlyphIndex)];
-			auto nextPosX = posData[2 * (clusterStart - firstGlyphIndex) + 2];
-
-			if (cursorX >= posX && cursorX <= nextPosX) {
-				auto clusterSize = clusterStart - clusterEnd + 1;
-				result = clusterEnd + static_cast<int32_t>(clusterSize * (cursorX - posX) / (nextPosX - posX)
-						+ 0.5f) - 1;
-				return true;
-			}
-
-			i = clusterEnd;
-		}
-		else {
-			auto posX = posData[2 * (i - firstGlyphIndex) - 2];
-			auto nextPosX = posData[2 * (i - firstGlyphIndex)];
-
-			if (cursorX >= posX && cursorX <= nextPosX) {
-				result = cursorX - posX <= nextPosX - cursorX ? i - 2 : i - 1;
-				return true;
-			}
-		}
-	}
-
-	return false;
 }
 
