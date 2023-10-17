@@ -51,10 +51,10 @@ CursorPositionResult ParagraphLayout::calc_cursor_pixel_pos(float textWidth, Tex
 		CursorPosition cursor) const {
 	size_t lineIndex{};
 	auto runIndex = get_run_containing_cursor(cursor, lineIndex);
-	auto firstGlyphIndex = get_first_glyph_index(visualRuns[runIndex]);
+	auto firstGlyphIndex = get_first_glyph_index(runIndex);
 	auto lastGlyphIndex = visualRuns[runIndex].glyphEndIndex;
-	auto firstPosIndex = get_first_position_index(visualRuns[runIndex]);
-	auto lineX = get_line_x_start(lines[lineIndex], textWidth, textXAlignment);
+	auto firstPosIndex = get_first_position_index(runIndex);
+	auto lineX = get_line_x_start(lineIndex, textWidth, textXAlignment);
 
 	bool isEmptyLine = is_empty_line(lineIndex);
 
@@ -98,7 +98,7 @@ size_t ParagraphLayout::get_run_containing_cursor(CursorPosition cursor, size_t&
 		return visualRuns.size() - 1;
 	}
 
-	auto firstRunIndex = get_first_run_index(lines[outLineNumber]);
+	auto firstRunIndex = get_first_run_index(outLineNumber);
 	auto lastRunIndex = lines[outLineNumber].visualRunsEndIndex;
 	// Last `lastStringIndex` is always strlen
 	auto stringEnd = lines.back().lastStringIndex;
@@ -170,8 +170,8 @@ CursorPosition ParagraphLayout::get_line_end_position(size_t lineIndex) const {
 	return {lines[lineIndex].lastStringIndex - lines[lineIndex].lastCharDiff};
 }
 
-float ParagraphLayout::get_line_x_start(const LineInfo& line, float textWidth, TextXAlignment align) const {
-	auto lineWidth = line.width;
+float ParagraphLayout::get_line_x_start(size_t lineNumber, float textWidth, TextXAlignment align) const {
+	auto lineWidth = lines[lineNumber].width;
 
 	switch (align) {
 		case TextXAlignment::LEFT:
@@ -193,10 +193,10 @@ CursorPosition ParagraphLayout::find_closest_cursor_position(float textWidth, Te
 	}
 
 	auto& line = lines[lineNumber];
-	cursorX -= get_line_x_start(line, textWidth, textXAlignment);
+	cursorX -= get_line_x_start(lineNumber, textWidth, textXAlignment);
 
 	// Find run containing char
-	auto firstRunIndex = get_first_run_index(line);
+	auto firstRunIndex = get_first_run_index(lineNumber);
 	auto lastRunIndex = line.visualRunsEndIndex;
 	auto runIndex = binary_search(firstRunIndex, lastRunIndex - firstRunIndex, [&](auto index) {
 		auto firstPosIndex = index == 0 ? 0 : 2 * (visualRuns[index - 1].glyphEndIndex + index);
@@ -210,10 +210,10 @@ CursorPosition ParagraphLayout::find_closest_cursor_position(float textWidth, Te
 	}
 
 	// Find glyph in run
-	auto firstGlyphIndex = get_first_glyph_index(visualRuns[runIndex]);
+	auto firstGlyphIndex = get_first_glyph_index(runIndex);
 	auto lastGlyphIndex = visualRuns[runIndex].glyphEndIndex;
 	auto glyphIndex = lastGlyphIndex;
-	auto firstPosIndex = runIndex == 0 ? 0 : 2 * (visualRuns[runIndex - 1].glyphEndIndex + runIndex);
+	auto firstPosIndex = get_first_position_index(runIndex);
 
 	if (visualRuns[runIndex].rightToLeft) {
 		glyphIndex = firstGlyphIndex + binary_search(0, lastGlyphIndex - firstGlyphIndex, [&](auto index) {
@@ -263,28 +263,29 @@ CursorPosition ParagraphLayout::find_closest_cursor_position(float textWidth, Te
 	return {charIndex};
 }
 
-uint32_t ParagraphLayout::get_first_run_index(const LineInfo& line) const {
-	return &line == lines.data() ? 0 : (&line)[-1].visualRunsEndIndex;
+uint32_t ParagraphLayout::get_first_run_index(size_t lineIndex) const {
+	return lineIndex == 0 ? 0 : lines[lineIndex - 1].visualRunsEndIndex;
 }
 
-uint32_t ParagraphLayout::get_first_glyph_index(const VisualRun& run) const {
-	return &run == visualRuns.data() ? 0 : (&run)[-1].glyphEndIndex;
+uint32_t ParagraphLayout::get_first_glyph_index(size_t runIndex) const {
+	return runIndex == 0 ? 0 : visualRuns[runIndex - 1].glyphEndIndex;
 }
 
-uint32_t ParagraphLayout::get_first_position_index(const VisualRun& run) const {
-	return &run == visualRuns.data() ? 0 : (&run)[-1].glyphPositionEndIndex;
+uint32_t ParagraphLayout::get_first_position_index(size_t runIndex) const {
+	return runIndex == 0 ? 0 : 2 * (visualRuns[runIndex - 1].glyphEndIndex + runIndex);
 }
 
-float ParagraphLayout::get_line_height(const LineInfo& line) const {
-	return &line == lines.data() ? lines.front().totalDescent : line.totalDescent - (&line)[-1].totalDescent;
+float ParagraphLayout::get_line_height(size_t lineIndex) const {
+	return lineIndex == 0 ? lines.front().totalDescent
+			: lines[lineIndex].totalDescent - lines[lineIndex - 1].totalDescent;
 }
 
-const float* ParagraphLayout::get_run_positions(const VisualRun& run) const {
-	return glyphPositions.data() + get_first_position_index(run);
+const float* ParagraphLayout::get_run_positions(size_t runIndex) const {
+	return glyphPositions.data() + get_first_position_index(runIndex);
 }
 
-uint32_t ParagraphLayout::get_run_glyph_count(const VisualRun& run) const {
-	return run.glyphEndIndex - get_first_glyph_index(run);
+uint32_t ParagraphLayout::get_run_glyph_count(size_t runIndex) const {
+	return visualRuns[runIndex].glyphEndIndex - get_first_glyph_index(runIndex);
 }
 
 bool ParagraphLayout::is_empty_line(size_t lineIndex) const {

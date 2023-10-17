@@ -99,16 +99,16 @@ struct ParagraphLayout {
 	CursorPosition find_closest_cursor_position(float textWidth, TextXAlignment, icu_73::BreakIterator&,
 			size_t lineNumber, float cursorX) const;
 
-	float get_line_x_start(const LineInfo&, float textWidth, TextXAlignment) const;
+	float get_line_x_start(size_t lineIndex, float textWidth, TextXAlignment) const;
 
-	uint32_t get_first_run_index(const LineInfo&) const;
-	uint32_t get_first_glyph_index(const VisualRun&) const;
-	uint32_t get_first_position_index(const VisualRun&) const;
+	uint32_t get_first_run_index(size_t lineIndex) const;
+	uint32_t get_first_glyph_index(size_t runIndex) const;
+	uint32_t get_first_position_index(size_t runIndex) const;
 
-	float get_line_height(const LineInfo&) const;
+	float get_line_height(size_t lineIndex) const;
 
-	const float* get_run_positions(const VisualRun&) const;
-	uint32_t get_run_glyph_count(const VisualRun&) const;
+	const float* get_run_positions(size_t runIndex) const;
+	uint32_t get_run_glyph_count(size_t runIndex) const;
 
 	bool is_empty_line(size_t lineIndex) const;
 
@@ -129,9 +129,9 @@ void ParagraphLayout::for_each_line(float textWidth, TextXAlignment textXAlignme
 	auto lineY = lines.front().ascent;
 
 	for (size_t i = 0; i < lines.size(); ++i) {
-		auto lineX = get_line_x_start(lines[i], textWidth, textXAlignment);
-		func(i, lines[i], lineX, lineY);
-		lineY += get_line_height(lines[i]);
+		auto lineX = get_line_x_start(i, textWidth, textXAlignment);
+		func(i, lineX, lineY);
+		lineY += get_line_height(i);
 	}
 }
 
@@ -139,9 +139,9 @@ template <typename Functor>
 void ParagraphLayout::for_each_run(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
 	uint32_t runIndex{};
 
-	for_each_line(textWidth, textXAlignment, [&](auto, auto& line, auto lineX, auto lineY) {
-		for (; runIndex < line.visualRunsEndIndex; ++runIndex) {
-			func(line, visualRuns[runIndex], lineX, lineY);
+	for_each_line(textWidth, textXAlignment, [&](auto lineIndex, auto lineX, auto lineY) {
+		for (; runIndex < lines[lineIndex].visualRunsEndIndex; ++runIndex) {
+			func(lineIndex, runIndex, lineX, lineY);
 		}
 	});
 }
@@ -151,7 +151,8 @@ void ParagraphLayout::for_each_glyph(float textWidth, TextXAlignment textXAlignm
 	uint32_t glyphIndex{};
 	uint32_t glyphPosIndex{};
 
-	for_each_run(textWidth, textXAlignment, [&](auto&, auto& run, auto lineX, auto lineY) {
+	for_each_run(textWidth, textXAlignment, [&](auto, auto runIndex, auto lineX, auto lineY) {
+		auto& run = visualRuns[runIndex];
 		glyphPosIndex += 2 * run.rightToLeft;
 
 		for (; glyphIndex < run.glyphEndIndex; ++glyphIndex, glyphPosIndex += 2) {
