@@ -226,36 +226,48 @@ CursorPosition ParagraphLayout::find_closest_cursor_position(float textWidth, Te
 			? lines[lineNumber].lastStringIndex - lines[lineNumber].lastCharDiff
 			: charIndices[glyphIndex];
 
-	// Find sub-position in cluster glyph
+	// Find final char position
 	if (glyphIndex > firstGlyphIndex) {
 		auto firstCharIndex = charIndices[glyphIndex - 1];
 		auto prevCharIndex = iter.preceding(charIndex);
 
-		if (prevCharIndex == firstCharIndex) {
-			return {charIndex};
-		}
-
 		auto firstCharPos = glyphPositions[firstPosIndex + 2 * (glyphIndex - 1 - firstGlyphIndex)];
 		auto charPos = glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex)];
+
+		// Non-clustered glyph
+		if (prevCharIndex == firstCharIndex) {
+			// Choose index at closest side
+			bool preferCharIndex = (charPos - cursorX < cursorX - firstCharPos)
+					!= visualRuns[runIndex].rightToLeft;
+			return {preferCharIndex ? charIndex : prevCharIndex};
+		}
+
+		// Clustered glyph
 		auto charStep = (firstCharPos - charPos) / static_cast<float>(charIndex - firstCharIndex);
 
+		auto prevCharPos = charPos;
 		charPos += charStep * static_cast<float>(charIndex - prevCharIndex);
 
 		for (;;) {
 			if (cursorX == charPos || ((cursorX > charPos) != visualRuns[runIndex].rightToLeft)) {
-				return {static_cast<uint32_t>(prevCharIndex)};
+				// Choose index at closest side
+				bool preferCharIndex = (prevCharPos - cursorX < cursorX - charPos)
+						!= visualRuns[runIndex].rightToLeft;
+				return {preferCharIndex ? charIndex : prevCharIndex};
 			}
 
 			if (firstCharIndex >= prevCharIndex) {
-				break;
+				return {firstCharIndex};
 			}
 
-			auto ci = iter.preceding(prevCharIndex);
-			charPos += charStep * static_cast<float>(prevCharIndex - ci);
-			prevCharIndex = ci;
+			charIndex = prevCharIndex;
+			prevCharIndex = iter.preceding(prevCharIndex);
+			prevCharPos = charPos;
+			charPos += charStep * static_cast<float>(charIndex - prevCharIndex);
 		}
 	}
 
+	// FIXME: Assert unreachable
 	return {charIndex};
 }
 
