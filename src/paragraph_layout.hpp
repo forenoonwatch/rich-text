@@ -72,7 +72,7 @@ struct ParagraphLayout {
 	 * Gets the index of the run containing the cursor position, taking into account cursor affinity based on
 	 * the following policy:
 	 * Line End Default: Next Run Start
-	 * LTR-RTL Default: Prev Run End
+	 * LTR-RTL Default: Curr Run End
 	 * RTL-LTR Default: Next Run Start
 	 *
 	 * @param cursorPosition The position of the cursor

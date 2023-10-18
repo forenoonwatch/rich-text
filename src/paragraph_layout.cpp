@@ -56,11 +56,9 @@ CursorPositionResult ParagraphLayout::calc_cursor_pixel_pos(float textWidth, Tex
 	auto firstPosIndex = get_first_position_index(runIndex);
 	auto lineX = get_line_x_start(lineIndex, textWidth, textXAlignment);
 
-	bool isEmptyLine = is_empty_line(lineIndex);
-
 	float glyphOffset = 0.f;
 
-	if (!isEmptyLine) {
+	if (!is_empty_line(lineIndex)) {
 		auto glyphIndex = binary_search(firstGlyphIndex, lastGlyphIndex - firstGlyphIndex, [&](auto index) {
 			return charIndices[index] < cursor.get_position();
 		});
@@ -121,30 +119,28 @@ size_t ParagraphLayout::get_run_containing_cursor(CursorPosition cursor, size_t&
 
 	// Cursor is on the boundary of 2 runs
 	if (cursor.get_position() == charIndices[prevRun.glyphEndIndex]) {
-		auto lineFirstRunIndex = outLineNumber == 0 ? 0 : lines[outLineNumber - 1].visualRunsEndIndex;
-		//printf("%u is line first run %s\n", cursor.get_position(), lineFirstRunIndex == runIndex ? "y" : "n");
+		bool atLineBreakStart = outLineNumber > 0 && lines[outLineNumber - 1].visualRunsEndIndex == runIndex;
+		bool atSoftLineBreakStart = atLineBreakStart && lines[outLineNumber - 1].lastCharDiff == 0;
 
-		// Case 1: Current run is the first run of a line, meaning we are at a line break
-		/*if (lineFirstRunIndex == runIndex) {
+		// Case 1: Current run is at a soft line break
+		if (atSoftLineBreakStart) {
 			if (cursor.get_affinity() == CursorAffinity::OPPOSITE) {
 				--outLineNumber;
 				--runIndex;
 			}
 		}
 		// Case 2: Transition from RTL-LTR
-		else if (prevRun.rightToLeft && !run.rightToLeft) {
+		else if (!atLineBreakStart && prevRun.rightToLeft && !run.rightToLeft) {
 			if (cursor.get_affinity() == CursorAffinity::DEFAULT) {
-				--outLineNumber;
 				--runIndex;
 			}
 		}
 		// Case 3: Transition from LTR-RTL
-		else if (!prevRun.rightToLeft && run.rightToLeft) {
+		else if (!atLineBreakStart && !prevRun.rightToLeft && run.rightToLeft) {
 			if (cursor.get_affinity() == CursorAffinity::OPPOSITE) {
-				--outLineNumber;
 				--runIndex;
 			}
-		}*/
+		}
 	}
 
 	return runIndex;
