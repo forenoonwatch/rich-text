@@ -61,12 +61,16 @@ TextBox::~TextBox() {
 	release_focus();
 }
 
-bool TextBox::handle_mouse_button(int button, double mouseX, double mouseY) {
+bool TextBox::handle_mouse_button(int button, int action, int mods, double mouseX, double mouseY) {
+	if (action == GLFW_RELEASE) {
+		return false;
+	}
+
 	bool mouseInside = is_mouse_inside(mouseX, mouseY);
 
 	if (g_focusedTextBox == this) {
 		if (is_mouse_inside(mouseX, mouseY)) {
-			// FIXME: click inside focused text box - move cursor or something
+			cursor_move_to_mouse(mouseX - m_position[0], mouseY - m_position[1]);
 		}
 		else {
 			release_focus();
@@ -338,6 +342,15 @@ void TextBox::cursor_move_to_text_end() {
 	recalc_text_internal(false, nullptr);
 }
 
+void TextBox::cursor_move_to_mouse(double mouseX, double mouseY) {
+	CursorToMouse op{
+		.mouseX = mouseX,
+		.mouseY = mouseY,
+	};
+	op.type = PostLayoutCursorMoveType::MOUSE_POSITION;
+	recalc_text_internal(false, &op);
+}
+
 void TextBox::recalc_text() {
 	recalc_text_internal(m_richText, nullptr);
 }
@@ -567,6 +580,19 @@ static CursorPosition apply_cursor_move(const ParagraphLayout& paragraphLayout, 
 					? paragraphLayout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,
 							g_lineNumber + 1, g_cursorPixelX)
 					: cursor;
+		case PostLayoutCursorMoveType::MOUSE_POSITION:
+		{
+			auto& mouseOp = static_cast<const CursorToMouse&>(op);
+			auto lineIndex = paragraphLayout.get_closest_line_to_height(static_cast<float>(mouseOp.mouseY));
+
+			if (lineIndex == paragraphLayout.lines.size()) {
+				lineIndex = paragraphLayout.lines.size() - 1;
+			}
+
+			return paragraphLayout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,
+					lineIndex, static_cast<float>(mouseOp.mouseX));
+		}
+			break;
 		default:
 			break;
 	}

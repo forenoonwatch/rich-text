@@ -112,7 +112,7 @@ static void on_mouse_button_event(GLFWwindow* window, int button, int action, in
 	double mouseX, mouseY;
 	glfwGetCursorPos(window, &mouseX, &mouseY);
 
-	g_textBox->handle_mouse_button(button, mouseX, mouseY);
+	g_textBox->handle_mouse_button(button, action, mods, mouseX, mouseY);
 }
 
 static void on_text_event(GLFWwindow* window, unsigned codepoint) {

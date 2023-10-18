@@ -33,7 +33,7 @@ class TextBox {
 		TextBox() = default;
 		~TextBox();
 
-		bool handle_mouse_button(int button, double mouseX, double mouseY);
+		bool handle_mouse_button(int button, int action, int mods, double mouseX, double mouseY);
 		bool handle_key_press(int key, int action, int mods);
 		bool handle_text_input(unsigned codepoint);
 
@@ -83,6 +83,8 @@ class TextBox {
 
 		void cursor_move_to_text_start();
 		void cursor_move_to_text_end();
+
+		void cursor_move_to_mouse(double mouseX, double mouseY);
 
 		void recalc_text();
 		void recalc_text_internal(bool richText, const void* postLayoutOp);
