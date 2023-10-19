@@ -36,6 +36,10 @@ static constexpr size_t binary_search(size_t first, size_t count, Condition&& co
 	return first;
 }
 
+static constexpr CursorPosition make_cursor(uint32_t position, CursorAffinity affinity) {
+	return {position | (static_cast<uint32_t>(affinity) << 31)};
+}
+
 // Public Functions
 
 void build_paragraph_layout(ParagraphLayout& result, const char16_t* chars, int32_t count,
@@ -234,12 +238,19 @@ CursorPosition ParagraphLayout::find_closest_cursor_position(float textWidth, Te
 		auto firstCharPos = glyphPositions[firstPosIndex + 2 * (glyphIndex - 1 - firstGlyphIndex)];
 		auto charPos = glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex)];
 
+		bool lastRunInLine = runIndex == lines[lineNumber].visualRunsEndIndex - 1;
+		bool atSoftLineBreak = lastRunInLine && lines[lineNumber].lastCharDiff == 0;
+		bool affinity = glyphIndex == lastGlyphIndex && (atSoftLineBreak
+				|| (!lastRunInLine && !visualRuns[runIndex].rightToLeft
+				&& visualRuns[runIndex + 1].rightToLeft));
+
 		// Non-clustered glyph
 		if (prevCharIndex == firstCharIndex) {
 			// Choose index at closest side
 			bool preferCharIndex = (charPos - cursorX < cursorX - firstCharPos)
 					!= visualRuns[runIndex].rightToLeft;
-			return {preferCharIndex ? charIndex : prevCharIndex};
+			return preferCharIndex ? make_cursor(charIndex, affinity ? CursorAffinity::OPPOSITE
+					: CursorAffinity::DEFAULT) : make_cursor(prevCharIndex, CursorAffinity::DEFAULT);
 		}
 
 		// Clustered glyph
@@ -253,7 +264,9 @@ CursorPosition ParagraphLayout::find_closest_cursor_position(float textWidth, Te
 				// Choose index at closest side
 				bool preferCharIndex = (prevCharPos - cursorX < cursorX - charPos)
 						!= visualRuns[runIndex].rightToLeft;
-				return {preferCharIndex ? charIndex : prevCharIndex};
+				return preferCharIndex ? make_cursor(charIndex, charIndex == charIndices[glyphIndex] && affinity
+						? CursorAffinity::OPPOSITE : CursorAffinity::DEFAULT) : make_cursor(prevCharIndex,
+						CursorAffinity::DEFAULT);
 			}
 
 			if (firstCharIndex >= prevCharIndex) {
