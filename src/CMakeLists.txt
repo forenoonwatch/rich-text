@@ -11,5 +11,4 @@ target_sources(ICUTest PRIVATE
 	"${CMAKE_CURRENT_SOURCE_DIR}/paragraph_layout.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/pipeline.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/text_atlas.cpp"
-	"${CMAKE_CURRENT_SOURCE_DIR}/text_utils.cpp"
 )
