@@ -1,4 +1,4 @@
-target_sources(ICUTest PRIVATE
+target_sources(RichText PRIVATE
 	"${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/bitmap.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/text_box.cpp"
