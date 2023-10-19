@@ -36,8 +36,8 @@ static constexpr size_t binary_search(size_t first, size_t count, Condition&& co
 	return first;
 }
 
-static constexpr CursorPosition make_cursor(uint32_t position, CursorAffinity affinity) {
-	return {position | (static_cast<uint32_t>(affinity) << 31)};
+static constexpr CursorPosition make_cursor(uint32_t position, bool oppositeAffinity) {
+	return {position | (static_cast<uint32_t>(oppositeAffinity) << 31)};
 }
 
 // Public Functions
@@ -214,8 +214,9 @@ CursorPosition ParagraphLayout::find_closest_cursor_position(float textWidth, Te
 	auto lastGlyphIndex = visualRuns[runIndex].glyphEndIndex;
 	auto glyphIndex = lastGlyphIndex;
 	auto firstPosIndex = get_first_position_index(runIndex);
+	bool rightToLeft = visualRuns[runIndex].rightToLeft;
 
-	if (visualRuns[runIndex].rightToLeft) {
+	if (rightToLeft) {
 		glyphIndex = firstGlyphIndex + binary_search(0, lastGlyphIndex - firstGlyphIndex, [&](auto index) {
 			return cursorX < glyphPositions[firstPosIndex + 2 * index];
 		});
@@ -238,19 +239,22 @@ CursorPosition ParagraphLayout::find_closest_cursor_position(float textWidth, Te
 		auto firstCharPos = glyphPositions[firstPosIndex + 2 * (glyphIndex - 1 - firstGlyphIndex)];
 		auto charPos = glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex)];
 
-		bool lastRunInLine = runIndex == lines[lineNumber].visualRunsEndIndex - 1;
+		// Affinity logic
+		bool firstRunInLine = runIndex == firstRunIndex;
+		bool lastRunInLine = runIndex == lastRunIndex - 1;
 		bool atSoftLineBreak = lastRunInLine && lines[lineNumber].lastCharDiff == 0;
-		bool affinity = glyphIndex == lastGlyphIndex && (atSoftLineBreak
-				|| (!lastRunInLine && !visualRuns[runIndex].rightToLeft
-				&& visualRuns[runIndex + 1].rightToLeft));
+
+		bool firstGlyphAffinity = glyphIndex - 1 == firstGlyphIndex && (!firstRunInLine && !rightToLeft
+				&& visualRuns[runIndex - 1].rightToLeft);
+		bool lastGlyphAffinity = glyphIndex == lastGlyphIndex && (atSoftLineBreak
+				|| (!lastRunInLine && !rightToLeft && visualRuns[runIndex + 1].rightToLeft));
 
 		// Non-clustered glyph
 		if (prevCharIndex == firstCharIndex) {
 			// Choose index at closest side
-			bool preferCharIndex = (charPos - cursorX < cursorX - firstCharPos)
-					!= visualRuns[runIndex].rightToLeft;
-			return preferCharIndex ? make_cursor(charIndex, affinity ? CursorAffinity::OPPOSITE
-					: CursorAffinity::DEFAULT) : make_cursor(prevCharIndex, CursorAffinity::DEFAULT);
+			bool preferCharIndex = (charPos - cursorX < cursorX - firstCharPos) != rightToLeft;
+			return preferCharIndex ? make_cursor(charIndex, lastGlyphAffinity)
+					: make_cursor(prevCharIndex, firstGlyphAffinity);
 		}
 
 		// Clustered glyph
@@ -262,14 +266,13 @@ CursorPosition ParagraphLayout::find_closest_cursor_position(float textWidth, Te
 		for (;;) {
 			if (cursorX == charPos || ((cursorX > charPos) != visualRuns[runIndex].rightToLeft)) {
 				// Choose index at closest side
-				bool preferCharIndex = (prevCharPos - cursorX < cursorX - charPos)
-						!= visualRuns[runIndex].rightToLeft;
-				return preferCharIndex ? make_cursor(charIndex, charIndex == charIndices[glyphIndex] && affinity
-						? CursorAffinity::OPPOSITE : CursorAffinity::DEFAULT) : make_cursor(prevCharIndex,
-						CursorAffinity::DEFAULT);
+				bool preferCharIndex = (prevCharPos - cursorX < cursorX - charPos) != rightToLeft;
+				return preferCharIndex
+						? make_cursor(charIndex, charIndex == charIndices[glyphIndex] && lastGlyphAffinity)
+						: make_cursor(prevCharIndex, prevCharIndex == firstCharIndex && firstGlyphAffinity);
 			}
 
-			if (firstCharIndex >= prevCharIndex) {
+			if (firstCharIndex >= prevCharIndex) [[unlikely]] {
 				return {firstCharIndex};
 			}
 
