@@ -55,3 +55,7 @@ add_subdirectory(tools)
 add_subdirectory(data)
 add_subdirectory(layoutex)
 add_subdirectory(samples)
+
+if (ICU_BUILD_TESTS)
+	add_subdirectory(test)
+endif()
