@@ -33,7 +33,6 @@ struct CursorPositionResult {
 struct VisualRun {
 	const Font* pFont;
 	uint32_t glyphEndIndex;
-	uint32_t glyphPositionEndIndex; // FIXME: Unnecessary, go away
 	bool rightToLeft;
 };
 

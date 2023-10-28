@@ -448,7 +448,6 @@ static uint32_t handle_line_icu_lx(ParagraphLayout& result, icu::ParagraphLayout
 		result.visualRuns.push_back({
 			.pFont = static_cast<const Font*>(pRun->getFont()),
 			.glyphEndIndex = static_cast<uint32_t>(result.glyphs.size()),
-			.glyphPositionEndIndex = static_cast<uint32_t>(result.glyphPositions.size()),
 			.rightToLeft = pRun->getDirection() == UBIDI_RTL,
 		});
 	}
