@@ -50,6 +50,7 @@ class Font final : public icu::LEFontInstance {
 		le_int32 getLeading() const override;
 
 		FontCache* get_font_cache() const;
+		hb_font_t* get_hb_font() const;
 
 		FaceIndex_T get_face() const;
 		FamilyIndex_T get_family() const;

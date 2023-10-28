@@ -13,10 +13,7 @@ static constexpr const UChar32 CH_CR = 0x000D;
 static constexpr const UChar32 CH_LSEP = 0x2028;
 static constexpr const UChar32 CH_PSEP = 0x2029;
 
-static void build_paragraph_layout_icu(ParagraphLayout& result, const char16_t* chars, int32_t count,
-		const RichText::TextRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
-		TextYAlignment textYAlignment, ParagraphLayoutFlags flags);
-static uint32_t handle_line_icu(ParagraphLayout& result, icu::ParagraphLayout::Line& line, int32_t charOffset);
+static uint32_t handle_line_icu_lx(ParagraphLayout& result, icu::ParagraphLayout::Line& line, int32_t charOffset);
 
 template <typename Condition>
 static constexpr size_t binary_search(size_t first, size_t count, Condition&& cond) {
@@ -38,15 +35,6 @@ static constexpr size_t binary_search(size_t first, size_t count, Condition&& co
 
 static constexpr CursorPosition make_cursor(uint32_t position, bool oppositeAffinity) {
 	return {position | (static_cast<uint32_t>(oppositeAffinity) << 31)};
-}
-
-// Public Functions
-
-void build_paragraph_layout(ParagraphLayout& result, const char16_t* chars, int32_t count,
-		const RichText::TextRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
-		TextYAlignment textYAlignment, ParagraphLayoutFlags flags) {
-	build_paragraph_layout_icu(result, chars, count, fontRuns, textAreaWidth, textAreaHeight, textYAlignment,
-			flags);
 }
 
 // ParagraphLayout
@@ -317,9 +305,9 @@ bool ParagraphLayout::is_empty_line(size_t lineIndex) const {
 			== lines[lineIndex].visualRunsEndIndex);
 }
 
-// Static Functions
+// Build Paragraph Layout: ICU with icu::ParagraphLayout
 
-static void build_paragraph_layout_icu(ParagraphLayout& result, const char16_t* chars, int32_t count,
+void build_paragraph_layout_icu_lx(ParagraphLayout& result, const char16_t* chars, int32_t count,
 		const RichText::TextRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, ParagraphLayoutFlags flags) {
 	RichText::TextRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_value_count());
@@ -363,7 +351,7 @@ static void build_paragraph_layout_icu(ParagraphLayout& result, const char16_t* 
 				}
 
 				while (auto* pLine = pl.nextLine(textAreaWidth)) {
-					auto firstCharIndex = handle_line_icu(result, *pLine, byteIndex);
+					auto firstCharIndex = handle_line_icu_lx(result, *pLine, byteIndex);
 					lineFirstCharIndices.emplace_back(firstCharIndex);
 					delete pLine;
 				}
@@ -408,7 +396,8 @@ static void build_paragraph_layout_icu(ParagraphLayout& result, const char16_t* 
 	result.textStartY = static_cast<float>(textYAlignment) * (textAreaHeight - totalHeight) * 0.5f;
 }
 
-static uint32_t handle_line_icu(ParagraphLayout& result, icu::ParagraphLayout::Line& line, int32_t charOffset) {
+static uint32_t handle_line_icu_lx(ParagraphLayout& result, icu::ParagraphLayout::Line& line,
+		int32_t charOffset) {
 	result.visualRuns.reserve(result.visualRuns.size() + line.countRuns());
 
 	auto* pFirstRun = line.getVisualRun(0);

@@ -294,6 +294,10 @@ FontCache* Font::get_font_cache() const {
 	return m_fontCache;
 }
 
+hb_font_t* Font::get_hb_font() const {
+	return m_hbFont;
+}
+
 FaceIndex_T Font::get_face() const {
 	return static_cast<FaceIndex_T>((m_fontKey >> 48) & 0xFFFFu);
 }

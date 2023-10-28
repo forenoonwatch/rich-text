@@ -8,7 +8,9 @@
 
 #include <cstdint>
 
+struct UBiDi;
 namespace icu_73 { class BreakIterator; }
+struct hb_buffer_t;
 
 class MultiScriptFont;
 
@@ -120,9 +122,31 @@ struct ParagraphLayout {
 	void for_each_glyph(float textWidth, TextXAlignment textXAlignment, Functor&& func) const;
 };
 
-void build_paragraph_layout(ParagraphLayout& result, const char16_t* chars, int32_t count,
+struct LayoutBuildState {
+	UBiDi* pParaBiDi;
+	UBiDi* pLineBiDi;
+	icu::BreakIterator* pLineBreakIterator;
+	hb_buffer_t* pBuffer;
+};
+
+/**
+ * @brief Builds the paragraph layout using LayoutEx
+ */
+void build_paragraph_layout_icu_lx(ParagraphLayout& result, const char16_t* chars, int32_t count,
 		const RichText::TextRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, ParagraphLayoutFlags flags);
+
+/**
+ * @brief Builds the paragraph layout using direct calls to ubidi.h and usc_impl.h run calculation functions
+ */
+void build_paragraph_layout_icu(LayoutBuildState& buildState, ParagraphLayout& result, const char16_t* chars,
+		int32_t count, const RichText::TextRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth,
+		float textAreaHeight, TextYAlignment textYAlignment, ParagraphLayoutFlags flags);
+
+/**
+ * @brief Destroys all underlying objects with the given `LayoutBuildState`
+ */
+void layout_build_state_destroy(LayoutBuildState&);
 
 template <typename Functor>
 void ParagraphLayout::for_each_line(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {

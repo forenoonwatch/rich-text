@@ -32,6 +32,8 @@ add_custom_command(TARGET RichText POST_BUILD
 add_executable(TestRichText "")
 target_link_libraries(TestRichText PRIVATE ICU::common ICU::layoutex)
 target_link_libraries(TestRichText PRIVATE Catch2::Catch2WithMain)
+target_link_libraries(TestRichText PRIVATE msdfgen::msdfgen)
+target_link_libraries(TestRichText PRIVATE simdjson)
 set_target_properties(TestRichText PROPERTIES
 	CXX_STANDARD 20
 	CXX_STANDARD_REQUIRED ON
