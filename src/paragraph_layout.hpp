@@ -143,6 +143,19 @@ void build_paragraph_layout_icu(LayoutBuildState& buildState, ParagraphLayout& r
 		float textAreaHeight, TextYAlignment textYAlignment, ParagraphLayoutFlags flags);
 
 /**
+ * @brief Builds the paragraph layout using UTF-8 APIs
+ */
+void build_paragraph_layout_utf8(LayoutBuildState& buildState, ParagraphLayout& result, const char* chars,
+		int32_t count, const RichText::TextRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth,
+		float textAreaHeight, TextYAlignment textYAlignment, ParagraphLayoutFlags flags);
+
+/**
+ * @brief Converts a UTF-16 ParagraphLayout to UTF-8 based indices 
+ */
+void convert_paragraph_layout_to_utf8(ParagraphLayout& result, const char16_t* srcChars, int32_t srcCharCount,
+		const char* dstChars, int32_t dstCharCount);
+
+/**
  * @brief Destroys all underlying objects with the given `LayoutBuildState`
  */
 void layout_build_state_destroy(LayoutBuildState&);

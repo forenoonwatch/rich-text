@@ -8,10 +8,12 @@
 #include "msdf_text_atlas.hpp"
 #include "rich_text.hpp"
 #include "paragraph_layout.hpp"
+#include "utf_conversion_util.hpp"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
+#include <unicode/utext.h>
 #include <unicode/brkiter.h>
 
 namespace {
@@ -40,7 +42,6 @@ static constexpr const UChar32 CH_CR = 0x000D;
 static constexpr const UChar32 CH_LSEP = 0x2028;
 static constexpr const UChar32 CH_PSEP = 0x2029;
 
-static icu::UnicodeString g_unicodeString;
 static icu::BreakIterator* g_charBreakIter = nullptr;
 static TextBox* g_focusedTextBox = nullptr;
 static float g_cursorPixelX = 0.f;
@@ -151,13 +152,14 @@ void TextBox::capture_focus() {
 	}
 
 	g_focusedTextBox = this;
-	g_unicodeString = icu::UnicodeString::fromUTF8(m_text);
 
 	icu::Locale loc("en_US");
 	UErrorCode errc{};
 
 	g_charBreakIter = icu::BreakIterator::createCharacterInstance(loc, errc);
-	g_charBreakIter->setText(g_unicodeString);
+	UText uText UTEXT_INITIALIZER;
+	utext_openUTF8(&uText, m_text.data(), m_text.size(), &errc);
+	g_charBreakIter->setText(&uText, errc);
 
 	recalc_text_internal(false, nullptr);
 }
@@ -168,7 +170,6 @@ void TextBox::release_focus() {
 	}
 
 	delete g_charBreakIter;
-	g_unicodeString = icu::UnicodeString{};
 	g_focusedTextBox = nullptr;
 
 	recalc_text();
@@ -259,7 +260,9 @@ void TextBox::cursor_move_to_prev_character() {
 }
 
 void TextBox::cursor_move_to_next_word() {
-	bool lastWhitespace = u_isWhitespace(g_unicodeString.char32At(m_cursorPosition.get_position()));
+	UChar32 c;
+	U8_GET((const uint8_t*)m_text.data(), 0, m_cursorPosition.get_position(), m_text.size(), c);
+	bool lastWhitespace = u_isWhitespace(c);
 
 	for (;;) {
 		auto nextIndex = g_charBreakIter->following(m_cursorPosition.get_position());
@@ -269,7 +272,7 @@ void TextBox::cursor_move_to_next_word() {
 		}
 
 		m_cursorPosition = {static_cast<uint32_t>(nextIndex)};
-		auto c = g_unicodeString.char32At(nextIndex);
+		U8_GET((const uint8_t*)m_text.data(), 0, nextIndex, m_text.size(), c);
 		bool whitespace = u_isWhitespace(c);
 
 		if (!whitespace && lastWhitespace || is_line_break(c)) {
@@ -283,6 +286,7 @@ void TextBox::cursor_move_to_next_word() {
 }
 
 void TextBox::cursor_move_to_prev_word() {
+	UChar32 c;
 	bool lastWhitespace = true;
 
 	for (;;) {
@@ -292,7 +296,7 @@ void TextBox::cursor_move_to_prev_word() {
 			break;
 		}
 
-		auto c = g_unicodeString.char32At(nextIndex);
+		U8_GET((const uint8_t*)m_text.data(), 0, nextIndex, m_text.size(), c);
 
 		bool whitespace = u_isWhitespace(c);
 
@@ -338,7 +342,7 @@ void TextBox::cursor_move_to_text_start() {
 }
 
 void TextBox::cursor_move_to_text_end() {
-	m_cursorPosition = {static_cast<uint32_t>(g_unicodeString.length())};
+	m_cursorPosition = {static_cast<uint32_t>(m_text.size())};
 	recalc_text_internal(false, nullptr);
 }
 
@@ -378,6 +382,8 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 	LayoutBuildState buildState{};
 	build_paragraph_layout_icu(buildState, paragraphLayout, textInfo.str.getBuffer(), textInfo.str.length(), 
 			textInfo.fontRuns, m_size[0], m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);
+	convert_paragraph_layout_to_utf8(paragraphLayout, textInfo.str.getBuffer(), textInfo.str.length(),
+			m_text.data(), m_text.size());
 	//build_paragraph_layout_icu_lx(paragraphLayout, textInfo.str.getBuffer(), textInfo.str.length(), 
 			//textInfo.fontRuns, m_size[0], m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);
 	layout_build_state_destroy(buildState);
@@ -396,6 +402,8 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 	// Add Stroke Glyphs
 	paragraphLayout.for_each_glyph(m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
 			auto* position, auto& font, auto lineX, auto lineY) {
+		charIndex = utf8_index_to_utf16(m_text.data(), m_text.size(), textInfo.str.getBuffer(),
+				textInfo.str.length(), charIndex);
 		auto stroke = textInfo.strokeRuns.get_value(charIndex);
 
 		if (stroke.color.a > 0.f) {
@@ -428,6 +436,8 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 	// Add Main Glyphs
 	paragraphLayout.for_each_glyph(m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
 			auto* position, auto& font, auto lineX, auto lineY) {
+		charIndex = utf8_index_to_utf16(m_text.data(), m_text.size(), textInfo.str.getBuffer(),
+				textInfo.str.length(), charIndex);
 		auto pX = position[0];
 		auto pY = position[1];
 
