@@ -30,8 +30,6 @@ static char *aescstrdup(const UChar* unichars,int32_t length);
 
 /* helpers ------------------------------------------------------------------ */
 
-static const char *levelString="...............................................................";
-
 static void initCharFromDirProps();
 static UChar* getStringFromDirProps(const uint8_t *dirProps, int32_t length, UChar *buffer);
 
