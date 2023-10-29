@@ -4,10 +4,10 @@
 #include "font.hpp"
 #include "multi_script_font.hpp"
 #include "utf_conversion_util.hpp"
+#include "script_run_iterator.hpp"
 
 #include <unicode/ubidi.h>
 #include <unicode/brkiter.h>
-#include <usc_impl.h>
 
 #include <hb.h>
 
@@ -42,7 +42,7 @@ static void build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result
 
 static TextRuns<UBiDiLevel> compute_levels(UBiDi* pBiDi, UBiDiLevel paragraphLevel,
 		const icu::UnicodeString& uniStr, const char* chars, int32_t count);
-static TextRuns<UScriptCode> compute_scripts(const icu::UnicodeString& uniStr, const char* chars, int32_t count);
+static TextRuns<UScriptCode> compute_scripts(const char* chars, int32_t count);
 static TextRuns<const Font*> compute_sub_fonts(const char* chars,
 		const TextRuns<const MultiScriptFont*>& fontRuns, const TextRuns<UScriptCode>& scriptRuns);
 
@@ -184,7 +184,7 @@ static void build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result
 		const TextRuns<const MultiScriptFont*>& fontRuns, UBiDiLevel paragraphLevel, int32_t textAreaWidth) {
 	auto uniStr = icu::UnicodeString::fromUTF8({chars, count});
 	auto levelRuns = compute_levels(state.pParaBiDi, paragraphLevel, uniStr, chars, count);
-	auto scriptRuns = compute_scripts(uniStr, chars, count);
+	auto scriptRuns = compute_scripts(chars, count);
 	TextRuns<const icu::Locale*> localeRuns(&icu::Locale::getDefault(), count);
 	auto subFontRuns = compute_sub_fonts(chars, fontRuns, scriptRuns);
 	int32_t runStart{};
@@ -302,24 +302,16 @@ static TextRuns<UBiDiLevel> compute_levels(UBiDi* pBiDi, UBiDiLevel paragraphLev
 	return levelRuns;
 }
 
-static TextRuns<UScriptCode> compute_scripts(const icu::UnicodeString& uniStr, const char* chars,
-		int32_t count) {
-	UErrorCode err{};
-	auto* sr = uscript_openRun(uniStr.getBuffer(), uniStr.length(), &err);
-
+static TextRuns<UScriptCode> compute_scripts(const char* chars, int32_t count) {
+	ScriptRunIterator runIter(chars, count);
 	TextRuns<UScriptCode> scriptRuns;
-
+	int32_t start;
 	int32_t limit;
 	UScriptCode script;
-	uint32_t charIndex8{};
-	uint32_t charIndex16{};
 
-	while (uscript_nextRun(sr, nullptr, &limit, &script)) {
-		scriptRuns.add(utf16_index_to_utf8(uniStr.getBuffer(), uniStr.length(), chars, count, limit,
-				charIndex16, charIndex8), script);
+	while (runIter.next(start, limit, script)) {
+		scriptRuns.add(limit, script);
 	}
-
-	uscript_closeRun(sr);
 
 	return scriptRuns;
 }

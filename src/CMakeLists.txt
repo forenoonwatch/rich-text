@@ -12,6 +12,7 @@ target_sources(RichText PRIVATE
 	"${CMAKE_CURRENT_SOURCE_DIR}/build_paragraph_layout_icu.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/build_paragraph_layout_utf8.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/convert_paragraph_layout_utf8.cpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/script_run_iterator.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/pipeline.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/text_atlas.cpp"
 )

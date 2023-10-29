@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "script_run_iterator.hpp"
+
 #include <usc_impl.h>
 #include <unicode/ustring.h>
 
@@ -32,10 +34,16 @@ static constexpr const RunTestData g_scriptRunTestData2[] = {
 };
 
 static void test_script_runs_icu(const RunTestData* pTestData, size_t testCount);
+static void test_script_runs_utf8(const RunTestData* pTestData, size_t testCount);
 
 TEST_CASE("ICU Script Runs", "[ScriptRuns]") {
 	test_script_runs_icu(g_scriptRunTestData1, std::ssize(g_scriptRunTestData1));
 	test_script_runs_icu(g_scriptRunTestData2, std::ssize(g_scriptRunTestData2));
+}
+
+TEST_CASE("UTF-8 Script Runs", "[ScriptRuns]") {
+	test_script_runs_utf8(g_scriptRunTestData1, std::ssize(g_scriptRunTestData1));
+	test_script_runs_utf8(g_scriptRunTestData2, std::ssize(g_scriptRunTestData2));
 }
 
 static void test_script_runs_icu(const RunTestData* pTestData, size_t testCount) {
@@ -68,5 +76,39 @@ static void test_script_runs_icu(const RunTestData* pTestData, size_t testCount)
 	}
 
 	uscript_closeRun(pScriptRun);
+}
+
+static void test_script_runs_utf8(const RunTestData* pTestData, size_t testCount) {
+	UChar buffer[128];
+	char testString[2048];
+	int32_t runStarts[256];
+	UErrorCode err{};
+
+	// Fill in the test string and the runStarts array.
+	int32_t stringLimit = 0;
+	for (size_t run = 0; run < testCount; ++run) {
+		runStarts[run] = stringLimit;
+		auto length16 = u_unescape(pTestData[run].runText, buffer, 128);
+		int32_t length8{};
+		u_strToUTF8(testString + stringLimit, 2048 - stringLimit, &length8, buffer, length16, &err);
+		stringLimit += length8;
+	}
+
+	// The limit of the last run
+	runStarts[testCount] = stringLimit;
+
+	ScriptRunIterator runIter(testString, stringLimit);
+	int32_t runStart, runLimit;
+	UScriptCode runCode;
+	size_t runIndex{};
+
+	while (runIter.next(runStart, runLimit, runCode)) {
+		REQUIRE(runStart == runStarts[runIndex]);
+		REQUIRE(runLimit == runStarts[runIndex + 1]);
+		REQUIRE(runCode == pTestData[runIndex].runCode);
+		REQUIRE(runIndex < testCount);
+
+		++runIndex;
+	}
 }
 
