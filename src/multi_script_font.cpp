@@ -34,54 +34,18 @@ const icu::LEFontInstance* MultiScriptFont::getSubFont(const LEUnicode chars[], 
         return NULL;
     }
 
-	auto* baseFont = m_fontCache->get_font_for_script(get_family(), get_weight(), get_style(),
-			static_cast<UScriptCode>(script), m_size);
-	auto [fallbackBaseIndex, fallbackCount] = m_fontCache->get_fallback_info(get_family());
-
-	// Find the longest run that the base font or its fallbacks are able to draw
 	UText iter UTEXT_INITIALIZER;
 	UErrorCode err{};
 	utext_openUChars(&iter, chars + *offset, limit - *offset, &err);
+	return get_sub_font(iter, *offset, limit, script);
+}
 
-	// First, find the first font that is able to render a char from the string.
-
-	Font* targetFont = nullptr;
-
-	for (;;) {
-		auto c = UTEXT_NEXT32(&iter);
-
-		if (c == U_SENTINEL) {
-			break;
-		}
-		else if (auto* font = find_compatible_font(c, baseFont, fallbackBaseIndex, fallbackCount)) {
-			targetFont = font;
-			break;
-		}
-	}
-
-	// No font can render this substring, just use the base font
-	if (!targetFont) {
-		*offset = limit;
-		return baseFont;
-	}
-	
-	// Then, see how long it is able to render characters
-
-	for (;;) {
-		auto idx = UTEXT_GETNATIVEINDEX(&iter);
-		auto c = UTEXT_NEXT32(&iter);
-
-		if (c == U_SENTINEL) {
-			break;
-		}
-		else if (targetFont->mapCharToGlyph(c) == 0) {
-			*offset = *offset + idx;
-			return targetFont;
-		}
-	}
-
-	*offset = limit;
-	return targetFont;
+const Font* MultiScriptFont::get_sub_font(const char* chars, int32_t& offset, int32_t limit,
+		int32_t script) const {
+	UText iter UTEXT_INITIALIZER;
+	UErrorCode err{};
+	utext_openUTF8(&iter, chars + offset, limit - offset, &err);
+	return get_sub_font(iter, offset, limit, script);
 }
 
 const void* MultiScriptFont::getFontTable(LETag tableTag, size_t& length) const {
@@ -154,6 +118,54 @@ FontFaceStyle MultiScriptFont::get_style() const {
 
 uint32_t MultiScriptFont::get_size() const {
 	return m_size;
+}
+
+const Font* MultiScriptFont::get_sub_font(UText& iter, int32_t& offset, int32_t limit, int32_t script) const {
+	auto* baseFont = m_fontCache->get_font_for_script(get_family(), get_weight(), get_style(),
+			static_cast<UScriptCode>(script), m_size);
+	auto [fallbackBaseIndex, fallbackCount] = m_fontCache->get_fallback_info(get_family());
+
+	// Find the longest run that the base font or its fallbacks are able to draw
+
+	// First, find the first font that is able to render a char from the string.
+
+	Font* targetFont = nullptr;
+
+	for (;;) {
+		auto c = UTEXT_NEXT32(&iter);
+
+		if (c == U_SENTINEL) {
+			break;
+		}
+		else if (auto* font = find_compatible_font(c, baseFont, fallbackBaseIndex, fallbackCount)) {
+			targetFont = font;
+			break;
+		}
+	}
+
+	// No font can render this substring, just use the base font
+	if (!targetFont) {
+		offset = limit;
+		return baseFont;
+	}
+	
+	// Then, see how long it is able to render characters
+
+	for (;;) {
+		auto idx = UTEXT_GETNATIVEINDEX(&iter);
+		auto c = UTEXT_NEXT32(&iter);
+
+		if (c == U_SENTINEL) {
+			break;
+		}
+		else if (targetFont->mapCharToGlyph(c) == 0) {
+			offset = offset + idx;
+			return targetFont;
+		}
+	}
+
+	offset = limit;
+	return targetFont;
 }
 
 Font* MultiScriptFont::find_compatible_font(uint32_t codepoint, Font* baseFont, FaceIndex_T fallbackBaseIndex,

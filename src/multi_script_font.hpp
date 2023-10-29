@@ -6,6 +6,7 @@
 
 class Font;
 class FontCache;
+struct UText;
 
 class MultiScriptFont final : public icu::LEFontInstance {
 	public:
@@ -16,6 +17,7 @@ class MultiScriptFont final : public icu::LEFontInstance {
 
 		const LEFontInstance* getSubFont(const LEUnicode chars[], le_int32* offset, le_int32 limit,
 				le_int32 script, LEErrorCode& success) const override;
+		const Font* get_sub_font(const char* chars, int32_t& offset, int32_t limit, int32_t script) const;
 
 		const void* getFontTable(LETag tableTag, size_t &length) const override;
 		le_int32 getUnitsPerEM() const override;
@@ -41,6 +43,7 @@ class MultiScriptFont final : public icu::LEFontInstance {
 		uint32_t m_fontKey;
 		uint32_t m_size;
 
+		const Font* get_sub_font(UText& iter, int32_t& offset, int32_t limit, int32_t script) const;
 		Font* find_compatible_font(uint32_t codepoint, Font* baseFont, FaceIndex_T fallbackBaseIndex,
 				FaceIndex_T fallbackCount) const;
 };
