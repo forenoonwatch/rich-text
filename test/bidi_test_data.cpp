@@ -445,3 +445,27 @@ tests[]={
 
 const int
 bidiTestCount=UPRV_LENGTHOF(tests);
+
+
+const BiDiTestString testStrings[] = {
+	/*{testText1, UPRV_LENGTHOF(testText1)}, // NOTE: Has paragraph sep
+	{testText2, UPRV_LENGTHOF(testText2)},
+	{testText3, UPRV_LENGTHOF(testText3)},
+	{testText4, UPRV_LENGTHOF(testText4)},
+	{testText5, UPRV_LENGTHOF(testText5)},
+	{testText6, UPRV_LENGTHOF(testText6)},
+	{testText8, UPRV_LENGTHOF(testText8)}, // NOTE: Has paragraph sep
+	{testText9, UPRV_LENGTHOF(testText9)},
+	{testText10, UPRV_LENGTHOF(testText10)},*/
+	{testText11, UPRV_LENGTHOF(testText11)},
+	/*{testText12, UPRV_LENGTHOF(testText12)}, // NOTE: Has paragraph sep
+	{testText13, UPRV_LENGTHOF(testText13)}, // NOTE: Has paragraph sep
+	{testText14, UPRV_LENGTHOF(testText14)}, // NOTE: Has paragraph sep
+	{testText15, UPRV_LENGTHOF(testText15)},
+	{testText16, UPRV_LENGTHOF(testText16)},
+	{testText17, UPRV_LENGTHOF(testText17)},
+	{testTextXX, UPRV_LENGTHOF(testTextXX)},*/
+};
+
+const int testStringCount = UPRV_LENGTHOF(testStrings);
+

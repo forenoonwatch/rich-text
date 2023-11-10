@@ -43,9 +43,17 @@ struct BiDiTestData {
     const uint8_t *visualMap;
 };
 
+struct BiDiTestString {
+    const uint8_t *text;
+    int32_t length;
+};
+
 extern const char* const dirPropNames[U_CHAR_DIRECTION_COUNT];
 extern UChar charFromDirProp[U_CHAR_DIRECTION_COUNT];
 
 extern const BiDiTestData tests[];
 extern const int bidiTestCount;
+
+extern const BiDiTestString testStrings[];
+extern const int testStringCount;
 

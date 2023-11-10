@@ -3,6 +3,7 @@ target_sources(TestRichText PRIVATE
 	"${CMAKE_CURRENT_SOURCE_DIR}/test_script_runs.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/test_bidi.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/test_bidi_utf8.cpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/test_sheen_bidi.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/test_paragraph_layout.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/u16on8bidi.cpp"
 )
