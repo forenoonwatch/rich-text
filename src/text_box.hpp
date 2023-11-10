@@ -69,22 +69,24 @@ class TextBox {
 
 		std::vector<TextRect> m_textRects;
 
-		void cursor_move_to_next_character();
-		void cursor_move_to_prev_character();
+		void cursor_move_to_next_character(bool selectionMode);
+		void cursor_move_to_prev_character(bool selectionMode);
 
-		void cursor_move_to_next_word();
-		void cursor_move_to_prev_word();
+		void cursor_move_to_next_word(bool selectionMode);
+		void cursor_move_to_prev_word(bool selectionMode);
 
-		void cursor_move_to_next_line();
-		void cursor_move_to_prev_line();
+		void cursor_move_to_next_line(bool selectionMode);
+		void cursor_move_to_prev_line(bool selectionMode);
 
-		void cursor_move_to_line_start();
-		void cursor_move_to_line_end();
+		void cursor_move_to_line_start(bool selectionMode);
+		void cursor_move_to_line_end(bool selectionMode);
 
-		void cursor_move_to_text_start();
-		void cursor_move_to_text_end();
+		void cursor_move_to_text_start(bool selectionMode);
+		void cursor_move_to_text_end(bool selectionMode);
 
-		void cursor_move_to_mouse(double mouseX, double mouseY);
+		void cursor_move_to_mouse(double mouseX, double mouseY, bool selectionMode);
+
+		void set_cursor_position_internal(CursorPosition pos, bool selectionMode);
 
 		void recalc_text();
 		void recalc_text_internal(bool richText, const void* postLayoutOp);
