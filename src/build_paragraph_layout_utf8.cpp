@@ -1,5 +1,6 @@
 #include "paragraph_layout.hpp"
 
+#include "binary_search.hpp"
 #include "text_run_utils.hpp"
 #include "font.hpp"
 #include "multi_script_font.hpp"
@@ -73,24 +74,6 @@ static void compute_line_visual_runs(LayoutBuildState& state, ParagraphLayout& r
 static void append_visual_run(LayoutBuildState& state, ParagraphLayout& result, const LogicalRun* logicalRuns,
 		size_t logicalRunIndex, int32_t charStartIndex, int32_t charEndIndex, float& visualRunLastX,
 		size_t& highestRun, int32_t& highestRunCharEnd);
-
-template <typename Condition>
-static constexpr size_t binary_search(size_t first, size_t count, Condition&& cond) {
-	while (count > 0) {
-		auto step = count / 2;
-		auto i = first + step;
-
-		if (cond(i)) {
-			first = i + 1;
-			count -= step + 1;
-		}
-		else {
-			count = step;
-		}
-	}
-
-	return first;
-}
 
 // Public Functions
 

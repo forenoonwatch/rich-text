@@ -1,5 +1,6 @@
 #include "paragraph_layout.hpp"
 
+#include "binary_search.hpp"
 #include "multi_script_font.hpp"
 
 #include <layout/ParagraphLayout.h>
@@ -19,24 +20,6 @@ static void handle_line_icu_lx(ParagraphLayout& result, icu::ParagraphLayout::Li
 
 static bool affinity_prefer_prev_run(bool atLineBreak, bool atSoftLineBreak, bool prevRunRTL, bool nextRunRTL,
 		CursorAffinity affinity);
-
-template <typename Condition>
-static constexpr size_t binary_search(size_t first, size_t count, Condition&& cond) {
-	while (count > 0) {
-		auto step = count / 2;
-		auto i = first + step;
-
-		if (cond(i)) {
-			first = i + 1;
-			count -= step + 1;
-		}
-		else {
-			count = step;
-		}
-	}
-
-	return first;
-}
 
 static constexpr CursorPosition make_cursor(uint32_t position, bool oppositeAffinity) {
 	return {position | (static_cast<uint32_t>(oppositeAffinity) << 31)};
