@@ -80,11 +80,9 @@ static void test_lx_vs_icu(const MultiScriptFont& font, const char* str, float w
 	build_paragraph_layout_icu_lx(lxLayout, text.getBuffer(), text.length(), fontRuns, width, 100.f,
 			TextYAlignment::BOTTOM, ParagraphLayoutFlags::NONE);
 
-	LayoutBuildState state{};
 	ParagraphLayout icuLayout{};
-	build_paragraph_layout_icu(state, icuLayout, text.getBuffer(), text.length(), fontRuns, width, 100.f,
+	build_paragraph_layout_icu(icuLayout, text.getBuffer(), text.length(), fontRuns, width, 100.f,
 			TextYAlignment::BOTTOM, ParagraphLayoutFlags::NONE);
-	layout_build_state_destroy(state);
 
 	test_compare_layouts(lxLayout, icuLayout);
 }
@@ -100,11 +98,9 @@ static void test_lx_vs_utf8(const MultiScriptFont& font, const char* str, float 
 			TextYAlignment::BOTTOM, ParagraphLayoutFlags::NONE);
 	convert_paragraph_layout_to_utf8(lxLayout, text.getBuffer(), text.length(), str, count);
 
-	LayoutBuildState state{};
 	ParagraphLayout utf8Layout{};
-	build_paragraph_layout_utf8(state, utf8Layout, str, count, fontRuns8, width, 100.f, TextYAlignment::BOTTOM,
+	build_paragraph_layout_utf8(utf8Layout, str, count, fontRuns8, width, 100.f, TextYAlignment::BOTTOM,
 			ParagraphLayoutFlags::NONE);
-	layout_build_state_destroy(state);
 
 	test_compare_layouts(lxLayout, utf8Layout);
 }

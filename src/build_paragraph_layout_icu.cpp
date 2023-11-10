@@ -17,6 +17,33 @@ using namespace RichText;
 
 namespace {
 
+struct LayoutBuildState {
+	explicit LayoutBuildState()
+			: pParaBiDi(ubidi_open())
+			, pLineBiDi(ubidi_open())
+			, pBuffer(hb_buffer_create()) {
+		UErrorCode err{U_ZERO_ERROR};
+		pLineBreakIterator = icu::BreakIterator::createLineInstance(icu::Locale::getDefault(), err);
+		hb_buffer_set_cluster_level(pBuffer, HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS);
+	}
+
+	~LayoutBuildState() {
+		ubidi_close(pParaBiDi);
+		ubidi_close(pLineBiDi);
+		delete pLineBreakIterator;
+		hb_buffer_destroy(pBuffer);
+	}
+
+	UBiDi* pParaBiDi;
+	UBiDi* pLineBiDi;
+	icu::BreakIterator* pLineBreakIterator;
+	hb_buffer_t* pBuffer;
+	std::vector<uint32_t> glyphs;
+	std::vector<uint32_t> charIndices;
+	std::vector<float> glyphPositions;
+	std::vector<int32_t> glyphWidths;
+};
+
 struct LogicalRun {
 	const Font* pFont;
 	const icu::Locale* pLocale;
@@ -32,8 +59,6 @@ static constexpr const UChar32 CH_LF = 0x000A;
 static constexpr const UChar32 CH_CR = 0x000D;
 static constexpr const UChar32 CH_LSEP = 0x2028;
 static constexpr const UChar32 CH_PSEP = 0x2029;
-
-static void layout_build_state_init(LayoutBuildState& state);
 
 // FIXME: Using `stringOffset` is a bit cumbersome, refactor this logic to have full view of the string
 static size_t build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result, const char16_t* chars,
@@ -78,10 +103,11 @@ static constexpr size_t binary_search(size_t first, size_t count, Condition&& co
 
 // Public Functions
 
-void build_paragraph_layout_icu(LayoutBuildState& state, ParagraphLayout& result, const char16_t* chars,
-		int32_t count, const TextRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth,
-		float textAreaHeight, TextYAlignment textYAlignment, ParagraphLayoutFlags flags) {
-	layout_build_state_init(state);
+void build_paragraph_layout_icu(ParagraphLayout& result, const char16_t* chars, int32_t count,
+		const TextRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
+		TextYAlignment textYAlignment, ParagraphLayoutFlags flags) {
+	LayoutBuildState state{};
+
 	UText iter UTEXT_INITIALIZER;
 	UErrorCode err{};
 	utext_openUChars(&iter, chars, count, &err);
@@ -149,49 +175,7 @@ void build_paragraph_layout_icu(LayoutBuildState& state, ParagraphLayout& result
 	result.textStartY = static_cast<float>(textYAlignment) * (textAreaHeight - totalHeight) * 0.5f;
 }
 
-void layout_build_state_destroy(LayoutBuildState& state) {
-	if (state.pParaBiDi) {
-		ubidi_close(state.pParaBiDi);
-		state.pParaBiDi = nullptr;
-	}
-
-	if (state.pLineBiDi) {
-		ubidi_close(state.pLineBiDi);
-		state.pLineBiDi = nullptr;
-	}
-
-	if (state.pLineBreakIterator) {
-		delete state.pLineBreakIterator;
-		state.pLineBreakIterator = nullptr;
-	}
-
-	if (state.pBuffer) {
-		hb_buffer_destroy(state.pBuffer);
-		state.pBuffer = nullptr;
-	}
-}
-
 // Static Functions
-
-static void layout_build_state_init(LayoutBuildState& state) {
-	if (!state.pParaBiDi) {
-		state.pParaBiDi = ubidi_open();
-	}
-
-	if (!state.pLineBiDi) {
-		state.pLineBiDi = ubidi_open();
-	}
-
-	if (!state.pLineBreakIterator) {
-		UErrorCode err{U_ZERO_ERROR};
-		state.pLineBreakIterator = icu::BreakIterator::createLineInstance(icu::Locale::getDefault(), err);
-	}
-
-	if (!state.pBuffer) {
-		state.pBuffer = hb_buffer_create();
-		hb_buffer_set_cluster_level(state.pBuffer, HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS);
-	}
-}
 
 static size_t build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result, const char16_t* chars,
 		int32_t count, int32_t stringOffset, const TextRuns<const MultiScriptFont*>& fontRuns,

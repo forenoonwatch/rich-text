@@ -379,14 +379,12 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 
 void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayoutOp) {
 	ParagraphLayout paragraphLayout{};
-	LayoutBuildState buildState{};
-	build_paragraph_layout_icu(buildState, paragraphLayout, textInfo.str.getBuffer(), textInfo.str.length(), 
+	//build_paragraph_layout_icu_lx(paragraphLayout, textInfo.str.getBuffer(), textInfo.str.length(),
+			//textInfo.fontRuns, m_size[0], m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);
+	build_paragraph_layout_icu(paragraphLayout, textInfo.str.getBuffer(), textInfo.str.length(), 
 			textInfo.fontRuns, m_size[0], m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);
 	convert_paragraph_layout_to_utf8(paragraphLayout, textInfo.str.getBuffer(), textInfo.str.length(),
 			m_text.data(), m_text.size());
-	//build_paragraph_layout_icu_lx(paragraphLayout, textInfo.str.getBuffer(), textInfo.str.length(), 
-			//textInfo.fontRuns, m_size[0], m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);
-	layout_build_state_destroy(buildState);
 
 	if (postLayoutOp) {
 		m_cursorPosition = apply_cursor_move(paragraphLayout, m_size[0], m_textXAlignment,
