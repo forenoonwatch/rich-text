@@ -150,6 +150,12 @@ void build_paragraph_layout_icu(ParagraphLayout& result, const char16_t* chars, 
 				result.glyphPositions.emplace_back();
 				result.glyphPositions.emplace_back();
 
+				result.visualRuns.push_back({
+					.glyphEndIndex = result.visualRuns.empty() ? 0 : result.visualRuns.back().glyphEndIndex,
+					.charStartIndex = static_cast<uint32_t>(byteIndex),
+					.charEndIndex = static_cast<uint32_t>(byteIndex),
+				});
+
 				result.lines.push_back({
 					.visualRunsEndIndex = static_cast<uint32_t>(result.visualRuns.size()),
 					.width = 0.f,

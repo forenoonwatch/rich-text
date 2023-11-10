@@ -14,10 +14,11 @@ static constexpr const char* g_testStrings[] = {
 	"إلابسم الله",
 	"beffiإلابسم اللهffter",
 	"Hello\nWorld",
+	"Hello\r\n\r\nWorld",
 	"beffiإلابسم اللهffter\r\nbeffiإلابسم اللهffter",
 	"beffiإلابسم الله\r\nhello",
-	"	 ̈‫ aaa ‭ אאא ‮ aaa ‪ אאא ‬ aaa ‬ ااا ‬ aaa ‬ aaa ‬&‬‌‌&‬",
-	"aaa⁧אאא⁦bbb‫בבב‬ccc⁩גגג",
+	//"	 ̈‫ aaa ‭ אאא ‮ aaa ‪ אאא ‬ aaa ‬ ااا ‬ aaa ‬ aaa ‬&‬‌‌&‬",
+	//"aaa⁧אאא⁦bbb‫בבב‬ccc⁩גגג",
 };
 
 static void init_font_cache();

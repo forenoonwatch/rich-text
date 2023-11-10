@@ -15,6 +15,7 @@ target_link_libraries(RichText PRIVATE glad)
 target_link_libraries(RichText PRIVATE glfw)
 target_link_libraries(RichText PRIVATE ICU::common ICU::layoutex)
 target_link_libraries(RichText PRIVATE msdfgen::msdfgen)
+target_link_libraries(RichText PRIVATE SheenBidi)
 target_link_libraries(RichText PRIVATE simdjson)
 set_target_properties(RichText PROPERTIES
 	CXX_STANDARD 20
