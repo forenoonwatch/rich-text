@@ -46,6 +46,23 @@ add_custom_command(TARGET TestRichText POST_BUILD
 		${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:ICU::data> $<TARGET_FILE_DIR:TestRichText>
 )
 
+# RichText Benchmark ################################################################################
+
+add_executable(BenchRichText "")
+target_link_libraries(BenchRichText PRIVATE ICU::common)
+target_link_libraries(BenchRichText PRIVATE benchmark::benchmark)
+target_link_libraries(BenchRichText PRIVATE SheenBidi)
+set_target_properties(BenchRichText PROPERTIES
+	CXX_STANDARD 20
+	CXX_STANDARD_REQUIRED ON
+	CXX_EXTENSIONS OFF
+)
+
+add_custom_command(TARGET BenchRichText POST_BUILD
+	COMMAND
+		${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:ICU::data> $<TARGET_FILE_DIR:BenchRichText>
+)
+
 add_subdirectory(fonts)
 add_subdirectory(src)
 add_subdirectory(test)

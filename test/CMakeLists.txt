@@ -26,3 +26,10 @@ target_sources(TestRichText PRIVATE
 	"${PROJECT_SOURCE_DIR}/src/u8bidiln.cpp"
 	"${PROJECT_SOURCE_DIR}/src/u8bidiwrt.cpp"
 )
+
+target_include_directories(BenchRichText PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_sources(BenchRichText PRIVATE
+	"${CMAKE_CURRENT_SOURCE_DIR}/bench_bidi.cpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/bidi_test_data.cpp"
+)
+
