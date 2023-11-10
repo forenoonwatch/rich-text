@@ -33,20 +33,19 @@ struct CursorPositionResult {
 struct VisualRun {
 	const Font* pFont;
 	uint32_t glyphEndIndex;
+	uint32_t charStartIndex; // First (lowest) logical code unit index of the run
+	uint32_t charEndIndex; // First logical code unit index not in the run
+	uint8_t charEndOffset; // Offset ahead of charEndIndex for separator codepoints, if applicable
 	bool rightToLeft;
 };
 
 struct LineInfo {
 	uint32_t visualRunsEndIndex;
-	uint32_t lastStringIndex;
 	float width;
 	float ascent;
 	// Total descent from the top of the paragraph to the bottom of this line. The difference between
 	// this and the `totalDescent` of the previous line is the height
 	float totalDescent;
-	// The difference between the `lastStringIndex` and the end of the last rendered char of the line.
-	// Used to correct for line break characters
-	uint32_t lastCharDiff;
 };
 
 struct ParagraphLayout {
@@ -82,13 +81,6 @@ struct ParagraphLayout {
 	size_t get_run_containing_cursor(CursorPosition cursorPosition, size_t& outLineNumber) const;
 
 	/**
-	 * Gets the line containing the character index `charIndex`.
-	 *
-	 * @param charIndex Index of the character in the original string
-	 */
-	size_t get_line_containing_character(uint32_t charIndex) const;
-
-	/**
 	 * Gets the index of the line closest to the pixel height `y`. Heights above the first linewill always
 	 * return 0, and heights past the end of the last line will return the index of the last line.
 	 */
@@ -111,7 +103,8 @@ struct ParagraphLayout {
 	const float* get_run_positions(size_t runIndex) const;
 	uint32_t get_run_glyph_count(size_t runIndex) const;
 
-	bool is_empty_line(size_t lineIndex) const;
+	float get_glyph_offset_ltr(size_t runIndex, uint32_t cursor) const;
+	float get_glyph_offset_rtl(size_t runIndex, uint32_t cursor) const;
 
 	template <typename Functor>
 	void for_each_line(float textWidth, TextXAlignment textXAlignment, Functor&& func) const;
@@ -126,6 +119,10 @@ struct LayoutBuildState {
 	UBiDi* pLineBiDi;
 	icu::BreakIterator* pLineBreakIterator;
 	hb_buffer_t* pBuffer;
+	std::vector<uint32_t> glyphs;
+	std::vector<uint32_t> charIndices;
+	std::vector<float> glyphPositions;
+	std::vector<int32_t> glyphWidths;
 };
 
 /**
@@ -189,14 +186,13 @@ void ParagraphLayout::for_each_glyph(float textWidth, TextXAlignment textXAlignm
 
 	for_each_run(textWidth, textXAlignment, [&](auto, auto runIndex, auto lineX, auto lineY) {
 		auto& run = visualRuns[runIndex];
-		glyphPosIndex += 2 * run.rightToLeft;
 
 		for (; glyphIndex < run.glyphEndIndex; ++glyphIndex, glyphPosIndex += 2) {
 			func(glyphs[glyphIndex], charIndices[glyphIndex], glyphPositions.data() + glyphPosIndex,
 					*run.pFont, lineX, lineY);
 		}
 
-		glyphPosIndex += 2 * !run.rightToLeft;
+		glyphPosIndex += 2;
 	});
 }
 

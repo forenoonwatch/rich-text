@@ -16,6 +16,8 @@ static constexpr const char* g_testStrings[] = {
 	"Hello\nWorld",
 	"beffiإلابسم اللهffter\r\nbeffiإلابسم اللهffter",
 	"beffiإلابسم الله\r\nhello",
+	"	 ̈‫ aaa ‭ אאא ‮ aaa ‪ אאא ‬ aaa ‬ ااا ‬ aaa ‬ aaa ‬&‬‌‌&‬",
+	"aaa⁧אאא⁦bbb‫בבב‬ccc⁩גגג",
 };
 
 static void init_font_cache();
@@ -108,10 +110,10 @@ static void test_lx_vs_utf8(const MultiScriptFont& font, const char* str, float 
 }
 
 static void test_compare_layouts(const ParagraphLayout& lxLayout, const ParagraphLayout& icuLayout) {
+	REQUIRE(lxLayout.visualRuns.size() == icuLayout.visualRuns.size());
 	REQUIRE(lxLayout.glyphs.size() == icuLayout.glyphs.size());
 	REQUIRE(lxLayout.charIndices.size() == icuLayout.charIndices.size());
 	REQUIRE(lxLayout.glyphPositions.size() == icuLayout.glyphPositions.size());
-	REQUIRE(lxLayout.visualRuns.size() == icuLayout.visualRuns.size());
 	REQUIRE(lxLayout.lines.size() == icuLayout.lines.size());
 
 	for (size_t i = 0; i < lxLayout.glyphs.size(); ++i) {
@@ -130,16 +132,17 @@ static void test_compare_layouts(const ParagraphLayout& lxLayout, const Paragrap
 		REQUIRE(lxLayout.visualRuns[i].pFont == icuLayout.visualRuns[i].pFont);
 		REQUIRE(lxLayout.visualRuns[i].glyphEndIndex == icuLayout.visualRuns[i].glyphEndIndex);
 		REQUIRE(lxLayout.visualRuns[i].rightToLeft == icuLayout.visualRuns[i].rightToLeft);
+		REQUIRE(lxLayout.visualRuns[i].charStartIndex == icuLayout.visualRuns[i].charStartIndex);
+		REQUIRE(lxLayout.visualRuns[i].charEndIndex == icuLayout.visualRuns[i].charEndIndex);
+		REQUIRE(lxLayout.visualRuns[i].charEndOffset == icuLayout.visualRuns[i].charEndOffset);
 	}
 
 	for (size_t i = 0; i < lxLayout.lines.size(); ++i) {
 		REQUIRE(lxLayout.lines[i].visualRunsEndIndex == icuLayout.lines[i].visualRunsEndIndex);
-		REQUIRE(lxLayout.lines[i].lastStringIndex == icuLayout.lines[i].lastStringIndex);
 		// LayoutEx truncates width to an integer, so there is some discrepancy
 		REQUIRE(fabsf(lxLayout.lines[i].width - icuLayout.lines[i].width) < 1.f);
 		REQUIRE(lxLayout.lines[i].ascent == icuLayout.lines[i].ascent);
 		REQUIRE(lxLayout.lines[i].totalDescent == icuLayout.lines[i].totalDescent);
-		REQUIRE(lxLayout.lines[i].lastCharDiff == icuLayout.lines[i].lastCharDiff);
 	}
 
 	REQUIRE(lxLayout.textStartY == icuLayout.textStartY);

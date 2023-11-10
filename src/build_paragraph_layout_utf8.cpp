@@ -36,9 +36,9 @@ static constexpr const UChar32 CH_PSEP = 0x2029;
 static void layout_build_state_init(LayoutBuildState& state);
 
 // FIXME: Using `stringOffset` is a bit cumbersome, refactor this logic to have full view of the string
-static void build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result,
-		std::vector<uint32_t>& lineFirstCharIndices, const char* chars, int32_t count, int32_t stringOffset,
-		const TextRuns<const MultiScriptFont*>& fontRuns, UBiDiLevel paragraphLevel, int32_t fixedWidth);
+static size_t build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result, const char* chars,
+		int32_t count, int32_t stringOffset, const TextRuns<const MultiScriptFont*>& fontRuns,
+		UBiDiLevel paragraphLevel, int32_t fixedWidth);
 
 static TextRuns<UBiDiLevel> compute_levels(UBiDi* pBiDi, UBiDiLevel paragraphLevel,
 		const icu::UnicodeString& uniStr, const char* chars, int32_t count);
@@ -46,19 +46,18 @@ static TextRuns<UScriptCode> compute_scripts(const char* chars, int32_t count);
 static TextRuns<const Font*> compute_sub_fonts(const char* chars,
 		const TextRuns<const MultiScriptFont*>& fontRuns, const TextRuns<UScriptCode>& scriptRuns);
 
-static void shape_logical_run(ParagraphLayout& result, std::vector<float>& positions,
-		std::vector<int32_t>& widths, hb_buffer_t* pBuffer, hb_font_t* pFont, const char* chars,
-		int32_t offset, int32_t count, int32_t max, UScriptCode script, const icu::Locale& locale,
-		bool rightToLeft, int32_t stringOffset);
+static void shape_logical_run(LayoutBuildState& state, hb_font_t* pFont, const char* chars, int32_t offset,
+		int32_t count, int32_t max, UScriptCode script, const icu::Locale& locale, bool rightToLeft,
+		int32_t stringOffset);
 static int32_t find_previous_line_break(icu::BreakIterator& iter, const char* chars, int32_t count,
-		int32_t charIndex);
+		int32_t charIndex, icu::UnicodeString& uniStr);
 static void compute_line_visual_runs(LayoutBuildState& state, ParagraphLayout& result,
-		const std::vector<LogicalRun>& logicalRuns, const float* positions, const icu::UnicodeString& uniStr,
-		const char* chars, int32_t count, int32_t lineStart, int32_t lineEnd, size_t& visualRunEndIndex,
-		int32_t stringOffset, uint32_t firstGlyphIndex);
-static void append_visual_run(ParagraphLayout& result, const LogicalRun* logicalRuns, const float* positions,
-		size_t logicalRunIndex, int32_t charEndIndex, size_t& visualRunEndIndex, float& visualRunLastX,
-		uint32_t paragraphFirstGlyphIndex);
+		const std::vector<LogicalRun>& logicalRuns, const icu::UnicodeString& uniStr,
+		const char* chars, int32_t count, int32_t lineStart, int32_t lineEnd,  int32_t stringOffset,
+		size_t& highestRun, int32_t& highestRunCharEnd);
+static void append_visual_run(LayoutBuildState& state, ParagraphLayout& result, const LogicalRun* logicalRuns,
+		size_t logicalRunIndex, int32_t charStartIndex, int32_t charEndIndex, float& visualRunLastX,
+		size_t& highestRun, int32_t& highestRunCharEnd);
 
 template <typename Condition>
 static constexpr size_t binary_search(size_t first, size_t count, Condition&& cond) {
@@ -90,9 +89,8 @@ void build_paragraph_layout_utf8(LayoutBuildState& state, ParagraphLayout& resul
 
 	// FIXME: Give the sub-paragraphs a full view of font runs
 	TextRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_value_count());
-	// FIXME: Can this potentially be removed?
-	std::vector<uint32_t> lineFirstCharIndices;
 	int32_t byteIndex = 0;
+	size_t lastHighestRun = 0;
 
 	UBiDiLevel paragraphLevel = ((flags & ParagraphLayoutFlags::RIGHT_TO_LEFT) == ParagraphLayoutFlags::NONE)
 			? UBIDI_DEFAULT_LTR : UBIDI_DEFAULT_RTL;
@@ -114,14 +112,18 @@ void build_paragraph_layout_utf8(LayoutBuildState& state, ParagraphLayout& resul
 
 				subsetFontRuns.clear();
 				fontRuns.get_runs_subset(byteIndex, byteCount, subsetFontRuns);
-				build_sub_paragraph(state, result, lineFirstCharIndices, chars + byteIndex, byteCount,
-						byteIndex, subsetFontRuns, paragraphLevel, fixedTextAreaWidth);
+				lastHighestRun = build_sub_paragraph(state, result, chars + byteIndex, byteCount, byteIndex,
+						subsetFontRuns, paragraphLevel, fixedTextAreaWidth);
 			}
 			else {
 				auto* pFont = fontRuns.get_value(byteIndex == count ? count - 1 : byteIndex);
 				auto height = static_cast<float>(pFont->getAscent() + pFont->getDescent());
 
-				lineFirstCharIndices.emplace_back(byteIndex);
+				lastHighestRun = result.visualRuns.size();
+
+				// All inserted runs need at least 2 glyph position entries
+				result.glyphPositions.emplace_back();
+				result.glyphPositions.emplace_back();
 
 				result.lines.push_back({
 					.visualRunsEndIndex = static_cast<uint32_t>(result.visualRuns.size()),
@@ -140,18 +142,9 @@ void build_paragraph_layout_utf8(LayoutBuildState& state, ParagraphLayout& resul
 
 			byteIndex = UTEXT_GETNATIVEINDEX(&iter);
 
-			if (!result.lines.empty()) {
-				result.lines.back().lastCharDiff = byteIndex - idx;
-			}
+			result.visualRuns[lastHighestRun].charEndOffset = byteIndex - idx;
 		}
 	}
-
-	// Populate lastStringIndex
-	for (size_t i = 0; i < result.lines.size() - 1; ++i) {
-		result.lines[i].lastStringIndex = lineFirstCharIndices[i + 1];
-	}
-
-	result.lines.back().lastStringIndex = static_cast<uint32_t>(count);
 
 	auto totalHeight = result.lines.empty() ? 0.f : result.lines.back().totalDescent;
 	result.textStartY = static_cast<float>(textYAlignment) * (textAreaHeight - totalHeight) * 0.5f;
@@ -179,9 +172,9 @@ static void layout_build_state_init(LayoutBuildState& state) {
 	}
 }
 
-static void build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result,
-		std::vector<uint32_t>& lineFirstCharIndices, const char* chars, int32_t count, int32_t stringOffset,
-		const TextRuns<const MultiScriptFont*>& fontRuns, UBiDiLevel paragraphLevel, int32_t textAreaWidth) {
+static size_t build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result, const char* chars,
+		int32_t count, int32_t stringOffset, const TextRuns<const MultiScriptFont*>& fontRuns,
+		UBiDiLevel paragraphLevel, int32_t textAreaWidth) {
 	auto uniStr = icu::UnicodeString::fromUTF8({chars, count});
 	auto levelRuns = compute_levels(state.pParaBiDi, paragraphLevel, uniStr, chars, count);
 	auto scriptRuns = compute_scripts(chars, count);
@@ -190,8 +183,6 @@ static void build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result
 	int32_t runStart{};
 
 	std::vector<LogicalRun> logicalRuns;
-	std::vector<float> logicalPositions;
-	std::vector<int32_t> logicalWidths;
 
 	iterate_run_intersections([&](auto limit, auto* pFont, auto level, auto script, auto* pLocale) {
 		logicalRuns.push_back({
@@ -203,28 +194,34 @@ static void build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result
 		});
 	}, subFontRuns, levelRuns, scriptRuns, localeRuns);
 
-	logicalPositions.reserve(2 * (count + logicalRuns.size()));
-	logicalWidths.reserve(count);
+	state.glyphs.clear();
+	state.glyphs.reserve(count);
 
-	auto firstGlyphIndex = static_cast<uint32_t>(result.glyphs.size());
+	state.charIndices.clear();
+	state.charIndices.reserve(count);
+
+	state.glyphPositions.clear();
+	state.glyphPositions.reserve(2 * (count + logicalRuns.size()));
+
+	state.glyphWidths.clear();
+	state.glyphWidths.reserve(count);
 
 	for (auto& run : logicalRuns) {
 		bool rightToLeft = run.level & 1;
-		shape_logical_run(result, logicalPositions, logicalWidths, state.pBuffer, run.pFont->get_hb_font(),
-				chars, runStart, run.charEndIndex - runStart, count, run.script, *run.pLocale, rightToLeft,
-				stringOffset);
-		run.glyphEndIndex = static_cast<uint32_t>(result.glyphs.size());
+		shape_logical_run(state, run.pFont->get_hb_font(), chars, runStart, run.charEndIndex - runStart, count,
+				run.script, *run.pLocale, rightToLeft, stringOffset);
+		run.glyphEndIndex = static_cast<uint32_t>(state.glyphs.size());
 		runStart = run.charEndIndex;
 	}
 
-	size_t visualRunGlyphEndIndex = firstGlyphIndex;
+	size_t highestRun{};
+	int32_t highestRunCharEnd{INT32_MIN};
 
 	// If width == 0, perform no line breaking
 	if (textAreaWidth == 0) {
-		compute_line_visual_runs(state, result, logicalRuns, logicalPositions.data(), uniStr, chars, count,
-				stringOffset, stringOffset + count, visualRunGlyphEndIndex, stringOffset, firstGlyphIndex);
-		lineFirstCharIndices.emplace_back(static_cast<uint32_t>(stringOffset));
-		return;
+		compute_line_visual_runs(state, result, logicalRuns, uniStr, chars, count,
+				stringOffset, stringOffset + count, stringOffset, highestRun, highestRunCharEnd);
+		return highestRun;
 	}
 
 	// Find line breaks
@@ -241,40 +238,40 @@ static void build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result
 
 		lineStart = lineEnd;
 
-		auto glyphIndex = binary_search(firstGlyphIndex, result.charIndices.size() - firstGlyphIndex,
-				[&](auto index) {
-			return result.charIndices[index] < lineStart;
+		auto glyphIndex = binary_search(0, state.charIndices.size(), [&](auto index) {
+			return state.charIndices[index] < lineStart;
 		});
 
-		while (glyphIndex < result.glyphs.size()
-				&& lineWidthSoFar + logicalWidths[glyphIndex - firstGlyphIndex] <= textAreaWidth) {
-			lineWidthSoFar += logicalWidths[glyphIndex - firstGlyphIndex];
+		while (glyphIndex < state.glyphs.size()
+				&& lineWidthSoFar + state.glyphWidths[glyphIndex] <= textAreaWidth) {
+			lineWidthSoFar += state.glyphWidths[glyphIndex];
 			++glyphIndex;
 		}
 
 		// If no glyphs fit on the line, force one to fit. There shouldn't be any zero width glyphs at the start
 		// of a line unless the paragraph consists of only zero width glyphs, because otherwise the zero width
 		// glyphs will have been included on the end of the previous line
-		if (lineWidthSoFar == 0 && glyphIndex < result.glyphs.size()) {
+		if (lineWidthSoFar == 0 && glyphIndex < state.glyphs.size()) {
 			++glyphIndex;
 		}
 
-		auto charIndex = glyphIndex == result.glyphs.size() ? count + stringOffset
-				: result.charIndices[glyphIndex];
-		lineEnd = find_previous_line_break(*state.pLineBreakIterator, chars, count, charIndex - stringOffset)
+		auto charIndex = glyphIndex == state.glyphs.size() ? count + stringOffset
+				: state.charIndices[glyphIndex];
+		lineEnd = find_previous_line_break(*state.pLineBreakIterator, chars, count, charIndex - stringOffset,
+				uniStr)
 				+ stringOffset;
 
 		// If this break is at or before the last one, find a glyph that produces a break after the last one,
 		// starting at the one which didn't fit
 		while (lineEnd <= lineStart) {
-			lineEnd = result.charIndices[glyphIndex++];
+			lineEnd = state.charIndices[glyphIndex++];
 		}
 
-		compute_line_visual_runs(state, result, logicalRuns, logicalPositions.data(), uniStr, chars, count,
-				lineStart, lineEnd, visualRunGlyphEndIndex, stringOffset, firstGlyphIndex);
-
-		lineFirstCharIndices.emplace_back(static_cast<uint32_t>(lineStart));
+		compute_line_visual_runs(state, result, logicalRuns, uniStr, chars, count, lineStart, lineEnd,
+				stringOffset, highestRun, highestRunCharEnd);
 	}
+
+	return highestRun;
 }
 
 static TextRuns<UBiDiLevel> compute_levels(UBiDi* pBiDi, UBiDiLevel paragraphLevel,
@@ -331,47 +328,46 @@ static TextRuns<const Font*> compute_sub_fonts(const char* chars,
 	return result;
 }
 
-static void shape_logical_run(ParagraphLayout& result, std::vector<float>& positions,
-		std::vector<int32_t>& widths, hb_buffer_t* pBuffer, hb_font_t* pFont, const char* chars,
-		int32_t offset, int32_t count, int32_t max, UScriptCode script, const icu::Locale& locale,
-		bool rightToLeft, int32_t stringOffset) {
-	hb_buffer_set_script(pBuffer, hb_script_from_string(uscript_getShortName(script), 4));
-	hb_buffer_set_language(pBuffer, hb_language_from_string(locale.getLanguage(), -1));
-	hb_buffer_set_direction(pBuffer, rightToLeft ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
-	hb_buffer_set_length(pBuffer, 0);
-	hb_buffer_set_flags(pBuffer, (hb_buffer_flags_t)((offset == 0 ? HB_BUFFER_FLAG_BOT : 0)
+static void shape_logical_run(LayoutBuildState& state, hb_font_t* pFont, const char* chars, int32_t offset,
+		int32_t count, int32_t max, UScriptCode script, const icu::Locale& locale, bool rightToLeft,
+		int32_t stringOffset) {
+	hb_buffer_set_script(state.pBuffer, hb_script_from_string(uscript_getShortName(script), 4));
+	hb_buffer_set_language(state.pBuffer, hb_language_from_string(locale.getLanguage(), -1));
+	hb_buffer_set_direction(state.pBuffer, rightToLeft ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
+	hb_buffer_set_length(state.pBuffer, 0);
+	hb_buffer_set_flags(state.pBuffer, (hb_buffer_flags_t)((offset == 0 ? HB_BUFFER_FLAG_BOT : 0)
 			| (offset + count == max ? HB_BUFFER_FLAG_EOT : 0)));
-	hb_buffer_add_utf8(pBuffer, chars, max, offset, 0);
-	hb_buffer_add_utf8(pBuffer, chars + offset, max - offset, 0, count);
+	hb_buffer_add_utf8(state.pBuffer, chars, max, offset, 0);
+	hb_buffer_add_utf8(state.pBuffer, chars + offset, max - offset, 0, count);
 
-	hb_shape(pFont, pBuffer, nullptr, 0);
+	hb_shape(pFont, state.pBuffer, nullptr, 0);
 
-	auto glyphCount = hb_buffer_get_length(pBuffer);
-	auto* glyphPositions = hb_buffer_get_glyph_positions(pBuffer, nullptr);
-	auto* glyphInfos = hb_buffer_get_glyph_infos(pBuffer, nullptr);
+	auto glyphCount = hb_buffer_get_length(state.pBuffer);
+	auto* glyphPositions = hb_buffer_get_glyph_positions(state.pBuffer, nullptr);
+	auto* glyphInfos = hb_buffer_get_glyph_infos(state.pBuffer, nullptr);
 	int32_t cursorX{};
 	int32_t cursorY{};
 
 	for (unsigned i = 0; i < glyphCount; ++i) {
-		positions.emplace_back(scalbnf(cursorX + glyphPositions[i].x_offset, -6));
-		positions.emplace_back(scalbnf(cursorY + glyphPositions[i].y_offset, -6));
+		state.glyphPositions.emplace_back(scalbnf(cursorX + glyphPositions[i].x_offset, -6));
+		state.glyphPositions.emplace_back(scalbnf(cursorY + glyphPositions[i].y_offset, -6));
 		cursorX += glyphPositions[i].x_advance;
 		cursorY += glyphPositions[i].y_advance;
 	}
 
-	positions.emplace_back(scalbnf(cursorX, -6));
-	positions.emplace_back(scalbnf(cursorY, -6));
+	state.glyphPositions.emplace_back(scalbnf(cursorX, -6));
+	state.glyphPositions.emplace_back(scalbnf(cursorY, -6));
 
 	if (rightToLeft) {
 		for (unsigned i = glyphCount - 1; ; --i) {
-			result.glyphs.emplace_back(glyphInfos[i].codepoint);
-			result.charIndices.emplace_back(glyphInfos[i].cluster + offset + stringOffset);
+			state.glyphs.emplace_back(glyphInfos[i].codepoint);
+			state.charIndices.emplace_back(glyphInfos[i].cluster + offset + stringOffset);
 
 			if (i == glyphCount - 1) {
-				widths.emplace_back(glyphPositions[i].x_advance - glyphPositions[i].x_offset);
+				state.glyphWidths.emplace_back(glyphPositions[i].x_advance - glyphPositions[i].x_offset);
 			}
 			else {
-				widths.emplace_back(glyphPositions[i].x_advance + glyphPositions[i + 1].x_offset
+				state.glyphWidths.emplace_back(glyphPositions[i].x_advance + glyphPositions[i + 1].x_offset
 						- glyphPositions[i].x_offset);
 			}
 
@@ -382,14 +378,14 @@ static void shape_logical_run(ParagraphLayout& result, std::vector<float>& posit
 	}
 	else {
 		for (unsigned i = 0; i < glyphCount; ++i) {
-			result.glyphs.emplace_back(glyphInfos[i].codepoint);
-			result.charIndices.emplace_back(glyphInfos[i].cluster + offset + stringOffset);
+			state.glyphs.emplace_back(glyphInfos[i].codepoint);
+			state.charIndices.emplace_back(glyphInfos[i].cluster + offset + stringOffset);
 
 			if (i == glyphCount - 1) {
-				widths.emplace_back(glyphPositions[i].x_advance - glyphPositions[i].x_offset);
+				state.glyphWidths.emplace_back(glyphPositions[i].x_advance - glyphPositions[i].x_offset);
 			}
 			else {
-				widths.emplace_back(glyphPositions[i].x_advance + glyphPositions[i + 1].x_offset
+				state.glyphWidths.emplace_back(glyphPositions[i].x_advance + glyphPositions[i + 1].x_offset
 						- glyphPositions[i].x_offset);
 			}
 		}
@@ -397,34 +393,34 @@ static void shape_logical_run(ParagraphLayout& result, std::vector<float>& posit
 }
 
 static int32_t find_previous_line_break(icu::BreakIterator& iter, const char* chars, int32_t count,
-		int32_t charIndex) {
+		int32_t charIndex, icu::UnicodeString& uniStr) {
 	// Skip over any whitespace or control characters because they can hang in the margin
 	UChar32 chr;
 	while (charIndex < count) {
-		U16_GET(chars, 0, charIndex, count, chr);
+		U8_GET((const uint8_t*)chars, 0, charIndex, count, chr);
 
 		if (!u_isWhitespace(chr) && !u_iscntrl(chr)) {
 			break;
 		}
 
-		U16_FWD_1(chars, charIndex, count);
+		U8_FWD_1(chars, charIndex, count);
 	}
+
+	U8_FWD_1(chars, charIndex, count);
 
 	// Return the break location that's at or before the character we stopped on. Note: if we're on a break, the
 	// `+ 1` will cause `preceding` to back up to it.
-	return iter.preceding(charIndex + 1);
+	return iter.preceding(charIndex);
 }
 
 static void compute_line_visual_runs(LayoutBuildState& state, ParagraphLayout& result,
-		const std::vector<LogicalRun>& logicalRuns, const float* positions, const icu::UnicodeString& uniStr,
-		const char* chars, int32_t count, int32_t lineStart, int32_t lineEnd, size_t& visualRunEndIndex,
-		int32_t stringOffset, uint32_t firstGlyphIndex) {
-	uint32_t charIndex8{};
-	uint32_t charIndex16{};
+		const std::vector<LogicalRun>& logicalRuns, const icu::UnicodeString& uniStr, const char* chars,
+		int32_t count, int32_t lineStart, int32_t lineEnd, int32_t stringOffset, size_t& highestRun,
+		int32_t& highestRunCharEnd) {
 	auto bidiLineBegin = utf8_index_to_utf16(chars, count, uniStr.getBuffer(), uniStr.length(),
-			lineStart - stringOffset, charIndex8, charIndex16);
+			lineStart - stringOffset);
 	auto bidiLineEnd = utf8_index_to_utf16(chars, count, uniStr.getBuffer(), uniStr.length(),
-			lineEnd - stringOffset, charIndex8, charIndex16);
+			lineEnd - stringOffset);
 	UErrorCode err{};
 	ubidi_setLine(state.pParaBiDi, bidiLineBegin, bidiLineEnd, state.pLineBiDi, &err);
 	auto runCount = ubidi_countRuns(state.pLineBiDi, &err);
@@ -438,10 +434,7 @@ static void compute_line_visual_runs(LayoutBuildState& state, ParagraphLayout& r
 		auto runStart = utf16_index_to_utf8(uniStr.getBuffer(), uniStr.length(), chars, count,
 				bidiLineBegin + logicalStart);
 		auto runEnd = utf16_index_to_utf8(uniStr.getBuffer(), uniStr.length(), chars, count,
-				bidiLineBegin + logicalStart + runLength - 1);
-		// FIXME: reconcile utf8
-		//auto runStart = lineStart + logicalStart - stringOffset;
-		//auto runEnd = runStart + runLength - 1;
+				bidiLineBegin + logicalStart + runLength) - 1;
 
 		if (runDir == UBIDI_LTR) {
 			auto run = binary_search(0, logicalRuns.size(), [&](auto index) {
@@ -461,13 +454,13 @@ static void compute_line_visual_runs(LayoutBuildState& state, ParagraphLayout& r
 				}
 
 				if (runEnd < logicalRunEnd) {
-					append_visual_run(result, logicalRuns.data(), positions, run, runEnd + stringOffset,
-							visualRunEndIndex, visualRunLastX, firstGlyphIndex);
+					append_visual_run(state, result, logicalRuns.data(), run, chrIndex + stringOffset,
+							runEnd + stringOffset, visualRunLastX, highestRun, highestRunCharEnd);
 					break;
 				}
 				else {
-					append_visual_run(result, logicalRuns.data(), positions, run, logicalRunEnd + stringOffset,
-							visualRunEndIndex, visualRunLastX, firstGlyphIndex);
+					append_visual_run(state, result, logicalRuns.data(), run, chrIndex + stringOffset,
+							logicalRunEnd - 1 + stringOffset, visualRunLastX, highestRun, highestRunCharEnd);
 					chrIndex = logicalRunEnd;
 					++run;
 				}
@@ -491,14 +484,14 @@ static void compute_line_visual_runs(LayoutBuildState& state, ParagraphLayout& r
 				}
 
 				if (runStart >= logicalRunStart) {
-					append_visual_run(result, logicalRuns.data(), positions, run, chrIndex + stringOffset,
-							visualRunEndIndex, visualRunLastX, firstGlyphIndex);
+					append_visual_run(state, result, logicalRuns.data(), run, runStart + stringOffset,
+							chrIndex + stringOffset, visualRunLastX, highestRun, highestRunCharEnd);
 					break;
 				}
 				else {
-					append_visual_run(result, logicalRuns.data(), positions, run, chrIndex + stringOffset,
-							visualRunEndIndex, visualRunLastX, firstGlyphIndex);
-					chrIndex = logicalRunStart;
+					append_visual_run(state, result, logicalRuns.data(), run, logicalRunStart + stringOffset,
+							chrIndex + stringOffset, visualRunLastX, highestRun, highestRunCharEnd);
+					chrIndex = logicalRunStart - 1;
 					--run;
 				}
 			}
@@ -508,9 +501,7 @@ static void compute_line_visual_runs(LayoutBuildState& state, ParagraphLayout& r
 	auto height = static_cast<float>(maxAscent + maxDescent);
 
 	auto lastRunIndex = static_cast<uint32_t>(result.visualRuns.size()) - 1;
-	auto width = result.visualRuns[lastRunIndex].rightToLeft
-			? result.glyphPositions[result.get_first_position_index(lastRunIndex)]
-			: result.glyphPositions[2 * (result.visualRuns[lastRunIndex].glyphEndIndex + lastRunIndex)];
+	auto width = result.glyphPositions[2 * (result.visualRuns[lastRunIndex].glyphEndIndex + lastRunIndex)];
 
 	result.lines.push_back({
 		.visualRunsEndIndex = static_cast<uint32_t>(result.visualRuns.size()),
@@ -520,53 +511,76 @@ static void compute_line_visual_runs(LayoutBuildState& state, ParagraphLayout& r
 	});
 }
 
-static void append_visual_run(ParagraphLayout& result, const LogicalRun* logicalRuns, const float* positions,
-		size_t run, int32_t charEndIndex, size_t& visualRunEndIndex, float& visualRunLastX,
-		uint32_t paragraphFirstGlyphIndex) {
-	auto logicalFirstGlyph = run == 0 ? paragraphFirstGlyphIndex : logicalRuns[run - 1].glyphEndIndex;
-	auto logicalFirstPos = run == 0 ? 0
-			: 2 * (logicalRuns[run - 1].glyphEndIndex - paragraphFirstGlyphIndex + run);
-	auto glyphStartIndex = visualRunEndIndex;
+static void append_visual_run(LayoutBuildState& state, ParagraphLayout& result, const LogicalRun* logicalRuns,
+		size_t run, int32_t charStartIndex, int32_t charEndIndex, float& visualRunLastX, size_t& highestRun,
+		int32_t& highestRunCharEnd) {
+	auto logicalFirstGlyph = run == 0 ? 0 : logicalRuns[run - 1].glyphEndIndex;
+	auto logicalLastGlyph = logicalRuns[run].glyphEndIndex;
+	auto logicalFirstPos = run == 0 ? 0 : 2 * (logicalRuns[run - 1].glyphEndIndex + run);
 	bool rightToLeft = logicalRuns[run].level & 1;
+	uint32_t visualFirstGlyph;
+	uint32_t visualLastGlyph;
 
-	visualRunEndIndex = binary_search(visualRunEndIndex, result.charIndices.size() - visualRunEndIndex,
-			[&](auto index) {
-		return result.charIndices[index] <= charEndIndex;
+	if (charEndIndex > highestRunCharEnd) {
+		highestRun = result.visualRuns.size();
+		highestRunCharEnd = charEndIndex;
+	}
+
+	visualFirstGlyph = binary_search(logicalFirstGlyph,
+			logicalLastGlyph - logicalFirstGlyph, [&](auto index) {
+		return state.charIndices[index] < charStartIndex;
 	});
 
+	visualLastGlyph = binary_search(visualFirstGlyph,
+			logicalLastGlyph - visualFirstGlyph, [&](auto index) {
+		return state.charIndices[index] <= charEndIndex;
+	});
+
+	uint32_t visualFirstPosIndex;
+	uint32_t visualLastPosIndex;
+
 	if (rightToLeft) {
-		auto logicalGlyphEnd = logicalRuns[run].glyphEndIndex;
-		auto posBias = positions[logicalFirstPos + 2 * (logicalGlyphEnd - visualRunEndIndex)];
-		auto posEnd = positions[logicalFirstPos + 2 * (logicalGlyphEnd - glyphStartIndex)];
-		visualRunLastX -= posBias;
+		for (uint32_t i = visualLastGlyph - 1; ; --i) {
+			result.glyphs.emplace_back(state.glyphs[i]);
+			result.charIndices.emplace_back(state.charIndices[i]);
 
-		for (auto glyphIndex = logicalGlyphEnd - glyphStartIndex; ; --glyphIndex) {
-			auto posIndex = logicalFirstPos + 2 * glyphIndex;
-			result.glyphPositions.emplace_back(positions[posIndex] + visualRunLastX);
-			result.glyphPositions.emplace_back(positions[posIndex + 1]);
-
-			if (glyphIndex == logicalGlyphEnd - visualRunEndIndex) {
+			if (i == visualFirstGlyph) {
 				break;
 			}
 		}
 
-		visualRunLastX += posEnd;
+		visualFirstPosIndex = logicalFirstGlyph + (logicalLastGlyph - visualLastGlyph);
+		visualLastPosIndex = logicalLastGlyph - (visualFirstGlyph - logicalFirstGlyph);
 	}
 	else {
-		visualRunLastX -= positions[logicalFirstPos + 2 * (glyphStartIndex - logicalFirstGlyph)];
-
-		for (auto glyphIndex = glyphStartIndex; glyphIndex <= visualRunEndIndex; ++glyphIndex) {
-			auto posIndex = logicalFirstPos + 2 * (glyphIndex - logicalFirstGlyph);
-			result.glyphPositions.emplace_back(positions[posIndex] + visualRunLastX);
-			result.glyphPositions.emplace_back(positions[posIndex + 1]);
+		for (uint32_t i = visualFirstGlyph; i < visualLastGlyph; ++i) {
+			result.glyphs.emplace_back(state.glyphs[i]);
+			result.charIndices.emplace_back(state.charIndices[i]);
 		}
 
-		visualRunLastX += positions[logicalFirstPos + 2 * (visualRunEndIndex - logicalFirstGlyph)];
+		visualFirstPosIndex = visualFirstGlyph;
+		visualLastPosIndex = visualLastGlyph;
 	}
+
+	visualRunLastX -= state.glyphPositions[logicalFirstPos + 2 * (visualFirstPosIndex - logicalFirstGlyph)];
+
+	for (uint32_t i = visualFirstPosIndex; i < visualLastPosIndex; ++i) {
+		auto posIndex = logicalFirstPos + 2 * (i - logicalFirstGlyph);
+		result.glyphPositions.emplace_back(state.glyphPositions[posIndex] + visualRunLastX);
+		result.glyphPositions.emplace_back(state.glyphPositions[posIndex + 1]);
+	}
+
+	auto logicalLastPos = logicalFirstPos + 2 * (visualLastPosIndex - logicalFirstGlyph);
+	result.glyphPositions.emplace_back(state.glyphPositions[logicalLastPos] + visualRunLastX);
+	result.glyphPositions.emplace_back(state.glyphPositions[logicalLastPos + 1]);
+
+	visualRunLastX += state.glyphPositions[logicalLastPos];
 
 	result.visualRuns.push_back({
 		.pFont = logicalRuns[run].pFont,
-		.glyphEndIndex = static_cast<uint32_t>(visualRunEndIndex),
+		.glyphEndIndex = static_cast<uint32_t>(result.glyphs.size()),
+		.charStartIndex = static_cast<uint32_t>(charStartIndex),
+		.charEndIndex = static_cast<uint32_t>(charEndIndex + 1),
 		.rightToLeft = rightToLeft,
 	});
 }
