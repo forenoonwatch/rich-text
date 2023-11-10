@@ -39,3 +39,28 @@ target_link_libraries(icu-le-hb PUBLIC ICU::common ICU::data harfbuzz)
 
 file(CREATE_LINK "${CMAKE_CURRENT_SOURCE_DIR}/icu-le-hb/src" "${CMAKE_CURRENT_BINARY_DIR}/layout" SYMBOLIC)
 target_include_directories(icu-le-hb PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+
+add_library(SheenBidi STATIC)
+target_sources(SheenBidi PRIVATE
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/BidiChain.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/BidiTypeLookup.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/BracketQueue.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/GeneralCategoryLookup.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/IsolatingRun.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/LevelRun.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/PairingLookup.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/RunQueue.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/SBAlgorithm.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/SBBase.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/SBCodepointSequence.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/SBLine.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/SBLog.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/SBMirrorLocator.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/SBParagraph.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/SBScriptLocator.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/ScriptLookup.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/ScriptStack.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/SheenBidi.c"
+	"${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Source/StatusStack.c"
+)
+target_include_directories(SheenBidi PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/SheenBidi/Headers")
