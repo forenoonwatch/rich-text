@@ -16,7 +16,7 @@ target_sources(TestRichText PRIVATE
 	"${PROJECT_SOURCE_DIR}/src/font.cpp"
 	"${PROJECT_SOURCE_DIR}/src/font_cache.cpp"
 	"${PROJECT_SOURCE_DIR}/src/multi_script_font.cpp"
-	"${PROJECT_SOURCE_DIR}/src/rich_text.cpp"
+	"${PROJECT_SOURCE_DIR}/src/formatting.cpp"
 	"${PROJECT_SOURCE_DIR}/src/paragraph_layout.cpp"
 	"${PROJECT_SOURCE_DIR}/src/build_paragraph_layout_icu.cpp"
 	"${PROJECT_SOURCE_DIR}/src/build_paragraph_layout_utf8.cpp"

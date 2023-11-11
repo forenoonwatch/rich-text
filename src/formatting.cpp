@@ -1,4 +1,4 @@
-#include "rich_text.hpp"
+#include "formatting.hpp"
 
 #include "font.hpp"
 #include "font_cache.hpp"
@@ -29,14 +29,14 @@ struct FontAttributes {
 	bool sizeChange{false};
 };
 
-class RichTextParser {
+class FormattingParser {
 	public:
-		explicit RichTextParser(const std::string& text, const MultiScriptFont& baseFont, Color&& baseColor,
+		explicit FormattingParser(const std::string& text, const MultiScriptFont& baseFont, Color&& baseColor,
 				const StrokeState& baseStroke);
 
 		void parse();
 
-		Result get_result(std::string& contentText);
+		FormattingRuns get_result(std::string& contentText);
 		bool has_error() const;
 	private:
 		const char* m_iter;
@@ -99,7 +99,7 @@ class RichTextParser {
 
 // RichText API
 
-Result Text::make_default_runs(const std::string& text, std::string& contentText,
+FormattingRuns Text::make_default_formatting_runs(const std::string& text, std::string& contentText,
 		const MultiScriptFont& baseFont, Color baseColor, const StrokeState& baseStroke) {
 	contentText = text;
 	auto length = static_cast<int32_t>(text.size());
@@ -115,9 +115,9 @@ Result Text::make_default_runs(const std::string& text, std::string& contentText
 	};
 }
 
-Result Text::parse(const std::string& text, std::string& contentText,
+FormattingRuns Text::parse_inline_formatting(const std::string& text, std::string& contentText,
 		const MultiScriptFont& baseFont, Color baseColor, const StrokeState& baseStroke) {
-	RichTextParser parser(text, baseFont, std::move(baseColor), baseStroke);
+	FormattingParser parser(text, baseFont, std::move(baseColor), baseStroke);
 	parser.parse();
 	return parser.get_result(contentText);
 }
@@ -135,8 +135,8 @@ static void convert_runs(ValueRuns<T>& runs, const std::string& srcText, const c
 	}
 }
 
-void Text::convert_runs_to_utf16(Result& runs, const std::string& contentText, const char16_t* dstText, 
-		int32_t dstTextLength) {
+void Text::convert_formatting_runs_to_utf16(FormattingRuns& runs, const std::string& contentText, 
+		const char16_t* dstText, int32_t dstTextLength) {
 	convert_runs(runs.fontRuns, contentText, dstText, dstTextLength);
 	convert_runs(runs.colorRuns, contentText, dstText, dstTextLength);
 	convert_runs(runs.strokeRuns, contentText, dstText, dstTextLength);
@@ -144,9 +144,9 @@ void Text::convert_runs_to_utf16(Result& runs, const std::string& contentText, c
 	convert_runs(runs.underlineRuns, contentText, dstText, dstTextLength);
 }
 
-// RichTextParser
+// FormattingParser
 
-RichTextParser::RichTextParser(const std::string& text, const MultiScriptFont& baseFont, Color&& baseColor,
+FormattingParser::FormattingParser(const std::string& text, const MultiScriptFont& baseFont, Color&& baseColor,
 			const StrokeState& baseStroke)
 		: m_iter(text.data())
 		, m_end(text.data() + text.size())
@@ -158,16 +158,16 @@ RichTextParser::RichTextParser(const std::string& text, const MultiScriptFont& b
 		, m_underlineRuns{false}
 		, m_ownedFonts{baseFont} {}
 
-Result RichTextParser::get_result(std::string& contentText) {
+FormattingRuns FormattingParser::get_result(std::string& contentText) {
 	if (m_error) {
-		return Text::make_default_runs(m_text, contentText, m_ownedFonts.front(),
-				m_colorRuns.get_base_value(), m_strokeRuns.get_base_value());
+		return make_default_formatting_runs(m_text, contentText, m_ownedFonts.front(), m_colorRuns.get_base_value(),
+				m_strokeRuns.get_base_value());
 	}
 	else {
 		contentText = m_output.str();
 		auto fontIndexRuns = m_fontRuns.get();
 
-		Result result{
+		FormattingRuns result{
 			.fontRuns{fontIndexRuns.get_value_count()},
 			.colorRuns = m_colorRuns.get(),
 			.strokeRuns = m_strokeRuns.get(),
@@ -185,15 +185,15 @@ Result RichTextParser::get_result(std::string& contentText) {
 	}
 }
 
-bool RichTextParser::has_error() const {
+bool FormattingParser::has_error() const {
 	return m_error;
 }
 
-void RichTextParser::parse() {
+void FormattingParser::parse() {
 	parse_content("");
 }
 
-void RichTextParser::parse_content(std::string_view expectedClose) {
+void FormattingParser::parse_content(std::string_view expectedClose) {
 	for (;;) {
 		auto c = next_char();
 
@@ -222,7 +222,7 @@ void RichTextParser::parse_content(std::string_view expectedClose) {
 	}
 }
 
-bool RichTextParser::parse_open_bracket(std::string_view expectedClose) {
+bool FormattingParser::parse_open_bracket(std::string_view expectedClose) {
 	switch (next_char()) {
 		case '!':
 			parse_comment();
@@ -252,7 +252,7 @@ bool RichTextParser::parse_open_bracket(std::string_view expectedClose) {
 	return false;
 }
 
-void RichTextParser::parse_comment() {
+void FormattingParser::parse_comment() {
 	if (!consume_char('-')) {
 		return;
 	}
@@ -282,7 +282,7 @@ void RichTextParser::parse_comment() {
 	}
 }
 
-void RichTextParser::parse_s_tag() {
+void FormattingParser::parse_s_tag() {
 	switch (next_char()) {
 		case '>':
 			parse_strikethrough();
@@ -303,7 +303,7 @@ void RichTextParser::parse_s_tag() {
 	}
 }
 
-void RichTextParser::parse_u_tag() {
+void FormattingParser::parse_u_tag() {
 	switch (next_char()) {
 		case '>':
 			parse_underline();
@@ -330,7 +330,7 @@ void RichTextParser::parse_u_tag() {
 	}
 }
 
-void RichTextParser::parse_font() {
+void FormattingParser::parse_font() {
 	if (!consume_word("ont")) {
 		return;
 	}
@@ -368,7 +368,7 @@ void RichTextParser::parse_font() {
 	}
 }
 
-FontAttributes RichTextParser::parse_font_attributes() {
+FontAttributes FormattingParser::parse_font_attributes() {
 	FontAttributes result{};
 
 	for (;;) {
@@ -396,7 +396,7 @@ FontAttributes RichTextParser::parse_font_attributes() {
 	return result;
 }
 
-void RichTextParser::parse_font_face(FontAttributes& attribs) {
+void FormattingParser::parse_font_face(FontAttributes& attribs) {
 	auto faceName = parse_attribute("ace=\"");
 	if (faceName.empty()) {
 		raise_error();
@@ -411,19 +411,19 @@ void RichTextParser::parse_font_face(FontAttributes& attribs) {
 	}
 }
 
-void RichTextParser::parse_strikethrough() {
+void FormattingParser::parse_strikethrough() {
 	m_strikethroughRuns.push(m_output.view().size(), true);
 	parse_content("s>");
 	m_strikethroughRuns.pop(m_output.view().size());
 }
 
-void RichTextParser::parse_underline() {
+void FormattingParser::parse_underline() {
 	m_underlineRuns.push(m_output.view().size(), true);
 	parse_content("u>");
 	m_underlineRuns.pop(m_output.view().size());
 }
 
-void RichTextParser::parse_stroke() {
+void FormattingParser::parse_stroke() {
 	if (!consume_word("roke")) {
 		raise_error();
 		return;
@@ -438,7 +438,7 @@ void RichTextParser::parse_stroke() {
 	m_strokeRuns.pop(m_output.view().size());
 }
 
-StrokeState RichTextParser::parse_stroke_attributes() {
+StrokeState FormattingParser::parse_stroke_attributes() {
 	StrokeState result{
 		.color = {0.f, 0.f, 0.f, 1.f}, 
 		.thickness = 1,
@@ -483,7 +483,7 @@ StrokeState RichTextParser::parse_stroke_attributes() {
 	return result;
 }
 
-void RichTextParser::parse_stroke_joins(StrokeState& attribs) {
+void FormattingParser::parse_stroke_joins(StrokeState& attribs) {
 	if (!consume_word("oins=\"")) {
 		return;
 	}
@@ -519,7 +519,7 @@ void RichTextParser::parse_stroke_joins(StrokeState& attribs) {
 	}
 }
 
-std::string_view RichTextParser::parse_attribute(std::string_view name) {
+std::string_view FormattingParser::parse_attribute(std::string_view name) {
 	if (!consume_word(name)) {
 		return {};
 	}
@@ -541,7 +541,7 @@ std::string_view RichTextParser::parse_attribute(std::string_view name) {
 }
 
 template <typename T> requires std::is_arithmetic_v<T>
-void RichTextParser::parse_attribute(std::string_view name, T& value) {
+void FormattingParser::parse_attribute(std::string_view name, T& value) {
 	auto attrib = parse_attribute(name);
 	if (auto [ptr, ec] = std::from_chars(attrib.data(), attrib.data() + attrib.size(), value);
 			ec != std::errc{}) {
@@ -549,7 +549,7 @@ void RichTextParser::parse_attribute(std::string_view name, T& value) {
 	}
 }
 
-void RichTextParser::parse_attribute(std::string_view name, Color& value) {
+void FormattingParser::parse_attribute(std::string_view name, Color& value) {
 	if (!consume_word(name)) {
 		return;
 	}
@@ -567,7 +567,7 @@ void RichTextParser::parse_attribute(std::string_view name, Color& value) {
 	value.a = 1.f;
 }
 
-bool RichTextParser::parse_color(uint32_t& color) {
+bool FormattingParser::parse_color(uint32_t& color) {
 	switch (next_char()) {
 		case '#':
 			return parse_color_hex(color);
@@ -579,7 +579,7 @@ bool RichTextParser::parse_color(uint32_t& color) {
 	}
 }
 
-bool RichTextParser::parse_color_hex(uint32_t& color) {
+bool FormattingParser::parse_color_hex(uint32_t& color) {
 	char buffer[6]{};
 
 	for (size_t i = 0; i < 6; ++i) {
@@ -602,7 +602,7 @@ bool RichTextParser::parse_color_hex(uint32_t& color) {
 	return true;
 }
 
-bool RichTextParser::parse_color_rgb(uint32_t& color) {
+bool FormattingParser::parse_color_rgb(uint32_t& color) {
 	static constexpr const char* stops = ",,)";
 
 	if (!consume_word("gb(")) {
@@ -657,7 +657,7 @@ bool RichTextParser::parse_color_rgb(uint32_t& color) {
 	return true;
 }
 
-bool RichTextParser::consume_char(char c) {
+bool FormattingParser::consume_char(char c) {
 	if (next_char() == c) {
 		return true;
 	}
@@ -666,7 +666,7 @@ bool RichTextParser::consume_char(char c) {
 	return false;
 }
 
-bool RichTextParser::consume_word(std::string_view word) {
+bool FormattingParser::consume_word(std::string_view word) {
 	for (size_t i = 0; i < word.size(); ++i) {
 		if (!consume_char(word[i])) {
 			return false;
@@ -676,19 +676,19 @@ bool RichTextParser::consume_word(std::string_view word) {
 	return true;
 }
 
-char RichTextParser::next_char() {
+char FormattingParser::next_char() {
 	return m_iter == m_end ? SENTINEL : *(m_iter++);
 }
 
-int32_t RichTextParser::get_current_string_index() const {
+int32_t FormattingParser::get_current_string_index() const {
 	return static_cast<int32_t>(m_iter - m_text.data());
 }
 
-void RichTextParser::raise_error() {
+void FormattingParser::raise_error() {
 	m_error = true;
 }
 
-void RichTextParser::finalize_runs() {
+void FormattingParser::finalize_runs() {
 	m_fontRuns.pop(m_output.view().size());
 	m_colorRuns.pop(m_output.view().size());
 	m_strokeRuns.pop(m_output.view().size());

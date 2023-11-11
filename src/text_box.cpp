@@ -6,7 +6,7 @@
 #include "pipeline.hpp"
 #include "text_atlas.hpp"
 #include "msdf_text_atlas.hpp"
-#include "rich_text.hpp"
+#include "formatting.hpp"
 #include "paragraph_layout.hpp"
 
 #include <glad/glad.h>
@@ -401,8 +401,8 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 	}
 
 	Text::StrokeState strokeState{};
-	auto runs = richText ? Text::parse(m_text, m_contentText, m_font, m_textColor, strokeState)
-			: Text::make_default_runs(m_text, m_contentText, m_font, m_textColor, strokeState);
+	auto runs = richText ? Text::parse_inline_formatting(m_text, m_contentText, m_font, m_textColor, strokeState)
+			: Text::make_default_formatting_runs(m_text, m_contentText, m_font, m_textColor, strokeState);
 
 	if (m_contentText.empty()) {
 		return;
@@ -411,7 +411,8 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 	create_text_rects(runs, richText ? m_contentText : m_text, postLayoutOp);
 }
 
-void TextBox::create_text_rects(Text::Result& textInfo, const std::string& text, const void* postLayoutOp) {
+void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::string& text, \
+		const void* postLayoutOp) {
 	ParagraphLayout paragraphLayout{};
 	build_paragraph_layout_utf8(paragraphLayout, text.data(), text.size(), textInfo.fontRuns, m_size[0],
 			m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);
