@@ -8,7 +8,6 @@
 #include "msdf_text_atlas.hpp"
 #include "rich_text.hpp"
 #include "paragraph_layout.hpp"
-#include "utf_conversion_util.hpp"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -413,15 +412,9 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 }
 
 void TextBox::create_text_rects(RichText::Result& textInfo, const std::string& text, const void* postLayoutOp) {
-	auto uniStr = icu::UnicodeString::fromUTF8(text);
-	RichText::convert_runs_to_utf16(textInfo, text, uniStr.getBuffer(), uniStr.length());
 	ParagraphLayout paragraphLayout{};
-	//build_paragraph_layout_icu_lx(paragraphLayout, textInfo.str.getBuffer(), textInfo.str.length(),
-			//textInfo.fontRuns, m_size[0], m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);
-	build_paragraph_layout_icu(paragraphLayout, uniStr.getBuffer(), uniStr.length(), 
-			textInfo.fontRuns, m_size[0], m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);
-	convert_paragraph_layout_to_utf8(paragraphLayout, uniStr.getBuffer(), uniStr.length(),
-			text.data(), text.size());
+	build_paragraph_layout_utf8(paragraphLayout, text.data(), text.size(), textInfo.fontRuns, m_size[0],
+			m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);
 
 	if (postLayoutOp) {
 		set_cursor_position_internal(apply_cursor_move(paragraphLayout, m_size[0], m_textXAlignment,
@@ -445,8 +438,6 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const std::string& t
 	// Add Stroke Glyphs
 	paragraphLayout.for_each_glyph(m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
 			auto* position, auto& font, auto lineX, auto lineY) {
-		charIndex = utf8_index_to_utf16(text.data(), text.size(), uniStr.getBuffer(),
-				uniStr.length(), charIndex);
 		auto stroke = textInfo.strokeRuns.get_value(charIndex);
 
 		if (stroke.color.a > 0.f) {
@@ -479,7 +470,6 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const std::string& t
 	// Add Main Glyphs
 	paragraphLayout.for_each_glyph(m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
 			auto* position, auto& font, auto lineX, auto lineY) {
-		charIndex = utf8_index_to_utf16(text.data(), text.size(), uniStr.getBuffer(), uniStr.length(), charIndex);
 		auto pX = position[0];
 		auto pY = position[1];
 
