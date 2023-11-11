@@ -161,10 +161,8 @@ void TextBox::capture_focus() {
 
 	g_focusedTextBox = this;
 
-	icu::Locale loc("en_US");
 	UErrorCode errc{};
-
-	g_charBreakIter = icu::BreakIterator::createCharacterInstance(loc, errc);
+	g_charBreakIter = icu::BreakIterator::createCharacterInstance(icu::Locale::getDefault(), errc);
 	UText uText UTEXT_INITIALIZER;
 	utext_openUTF8(&uText, m_text.data(), m_text.size(), &errc);
 	g_charBreakIter->setText(&uText, errc);
@@ -411,17 +409,19 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 		return;
 	}
 
-	create_text_rects(runs, postLayoutOp);
+	create_text_rects(runs, richText ? m_contentText : m_text, postLayoutOp);
 }
 
-void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayoutOp) {
+void TextBox::create_text_rects(RichText::Result& textInfo, const std::string& text, const void* postLayoutOp) {
+	auto uniStr = icu::UnicodeString::fromUTF8(text);
+	RichText::convert_runs_to_utf16(textInfo, text, uniStr.getBuffer(), uniStr.length());
 	ParagraphLayout paragraphLayout{};
 	//build_paragraph_layout_icu_lx(paragraphLayout, textInfo.str.getBuffer(), textInfo.str.length(),
 			//textInfo.fontRuns, m_size[0], m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);
-	build_paragraph_layout_icu(paragraphLayout, textInfo.str.getBuffer(), textInfo.str.length(), 
+	build_paragraph_layout_icu(paragraphLayout, uniStr.getBuffer(), uniStr.length(), 
 			textInfo.fontRuns, m_size[0], m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);
-	convert_paragraph_layout_to_utf8(paragraphLayout, textInfo.str.getBuffer(), textInfo.str.length(),
-			m_text.data(), m_text.size());
+	convert_paragraph_layout_to_utf8(paragraphLayout, uniStr.getBuffer(), uniStr.length(),
+			text.data(), text.size());
 
 	if (postLayoutOp) {
 		set_cursor_position_internal(apply_cursor_move(paragraphLayout, m_size[0], m_textXAlignment,
@@ -445,8 +445,8 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 	// Add Stroke Glyphs
 	paragraphLayout.for_each_glyph(m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
 			auto* position, auto& font, auto lineX, auto lineY) {
-		charIndex = utf8_index_to_utf16(m_text.data(), m_text.size(), textInfo.str.getBuffer(),
-				textInfo.str.length(), charIndex);
+		charIndex = utf8_index_to_utf16(text.data(), text.size(), uniStr.getBuffer(),
+				uniStr.length(), charIndex);
 		auto stroke = textInfo.strokeRuns.get_value(charIndex);
 
 		if (stroke.color.a > 0.f) {
@@ -479,8 +479,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const void* postLayo
 	// Add Main Glyphs
 	paragraphLayout.for_each_glyph(m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
 			auto* position, auto& font, auto lineX, auto lineY) {
-		charIndex = utf8_index_to_utf16(m_text.data(), m_text.size(), textInfo.str.getBuffer(),
-				textInfo.str.length(), charIndex);
+		charIndex = utf8_index_to_utf16(text.data(), text.size(), uniStr.getBuffer(), uniStr.length(), charIndex);
 		auto pX = position[0];
 		auto pY = position[1];
 

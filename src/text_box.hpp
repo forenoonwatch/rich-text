@@ -90,6 +90,6 @@ class TextBox {
 
 		void recalc_text();
 		void recalc_text_internal(bool richText, const void* postLayoutOp);
-		void create_text_rects(RichText::Result&, const void* postLayoutOp);
+		void create_text_rects(RichText::Result&, const std::string& text, const void* postLayoutOp);
 };
 
