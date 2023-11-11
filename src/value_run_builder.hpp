@@ -1,14 +1,14 @@
 #pragma once
 
-#include "text_runs.hpp"
+#include "value_runs.hpp"
 
-namespace RichText {
+namespace Text {
 
 template <typename T>
-class TextRunBuilder {
+class ValueRunBuilder {
 	public:
 		template <typename U>
-		constexpr explicit TextRunBuilder(U&& baseValue)
+		constexpr explicit ValueRunBuilder(U&& baseValue)
 				: m_stack{std::forward<U>(baseValue)} {}
 
 		template <typename... Args>
@@ -25,7 +25,7 @@ class TextRunBuilder {
 			m_stack.pop_back();
 		}
 
-		constexpr TextRuns<T> get() {
+		constexpr ValueRuns<T> get() {
 			return std::move(m_runs);
 		}
 
@@ -37,7 +37,7 @@ class TextRunBuilder {
 			return m_stack.back();
 		}
 	private:
-		TextRuns<T> m_runs;
+		ValueRuns<T> m_runs;
 		std::vector<T> m_stack;
 };
 

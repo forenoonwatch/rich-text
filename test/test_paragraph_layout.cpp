@@ -75,7 +75,7 @@ static void init_font_cache() {
 
 static void test_lx_vs_icu(const MultiScriptFont& font, const char* str, float width) {
 	icu::UnicodeString text(str);
-	RichText::TextRuns<const MultiScriptFont*> fontRuns(&font, text.length());
+	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, text.length());
 
 	ParagraphLayout lxLayout{};
 	build_paragraph_layout_icu_lx(lxLayout, text.getBuffer(), text.length(), fontRuns, width, 100.f,
@@ -91,8 +91,8 @@ static void test_lx_vs_icu(const MultiScriptFont& font, const char* str, float w
 static void test_lx_vs_utf8(const MultiScriptFont& font, const char* str, float width) {
 	icu::UnicodeString text(str);
 	auto count = strlen(str);
-	RichText::TextRuns<const MultiScriptFont*> fontRuns8(&font, count);
-	RichText::TextRuns<const MultiScriptFont*> fontRuns16(&font, text.length());
+	Text::ValueRuns<const MultiScriptFont*> fontRuns8(&font, count);
+	Text::ValueRuns<const MultiScriptFont*> fontRuns16(&font, text.length());
 
 	ParagraphLayout lxLayout{};
 	build_paragraph_layout_icu_lx(lxLayout, text.getBuffer(), text.length(), fontRuns16, width, 100.f,

@@ -1,7 +1,7 @@
 #include "paragraph_layout.hpp"
 
 #include "binary_search.hpp"
-#include "text_run_utils.hpp"
+#include "value_run_utils.hpp"
 #include "font.hpp"
 #include "multi_script_font.hpp"
 #include "script_run_iterator.hpp"
@@ -16,7 +16,7 @@ extern "C" {
 
 #include <cmath>
 
-using namespace RichText;
+using namespace Text;
 
 namespace {
 
@@ -54,13 +54,13 @@ struct LogicalRun {
 
 // FIXME: Using `stringOffset` is a bit cumbersome, refactor this logic to have full view of the string
 static size_t build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result, SBParagraphRef sbParagraph,
-		const char* chars, int32_t count, int32_t stringOffset, const TextRuns<const MultiScriptFont*>& fontRuns,
+		const char* chars, int32_t count, int32_t stringOffset, const ValueRuns<const MultiScriptFont*>& fontRuns,
 		int32_t fixedWidth);
 
-static TextRuns<SBLevel> compute_levels(SBParagraphRef sbParagraph, size_t paragraphLength);
-static TextRuns<UScriptCode> compute_scripts(const char* chars, int32_t count);
-static TextRuns<const Font*> compute_sub_fonts(const char* chars,
-		const TextRuns<const MultiScriptFont*>& fontRuns, const TextRuns<UScriptCode>& scriptRuns);
+static ValueRuns<SBLevel> compute_levels(SBParagraphRef sbParagraph, size_t paragraphLength);
+static ValueRuns<UScriptCode> compute_scripts(const char* chars, int32_t count);
+static ValueRuns<const Font*> compute_sub_fonts(const char* chars,
+		const ValueRuns<const MultiScriptFont*>& fontRuns, const ValueRuns<UScriptCode>& scriptRuns);
 
 static void shape_logical_run(LayoutBuildState& state, hb_font_t* pFont, const char* chars, int32_t offset,
 		int32_t count, int32_t max, UScriptCode script, const icu::Locale& locale, bool rightToLeft,
@@ -78,7 +78,7 @@ static void append_visual_run(LayoutBuildState& state, ParagraphLayout& result, 
 // Public Functions
 
 void build_paragraph_layout_utf8(ParagraphLayout& result, const char* chars, int32_t count,
-		const TextRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
+		const ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, ParagraphLayoutFlags flags) {
 	LayoutBuildState state{};
 	SBCodepointSequence codepointSequence{SBStringEncodingUTF8, (void*)chars, (size_t)count};
@@ -86,7 +86,7 @@ void build_paragraph_layout_utf8(ParagraphLayout& result, const char* chars, int
 	size_t paragraphOffset{};	
 
 	// FIXME: Give the sub-paragraphs a full view of font runs
-	TextRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_value_count());
+	ValueRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_value_count());
 	size_t lastHighestRun = 0;
 
 	SBLevel baseDefaultLevel = ((flags & ParagraphLayoutFlags::RIGHT_TO_LEFT) == ParagraphLayoutFlags::NONE)
@@ -150,11 +150,11 @@ void build_paragraph_layout_utf8(ParagraphLayout& result, const char* chars, int
 // Static Functions
 
 static size_t build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result, SBParagraphRef sbParagraph,
-		const char* chars, int32_t count, int32_t stringOffset, const TextRuns<const MultiScriptFont*>& fontRuns,
+		const char* chars, int32_t count, int32_t stringOffset, const ValueRuns<const MultiScriptFont*>& fontRuns,
 		int32_t textAreaWidth) {
 	auto levelRuns = compute_levels(sbParagraph, count);
 	auto scriptRuns = compute_scripts(chars, count);
-	TextRuns<const icu::Locale*> localeRuns(&icu::Locale::getDefault(), count);
+	ValueRuns<const icu::Locale*> localeRuns(&icu::Locale::getDefault(), count);
 	auto subFontRuns = compute_sub_fonts(chars, fontRuns, scriptRuns);
 	int32_t runStart{};
 
@@ -249,8 +249,8 @@ static size_t build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& resu
 	return highestRun;
 }
 
-static TextRuns<SBLevel> compute_levels(SBParagraphRef sbParagraph, size_t paragraphLength) {
-	TextRuns<SBLevel> levelRuns;
+static ValueRuns<SBLevel> compute_levels(SBParagraphRef sbParagraph, size_t paragraphLength) {
+	ValueRuns<SBLevel> levelRuns;
 	auto* levels = SBParagraphGetLevelsPtr(sbParagraph);
 	SBLevel lastLevel = levels[0];
 	size_t lastLevelCount{};
@@ -267,9 +267,9 @@ static TextRuns<SBLevel> compute_levels(SBParagraphRef sbParagraph, size_t parag
 	return levelRuns;
 }
 
-static TextRuns<UScriptCode> compute_scripts(const char* chars, int32_t count) {
+static ValueRuns<UScriptCode> compute_scripts(const char* chars, int32_t count) {
 	ScriptRunIterator runIter(chars, count);
-	TextRuns<UScriptCode> scriptRuns;
+	ValueRuns<UScriptCode> scriptRuns;
 	int32_t start;
 	int32_t limit;
 	UScriptCode script;
@@ -281,9 +281,9 @@ static TextRuns<UScriptCode> compute_scripts(const char* chars, int32_t count) {
 	return scriptRuns;
 }
 
-static TextRuns<const Font*> compute_sub_fonts(const char* chars,
-		const TextRuns<const MultiScriptFont*>& fontRuns, const TextRuns<UScriptCode>& scriptRuns) {
-	TextRuns<const Font*> result(fontRuns.get_value_count());
+static ValueRuns<const Font*> compute_sub_fonts(const char* chars,
+		const ValueRuns<const MultiScriptFont*>& fontRuns, const ValueRuns<UScriptCode>& scriptRuns) {
+	ValueRuns<const Font*> result(fontRuns.get_value_count());
 	int32_t offset{};
 
 	iterate_run_intersections([&](auto limit, auto* pBaseFont, auto script) {

@@ -3,7 +3,7 @@
 #include "common.hpp"
 #include "cursor_position.hpp"
 #include "text_alignment.hpp"
-#include "text_runs.hpp"
+#include "value_runs.hpp"
 #include "font.hpp"
 
 #include <cstdint>
@@ -116,21 +116,21 @@ struct ParagraphLayout {
  * @brief Builds the paragraph layout using LayoutEx
  */
 void build_paragraph_layout_icu_lx(ParagraphLayout& result, const char16_t* chars, int32_t count,
-		const RichText::TextRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
+		const Text::ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, ParagraphLayoutFlags flags);
 
 /**
  * @brief Builds the paragraph layout using direct calls to ubidi.h and usc_impl.h run calculation functions
  */
 void build_paragraph_layout_icu(ParagraphLayout& result, const char16_t* chars, int32_t count,
-		const RichText::TextRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
+		const Text::ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, ParagraphLayoutFlags flags);
 
 /**
  * @brief Builds the paragraph layout using UTF-8 APIs
  */
 void build_paragraph_layout_utf8(ParagraphLayout& result, const char* chars, int32_t count,
-		const RichText::TextRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
+		const Text::ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, ParagraphLayoutFlags flags);
 
 /**

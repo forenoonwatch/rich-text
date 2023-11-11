@@ -328,9 +328,9 @@ float ParagraphLayout::get_glyph_offset_rtl(size_t runIndex, uint32_t cursor) co
 // Build Paragraph Layout: ICU with icu::ParagraphLayout
 
 void build_paragraph_layout_icu_lx(ParagraphLayout& result, const char16_t* chars, int32_t count,
-		const RichText::TextRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
+		const Text::ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, ParagraphLayoutFlags flags) {
-	RichText::TextRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_value_count());
+	Text::ValueRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_value_count());
 
 	auto* start = chars;
 	auto* end = start + count;

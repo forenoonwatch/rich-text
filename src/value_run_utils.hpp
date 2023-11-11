@@ -1,11 +1,11 @@
 #pragma once
 
-#include "text_runs.hpp"
+#include "value_runs.hpp"
 
 #include <algorithm>
 #include <tuple>
 
-namespace RichText {
+namespace Text {
 
 template <typename Functor, typename... Runs>
 constexpr void iterate_run_intersections(Functor&& func, Runs&&... runs);

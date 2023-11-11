@@ -3,7 +3,7 @@
 #include "font.hpp"
 #include "font_cache.hpp"
 #include "multi_script_font.hpp"
-#include "text_run_builder.hpp"
+#include "value_run_builder.hpp"
 #include "utf_conversion_util.hpp"
 
 #include <charconv>
@@ -11,7 +11,7 @@
 #include <string_view>
 #include <type_traits>
 
-using namespace RichText;
+using namespace Text;
 
 static constexpr const char SENTINEL = static_cast<char>(UINT8_MAX);
 
@@ -36,7 +36,7 @@ class RichTextParser {
 
 		void parse();
 
-		RichText::Result get_result(std::string& contentText);
+		Result get_result(std::string& contentText);
 		bool has_error() const;
 	private:
 		const char* m_iter;
@@ -46,11 +46,11 @@ class RichTextParser {
 
 		const std::string& m_text;
 		
-		TextRunBuilder<uint32_t> m_fontRuns;
-		TextRunBuilder<Color> m_colorRuns;
-		TextRunBuilder<StrokeState> m_strokeRuns;
-		TextRunBuilder<bool> m_strikethroughRuns;
-		TextRunBuilder<bool> m_underlineRuns;
+		ValueRunBuilder<uint32_t> m_fontRuns;
+		ValueRunBuilder<Color> m_colorRuns;
+		ValueRunBuilder<StrokeState> m_strokeRuns;
+		ValueRunBuilder<bool> m_strikethroughRuns;
+		ValueRunBuilder<bool> m_underlineRuns;
 		std::vector<MultiScriptFont> m_ownedFonts;
 
 		void parse_content(std::string_view expectedClose);
@@ -99,7 +99,7 @@ class RichTextParser {
 
 // RichText API
 
-RichText::Result RichText::make_default_runs(const std::string& text, std::string& contentText,
+Result Text::make_default_runs(const std::string& text, std::string& contentText,
 		const MultiScriptFont& baseFont, Color baseColor, const StrokeState& baseStroke) {
 	contentText = text;
 	auto length = static_cast<int32_t>(text.size());
@@ -115,7 +115,7 @@ RichText::Result RichText::make_default_runs(const std::string& text, std::strin
 	};
 }
 
-RichText::Result RichText::parse(const std::string& text, std::string& contentText,
+Result Text::parse(const std::string& text, std::string& contentText,
 		const MultiScriptFont& baseFont, Color baseColor, const StrokeState& baseStroke) {
 	RichTextParser parser(text, baseFont, std::move(baseColor), baseStroke);
 	parser.parse();
@@ -123,7 +123,7 @@ RichText::Result RichText::parse(const std::string& text, std::string& contentTe
 }
 
 template <typename T>
-static void convert_runs(TextRuns<T>& runs, const std::string& srcText, const char16_t* dstText,
+static void convert_runs(ValueRuns<T>& runs, const std::string& srcText, const char16_t* dstText,
 		int32_t dstTextLength) {
 	uint32_t srcCounter{};
 	uint32_t dstCounter{};
@@ -135,7 +135,7 @@ static void convert_runs(TextRuns<T>& runs, const std::string& srcText, const ch
 	}
 }
 
-void RichText::convert_runs_to_utf16(Result& runs, const std::string& contentText, const char16_t* dstText, 
+void Text::convert_runs_to_utf16(Result& runs, const std::string& contentText, const char16_t* dstText, 
 		int32_t dstTextLength) {
 	convert_runs(runs.fontRuns, contentText, dstText, dstTextLength);
 	convert_runs(runs.colorRuns, contentText, dstText, dstTextLength);
@@ -158,16 +158,16 @@ RichTextParser::RichTextParser(const std::string& text, const MultiScriptFont& b
 		, m_underlineRuns{false}
 		, m_ownedFonts{baseFont} {}
 
-RichText::Result RichTextParser::get_result(std::string& contentText) {
+Result RichTextParser::get_result(std::string& contentText) {
 	if (m_error) {
-		return RichText::make_default_runs(m_text, contentText, m_ownedFonts.front(),
+		return Text::make_default_runs(m_text, contentText, m_ownedFonts.front(),
 				m_colorRuns.get_base_value(), m_strokeRuns.get_base_value());
 	}
 	else {
 		contentText = m_output.str();
 		auto fontIndexRuns = m_fontRuns.get();
 
-		RichText::Result result{
+		Result result{
 			.fontRuns{fontIndexRuns.get_value_count()},
 			.colorRuns = m_colorRuns.get(),
 			.strokeRuns = m_strokeRuns.get(),

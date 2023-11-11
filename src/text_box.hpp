@@ -9,8 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace RichText { struct Result; }
-namespace RichText { template <typename> class TextRuns; }
+namespace Text { struct Result; }
 
 class Image;
 class Pipeline;
@@ -90,6 +89,6 @@ class TextBox {
 
 		void recalc_text();
 		void recalc_text_internal(bool richText, const void* postLayoutOp);
-		void create_text_rects(RichText::Result&, const std::string& text, const void* postLayoutOp);
+		void create_text_rects(Text::Result&, const std::string& text, const void* postLayoutOp);
 };
 

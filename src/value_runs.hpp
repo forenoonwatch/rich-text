@@ -4,29 +4,29 @@
 
 #include <vector>
 
-namespace RichText {
+namespace Text {
 
 constexpr const uint32_t FLAG_BOOL_RUNS = 1u << 31;
 constexpr const uint32_t MASK_BOOL_RUNS = ~(1u << 31);
 
 template <typename T>
-class TextRuns {
+class ValueRuns {
 	public:
-		constexpr TextRuns() = default;
+		constexpr ValueRuns() = default;
 		template <typename U>
-		constexpr TextRuns(U&& value, int32_t limit)
+		constexpr ValueRuns(U&& value, int32_t limit)
 				: m_values{std::forward<U>(value)}
 				, m_limits{limit} {}
-		constexpr TextRuns(size_t initialCapacity) {
+		constexpr ValueRuns(size_t initialCapacity) {
 			m_values.reserve(initialCapacity);
 			m_limits.reserve(initialCapacity);
 		}
 
-		constexpr TextRuns(TextRuns&&) noexcept = default;
-		constexpr TextRuns& operator=(TextRuns&&) noexcept = default;
+		constexpr ValueRuns(ValueRuns&&) noexcept = default;
+		constexpr ValueRuns& operator=(ValueRuns&&) noexcept = default;
 
-		TextRuns(const TextRuns&) = delete;
-		void operator=(const TextRuns&) = delete;
+		ValueRuns(const ValueRuns&) = delete;
+		void operator=(const ValueRuns&) = delete;
 
 		template <typename... Args>
 		constexpr void add(int32_t limit, Args&&... args) {
@@ -34,7 +34,7 @@ class TextRuns {
 			m_limits.emplace_back(limit);
 		}
 
-		constexpr void get_runs_subset(int32_t offset, int32_t length, TextRuns& output) const {
+		constexpr void get_runs_subset(int32_t offset, int32_t length, ValueRuns& output) const {
 			size_t i = 0;
 
 			while (i < m_limits.size() && m_limits[i] < offset) {

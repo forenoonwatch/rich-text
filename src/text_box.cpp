@@ -400,9 +400,9 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 		return;
 	}
 
-	RichText::StrokeState strokeState{};
-	auto runs = richText ? RichText::parse(m_text, m_contentText, m_font, m_textColor, strokeState)
-			: RichText::make_default_runs(m_text, m_contentText, m_font, m_textColor, strokeState);
+	Text::StrokeState strokeState{};
+	auto runs = richText ? Text::parse(m_text, m_contentText, m_font, m_textColor, strokeState)
+			: Text::make_default_runs(m_text, m_contentText, m_font, m_textColor, strokeState);
 
 	if (m_contentText.empty()) {
 		return;
@@ -411,7 +411,7 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 	create_text_rects(runs, richText ? m_contentText : m_text, postLayoutOp);
 }
 
-void TextBox::create_text_rects(RichText::Result& textInfo, const std::string& text, const void* postLayoutOp) {
+void TextBox::create_text_rects(Text::Result& textInfo, const std::string& text, const void* postLayoutOp) {
 	ParagraphLayout paragraphLayout{};
 	build_paragraph_layout_utf8(paragraphLayout, text.data(), text.size(), textInfo.fontRuns, m_size[0],
 			m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);

@@ -1,13 +1,13 @@
 #pragma once
 
 #include "color.hpp"
-#include "text_runs.hpp"
+#include "value_runs.hpp"
 #include "multi_script_font.hpp"
 #include "stroke_type.hpp"
 
 #include <string>
 
-namespace RichText {
+namespace Text {
 
 struct StrokeState {
 	Color color;
@@ -16,11 +16,11 @@ struct StrokeState {
 };
 
 struct Result {
-	TextRuns<const MultiScriptFont*> fontRuns;
-	TextRuns<Color> colorRuns;
-	TextRuns<StrokeState> strokeRuns;
-	TextRuns<bool> strikethroughRuns;
-	TextRuns<bool> underlineRuns;
+	ValueRuns<const MultiScriptFont*> fontRuns;
+	ValueRuns<Color> colorRuns;
+	ValueRuns<StrokeState> strokeRuns;
+	ValueRuns<bool> strikethroughRuns;
+	ValueRuns<bool> underlineRuns;
 	std::vector<MultiScriptFont> ownedFonts;
 };
 
