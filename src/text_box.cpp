@@ -437,13 +437,10 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const std::string& t
 
 	// Add Stroke Glyphs
 	paragraphLayout.for_each_glyph(m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
-			auto* position, auto& font, auto lineX, auto lineY) {
+			auto pX, auto pY, auto& font, auto lineX, auto lineY) {
 		auto stroke = textInfo.strokeRuns.get_value(charIndex);
 
 		if (stroke.color.a > 0.f) {
-			auto pX = position[0];
-			auto pY = position[1];
-
 			float offset[2]{};
 			float texCoordExtents[4]{};
 			float glyphSize[2]{};
@@ -469,10 +466,7 @@ void TextBox::create_text_rects(RichText::Result& textInfo, const std::string& t
 
 	// Add Main Glyphs
 	paragraphLayout.for_each_glyph(m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
-			auto* position, auto& font, auto lineX, auto lineY) {
-		auto pX = position[0];
-		auto pY = position[1];
-
+			auto pX, auto pY, auto& font, auto lineX, auto lineY) {
 		float offset[2]{};
 		float texCoordExtents[4]{};
 		float glyphSize[2]{};

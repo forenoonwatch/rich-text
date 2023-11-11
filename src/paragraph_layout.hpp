@@ -170,8 +170,8 @@ void ParagraphLayout::for_each_glyph(float textWidth, TextXAlignment textXAlignm
 		auto& run = visualRuns[runIndex];
 
 		for (; glyphIndex < run.glyphEndIndex; ++glyphIndex, glyphPosIndex += 2) {
-			func(glyphs[glyphIndex], charIndices[glyphIndex], glyphPositions.data() + glyphPosIndex,
-					*run.pFont, lineX, lineY);
+			func(glyphs[glyphIndex], charIndices[glyphIndex], glyphPositions[glyphPosIndex],
+					glyphPositions[glyphPosIndex + 1], *run.pFont, lineX, lineY);
 		}
 
 		glyphPosIndex += 2;
