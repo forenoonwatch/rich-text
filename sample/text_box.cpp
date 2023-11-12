@@ -49,10 +49,6 @@ static float g_cursorPixelY = 0.f;
 static float g_cursorHeight = 0.f;
 static size_t g_lineNumber = 0; 
 
-static float g_selectionPixelX = 0.f;
-static float g_selectionPixelY = 0.f;
-static float g_selectionHeight = 0.f;
-
 static CursorPosition apply_cursor_move(const ParagraphLayout& paragraphLayout, float textWidth,
 		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor);
 
@@ -234,18 +230,6 @@ void TextBox::render(const float* invScreenSize) {
 		pPipeline->set_uniform_float4(3, reinterpret_cast<const float*>(&cursorColor));
 		g_textAtlas->get_default_texture()->bind();
 		pPipeline->draw();
-
-		if (m_selectionStart.is_valid()) {
-			auto selColor = Color::from_rgb(0.f, 120.f, 215.f);
-			cursorExtents[0] = m_position[0] + g_selectionPixelX;
-			cursorExtents[1] = m_position[1] + g_selectionPixelY;
-			cursorExtents[2] = 1;
-			cursorExtents[3] = g_selectionHeight;
-
-			pPipeline->set_uniform_float4(1, cursorExtents);
-			pPipeline->set_uniform_float4(3, reinterpret_cast<const float*>(&selColor));
-			pPipeline->draw();
-		}
 	}
 }
 
@@ -429,11 +413,40 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 	g_cursorHeight = cursorPixelInfo.height;
 	g_lineNumber = cursorPixelInfo.lineNumber;
 
+	// Add highlight ranges
 	if (m_selectionStart.is_valid()) {
-		auto selInfo = paragraphLayout.calc_cursor_pixel_pos(m_size[0], m_textXAlignment, m_selectionStart);
-		g_selectionPixelX = selInfo.x;
-		g_selectionPixelY = selInfo.y;
-		g_selectionHeight = selInfo.height;
+		uint32_t selectionStart = m_selectionStart.get_position();
+		uint32_t selectionEnd = m_cursorPosition.get_position();
+
+		if (selectionStart > selectionEnd) {
+			std::swap(selectionStart, selectionEnd);
+		}
+
+		paragraphLayout.for_each_run(m_size[0], m_textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
+				auto lineY) {
+			auto charStartIndex = paragraphLayout.visualRuns[runIndex].charStartIndex;
+			auto charEndIndex = paragraphLayout.visualRuns[runIndex].charEndIndex;
+
+			if (charStartIndex < selectionEnd && charEndIndex > selectionStart) {
+				auto minPos = paragraphLayout.get_glyph_offset_in_run(runIndex,
+						std::min(selectionStart, charEndIndex));
+				auto maxPos = paragraphLayout.get_glyph_offset_in_run(runIndex,
+						std::min(selectionEnd, charEndIndex));
+				if (paragraphLayout.visualRuns[runIndex].rightToLeft) {
+					std::swap(minPos, maxPos);
+				}
+
+				m_textRects.push_back({
+					.x = lineX + minPos,
+					.y = paragraphLayout.textStartY + lineY - paragraphLayout.lines[lineIndex].ascent,
+					.width = maxPos - minPos,
+					.height = paragraphLayout.get_line_height(lineIndex),
+					.texture = g_textAtlas->get_default_texture(),
+					.color = Color::from_rgb(0, 120, 215),
+					.pipeline = PipelineIndex::RECT,
+				});
+			}
+		});
 	}
 
 	// Add Stroke Glyphs

@@ -101,6 +101,7 @@ struct ParagraphLayout {
 	const float* get_run_positions(size_t runIndex) const;
 	uint32_t get_run_glyph_count(size_t runIndex) const;
 
+	float get_glyph_offset_in_run(size_t runIndex, uint32_t cursor) const;
 	float get_glyph_offset_ltr(size_t runIndex, uint32_t cursor) const;
 	float get_glyph_offset_rtl(size_t runIndex, uint32_t cursor) const;
 

@@ -32,10 +32,7 @@ CursorPositionResult ParagraphLayout::calc_cursor_pixel_pos(float textWidth, Tex
 	size_t lineIndex;
 	auto runIndex = get_run_containing_cursor(cursor, lineIndex);
 	auto lineX = get_line_x_start(lineIndex, textWidth, textXAlignment);
-
-	auto glyphOffset = visualRuns[runIndex].rightToLeft
-			? get_glyph_offset_rtl(runIndex, cursor.get_position())
-			: get_glyph_offset_ltr(runIndex, cursor.get_position());
+	auto glyphOffset = get_glyph_offset_in_run(runIndex, cursor.get_position());
 
 	return {
 		.x = lineX + glyphOffset,
@@ -265,6 +262,11 @@ const float* ParagraphLayout::get_run_positions(size_t runIndex) const {
 
 uint32_t ParagraphLayout::get_run_glyph_count(size_t runIndex) const {
 	return visualRuns[runIndex].glyphEndIndex - get_first_glyph_index(runIndex);
+}
+
+float ParagraphLayout::get_glyph_offset_in_run(size_t runIndex, uint32_t cursor) const {
+	return visualRuns[runIndex].rightToLeft ? get_glyph_offset_rtl(runIndex, cursor)
+			: get_glyph_offset_ltr(runIndex, cursor);
 }
 
 float ParagraphLayout::get_glyph_offset_ltr(size_t runIndex, uint32_t cursor) const {

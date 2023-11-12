@@ -17,7 +17,7 @@ static constexpr uint32_t TEXTURE_PADDING = 1u;
 TextAtlas::TextAtlas() {
 	uint8_t imageData[8 * 8 * 4];
 	std::memset(imageData, 0xFF, 8 * 8 * 4);
-	m_defaultImage = Image(GL_R8, GL_RED, 8, 8, GL_UNSIGNED_BYTE, imageData);
+	m_defaultImage = Image(GL_RGBA8, GL_RGBA, 8, 8, GL_UNSIGNED_BYTE, imageData);
 }
 
 Image* TextAtlas::get_glyph_info(const Font& font, uint32_t glyphIndex, float* texCoordExtentsOut,
