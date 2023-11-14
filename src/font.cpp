@@ -212,19 +212,29 @@ Bitmap Font::get_msdf_outline_glyph(uint32_t glyphIndex, uint8_t thickness, Stro
 }
 
 float Font::get_underline_position() const {
-	return getScaleFactorY() * static_cast<float>(-m_ftFace->underline_position);
+	return get_scale_y() * static_cast<float>(-m_ftFace->underline_position);
 }
 
 float Font::get_underline_thickness() const {
-	return getScaleFactorY() * static_cast<float>(m_ftFace->underline_thickness);
+	return get_scale_y() * static_cast<float>(m_ftFace->underline_thickness);
 }
 
 float Font::get_strikethrough_position() const {
-	return getScaleFactorY() * static_cast<float>(m_strikethroughPosition);
+	return get_scale_y() * static_cast<float>(m_strikethroughPosition);
 }
 
 float Font::get_strikethrough_thickness() const {
-	return getScaleFactorY() * static_cast<float>(m_strikethroughThickness);
+	return get_scale_y() * static_cast<float>(m_strikethroughThickness);
+}
+
+float Font::get_scale_x() const {
+	auto& metrics = m_ftFace->size->metrics;
+	return static_cast<float>(metrics.x_ppem) / static_cast<float>(m_ftFace->units_per_EM);
+}
+
+float Font::get_scale_y() const {
+	auto& metrics = m_ftFace->size->metrics;
+	return static_cast<float>(metrics.y_ppem) / static_cast<float>(m_ftFace->units_per_EM);
 }
 
 const void* Font::getFontTable(LETag tableTag, size_t& length) const {

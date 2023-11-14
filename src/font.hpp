@@ -36,6 +36,9 @@ class Font final : public icu::LEFontInstance {
 		float get_strikethrough_position() const;
 		float get_strikethrough_thickness() const;
 
+		float get_scale_x() const;
+		float get_scale_y() const;
+
 		const void* getFontTable(LETag tableTag, size_t &length) const override;
 		le_int32 getUnitsPerEM() const override;
 		LEGlyphID mapCharToGlyph(LEUnicode32 ch) const override;
