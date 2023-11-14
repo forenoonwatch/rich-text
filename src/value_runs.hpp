@@ -55,7 +55,19 @@ class ValueRuns {
 		}
 
 		constexpr T get_value(int32_t index) const {
-			auto first = 0;
+			return m_values[get_run_index(index)];
+		}
+
+		constexpr T get_run_value(size_t runIndex) const {
+			return m_values[runIndex];
+		}
+
+		constexpr int32_t get_run_limit(size_t runIndex) const {
+			return m_limits[runIndex];
+		}
+
+		constexpr size_t get_run_index(int32_t index) const {
+			size_t first{};
 			auto count = m_limits.size();
 
 			while (count > 0) {
@@ -71,7 +83,7 @@ class ValueRuns {
 				}
 			}
 
-			return m_values[first];
+			return first;
 		}
 
 		constexpr void clear() {
@@ -83,8 +95,8 @@ class ValueRuns {
 			return m_values.empty();
 		}
 
-		constexpr size_t get_value_count() const {
-			return m_values.size();
+		constexpr size_t get_run_count() const {
+			return m_limits.size();
 		}
 
 		constexpr int32_t get_limit() const {

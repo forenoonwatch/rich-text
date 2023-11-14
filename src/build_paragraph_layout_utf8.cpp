@@ -86,7 +86,7 @@ void build_paragraph_layout_utf8(ParagraphLayout& result, const char* chars, int
 	size_t paragraphOffset{};	
 
 	// FIXME: Give the sub-paragraphs a full view of font runs
-	ValueRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_value_count());
+	ValueRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_run_count());
 	size_t lastHighestRun = 0;
 
 	SBLevel baseDefaultLevel = ((flags & ParagraphLayoutFlags::RIGHT_TO_LEFT) == ParagraphLayoutFlags::NONE)
@@ -283,7 +283,7 @@ static ValueRuns<UScriptCode> compute_scripts(const char* chars, int32_t count) 
 
 static ValueRuns<const Font*> compute_sub_fonts(const char* chars,
 		const ValueRuns<const MultiScriptFont*>& fontRuns, const ValueRuns<UScriptCode>& scriptRuns) {
-	ValueRuns<const Font*> result(fontRuns.get_value_count());
+	ValueRuns<const Font*> result(fontRuns.get_run_count());
 	int32_t offset{};
 
 	iterate_run_intersections([&](auto limit, auto* pBaseFont, auto script) {

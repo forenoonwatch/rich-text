@@ -3,6 +3,7 @@ target_sources(LibRichText PRIVATE
 	"${CMAKE_CURRENT_SOURCE_DIR}/font.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/font_cache.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/formatting.cpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/formatting_iterator.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/multi_script_font.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/paragraph_layout.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/build_paragraph_layout_icu.cpp"

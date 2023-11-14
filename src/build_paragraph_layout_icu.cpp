@@ -96,7 +96,7 @@ void build_paragraph_layout_icu(ParagraphLayout& result, const char16_t* chars, 
 	utext_openUChars(&iter, chars, count, &err);
 
 	// FIXME: Give the sub-paragraphs a full view of font runs
-	ValueRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_value_count());
+	ValueRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_run_count());
 	int32_t byteIndex = 0;
 	size_t lastHighestRun = 0;
 
@@ -307,7 +307,7 @@ static ValueRuns<UScriptCode> compute_scripts(const char16_t* chars, int32_t cou
 
 static ValueRuns<const Font*> compute_sub_fonts(const char16_t* chars,
 		const ValueRuns<const MultiScriptFont*>& fontRuns, const ValueRuns<UScriptCode>& scriptRuns) {
-	ValueRuns<const Font*> result(fontRuns.get_value_count());
+	ValueRuns<const Font*> result(fontRuns.get_run_count());
 	int32_t offset{};
 	LEErrorCode status{};
 

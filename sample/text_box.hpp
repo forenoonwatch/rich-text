@@ -90,5 +90,8 @@ class TextBox {
 		void recalc_text();
 		void recalc_text_internal(bool richText, const void* postLayoutOp);
 		void create_text_rects(Text::FormattingRuns&, const std::string& text, const void* postLayoutOp);
+		void emit_rect(float x, float y, float width, float height, const float* texCoords, Image* texture,
+				const Color& color, PipelineIndex pipeline);
+		void emit_rect(float x, float y, float width, float height, const Color& color, PipelineIndex pipeline);
 };
 

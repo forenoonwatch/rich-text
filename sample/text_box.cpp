@@ -7,6 +7,7 @@
 #include "text_atlas.hpp"
 #include "msdf_text_atlas.hpp"
 #include "formatting.hpp"
+#include "formatting_iterator.hpp"
 #include "paragraph_layout.hpp"
 
 #include <glad/glad.h>
@@ -436,98 +437,110 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 					std::swap(minPos, maxPos);
 				}
 
-				m_textRects.push_back({
-					.x = lineX + minPos,
-					.y = paragraphLayout.textStartY + lineY - paragraphLayout.lines[lineIndex].ascent,
-					.width = maxPos - minPos,
-					.height = paragraphLayout.get_line_height(lineIndex),
-					.texture = g_textAtlas->get_default_texture(),
-					.color = Color::from_rgb(0, 120, 215),
-					.pipeline = PipelineIndex::RECT,
-				});
+				emit_rect(lineX + minPos, paragraphLayout.textStartY + lineY
+						- paragraphLayout.lines[lineIndex].ascent, maxPos - minPos,
+						paragraphLayout.get_line_height(lineIndex), Color::from_rgb(0, 120, 215),
+						PipelineIndex::RECT);
 			}
 		});
 	}
 
-	// Add Stroke Glyphs
-	paragraphLayout.for_each_glyph(m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
-			auto pX, auto pY, auto& font, auto lineX, auto lineY) {
-		auto stroke = textInfo.strokeRuns.get_value(charIndex);
+	uint32_t glyphIndex{};
+	uint32_t glyphPosIndex{};
+	float strikethroughStartPos{};
+	float underlineStartPos{};
+	paragraphLayout.for_each_run(m_size[0], m_textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
+			auto lineY) {
+		auto& run = paragraphLayout.visualRuns[runIndex];
+		auto& font = *run.pFont;
 
-		if (stroke.color.a > 0.f) {
+		Text::FormattingIterator iter(textInfo, run.rightToLeft ? run.charEndIndex : run.charStartIndex);
+		underlineStartPos = paragraphLayout.glyphPositions[glyphPosIndex];	
+
+		for (; glyphIndex < run.glyphEndIndex; ++glyphIndex, glyphPosIndex += 2) {
+			auto pX = paragraphLayout.glyphPositions[glyphPosIndex];
+			auto pY = paragraphLayout.glyphPositions[glyphPosIndex + 1];
+			auto glyphID = paragraphLayout.glyphs[glyphIndex];
+			auto event = iter.advance_to(paragraphLayout.charIndices[glyphIndex]);
+			auto stroke = iter.get_stroke_state();
+
 			float offset[2]{};
 			float texCoordExtents[4]{};
 			float glyphSize[2]{};
-			bool strokeHasColor{};
-			auto* pGlyphImage = CVars::useMSDF ? g_msdfTextAtlas->get_stroke_info(font, glyphID, stroke.thickness,
-					stroke.joins, texCoordExtents, glyphSize, offset, strokeHasColor)
-					: g_textAtlas->get_stroke_info(font, glyphID, stroke.thickness, stroke.joins,
-					texCoordExtents, glyphSize, offset, strokeHasColor);
+			bool glyphHasColor{};
 
-			m_textRects.push_back({
-				.x = lineX + pX + offset[0],
-				.y = paragraphLayout.textStartY + lineY + pY + offset[1],
-				.width = glyphSize[0],
-				.height = glyphSize[1],
-				.texCoords = {texCoordExtents[0], texCoordExtents[1],
-						texCoordExtents[2], texCoordExtents[3]},
-				.texture = pGlyphImage,
-				.color = stroke.color,
-				.pipeline = CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT,
-			});
+			// Stroke
+			if (stroke.color.a > 0.f) {
+				float offset[2]{};
+				float texCoordExtents[4]{};
+				float glyphSize[2]{};
+				bool strokeHasColor{};
+				auto* pGlyphImage = CVars::useMSDF ? g_msdfTextAtlas->get_stroke_info(font, glyphID,
+								stroke.thickness, stroke.joins, texCoordExtents, glyphSize, offset,
+								strokeHasColor)
+						: g_textAtlas->get_stroke_info(font, glyphID, stroke.thickness, stroke.joins,
+								texCoordExtents, glyphSize, offset, strokeHasColor);
+
+				emit_rect(lineX + pX + offset[0], paragraphLayout.textStartY + lineY + pY + offset[1],
+						glyphSize[0], glyphSize[1], texCoordExtents, pGlyphImage, stroke.color,
+						CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT);
+			}
+
+			// Main Glyph
+			auto* pGlyphImage = CVars::useMSDF ? g_msdfTextAtlas->get_glyph_info(font, glyphID, texCoordExtents,
+					glyphSize, offset, glyphHasColor)
+					: g_textAtlas->get_glyph_info(font, glyphID, texCoordExtents, glyphSize, offset,
+					glyphHasColor);
+			auto textColor = glyphHasColor ? Color{1.f, 1.f, 1.f, 1.f} : iter.get_color();
+
+			emit_rect(lineX + pX + offset[0], paragraphLayout.textStartY + lineY + pY + offset[1], glyphSize[0],
+					glyphSize[1], texCoordExtents, pGlyphImage, textColor,
+					CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT);
+			
+			// Underline
+			if ((event & Text::FormattingEvent::UNDERLINE_END) != Text::FormattingEvent::NONE) {
+				auto height = font.get_underline_thickness() + 0.5f;
+				emit_rect(lineX + underlineStartPos, paragraphLayout.textStartY + lineY
+						+ font.get_underline_position(), pX - underlineStartPos, height, iter.get_prev_color(),
+						PipelineIndex::RECT);
+			}
+
+			if ((event & Text::FormattingEvent::UNDERLINE_BEGIN) != Text::FormattingEvent::NONE) {
+				underlineStartPos = pX;
+			}
+
+			// Strikethrough
+			if ((event & Text::FormattingEvent::STRIKETHROUGH_END) != Text::FormattingEvent::NONE) {
+				auto height = run.pFont->get_strikethrough_thickness() + 0.5f;
+				emit_rect(lineX + strikethroughStartPos, paragraphLayout.textStartY + lineY
+						+ font.get_strikethrough_position(), pX - strikethroughStartPos, height,
+						iter.get_prev_color(), PipelineIndex::RECT);
+			}
+
+			if ((event & Text::FormattingEvent::STRIKETHROUGH_BEGIN) != Text::FormattingEvent::NONE) {
+				strikethroughStartPos = pX;
+			}
 		}
-	});
 
-	// Add Main Glyphs
-	paragraphLayout.for_each_glyph(m_size[0], m_textXAlignment, [&](auto glyphID, auto charIndex,
-			auto pX, auto pY, auto& font, auto lineX, auto lineY) {
-		float offset[2]{};
-		float texCoordExtents[4]{};
-		float glyphSize[2]{};
-		bool glyphHasColor{};
-
-		auto* pGlyphImage = CVars::useMSDF ? g_msdfTextAtlas->get_glyph_info(font, glyphID, texCoordExtents,
-				glyphSize, offset, glyphHasColor)
-				: g_textAtlas->get_glyph_info(font, glyphID, texCoordExtents, glyphSize, offset,
-				glyphHasColor);
-		auto textColor = glyphHasColor ? Color{1.f, 1.f, 1.f, 1.f} : textInfo.colorRuns.get_value(charIndex);
-
-		if (textInfo.strikethroughRuns.get_value(charIndex)) {
+		// Finalize last strikethrough
+		if (iter.has_strikethrough()) {
+			auto strikethroughEndPos = paragraphLayout.glyphPositions[glyphPosIndex];
 			auto height = font.get_strikethrough_thickness() + 0.5f;
-			m_textRects.push_back({
-				.x = lineX + pX + offset[0],
-				.y = paragraphLayout.textStartY + lineY + pY + font.get_strikethrough_position(),
-				.width = glyphSize[0],
-				.height = height,
-				.texture = g_textAtlas->get_default_texture(),
-				.color = textColor,
-				.pipeline = PipelineIndex::RECT,
-			});
+			emit_rect(lineX + strikethroughStartPos, paragraphLayout.textStartY + lineY
+					+ font.get_strikethrough_position(), strikethroughEndPos - strikethroughStartPos, height,
+					iter.get_color(), PipelineIndex::RECT);
 		}
 
-		if (textInfo.underlineRuns.get_value(charIndex)) {
+		// Finalize last underline
+		if (iter.has_underline()) {
+			auto underlineEndPos = paragraphLayout.glyphPositions[glyphPosIndex];
 			auto height = font.get_underline_thickness() + 0.5f;
-			m_textRects.push_back({
-				.x = lineX + pX + offset[0],
-				.y = paragraphLayout.textStartY + lineY + pY + font.get_underline_position(),
-				.width = glyphSize[0],
-				.height = height,
-				.texture = g_textAtlas->get_default_texture(),
-				.color = textColor,
-				.pipeline = PipelineIndex::RECT,
-			});
+			emit_rect(lineX + underlineStartPos, paragraphLayout.textStartY + lineY
+					+ font.get_underline_position(), underlineEndPos - underlineStartPos, height,
+					iter.get_color(), PipelineIndex::RECT);
 		}
 
-		m_textRects.push_back({
-			.x = lineX + pX + offset[0],
-			.y = paragraphLayout.textStartY + lineY + pY + offset[1],
-			.width = glyphSize[0],
-			.height = glyphSize[1],
-			.texCoords = {texCoordExtents[0], texCoordExtents[1], texCoordExtents[2], texCoordExtents[3]},
-			.texture = pGlyphImage,
-			.color = std::move(textColor),
-			.pipeline = CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT,
-		});
+		glyphPosIndex += 2;
 	});
 
 	// Debug render run outlines
@@ -537,16 +550,8 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 			auto* positions = paragraphLayout.get_run_positions(runIndex);
 			auto minBound = positions[0];
 			auto maxBound = positions[2 * paragraphLayout.get_run_glyph_count(runIndex)]; 
-
-			m_textRects.push_back({
-				.x = lineX + minBound,
-				.y = lineY - paragraphLayout.lines[lineIndex].ascent,
-				.width = maxBound - minBound,
-				.height = paragraphLayout.get_line_height(lineIndex),
-				.texture = g_textAtlas->get_default_texture(),
-				.color = {0, 0.5, 0, 1},
-				.pipeline = PipelineIndex::OUTLINE,
-			});
+			emit_rect(lineX + minBound, lineY - paragraphLayout.lines[lineIndex].ascent, maxBound - minBound,
+					paragraphLayout.get_line_height(lineIndex), {0, 0.5f, 0, 1}, PipelineIndex::OUTLINE);
 		});
 	}
 
@@ -557,18 +562,38 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 			auto* positions = paragraphLayout.get_run_positions(runIndex);
 
 			for (le_int32 i = 0; i <= paragraphLayout.get_run_glyph_count(runIndex); ++i) {
-				m_textRects.push_back({
-					.x = lineX + positions[2 * i],
-					.y = lineY - paragraphLayout.lines[lineIndex].ascent,
-					.width = 0.5f,
-					.height = paragraphLayout.get_line_height(lineIndex),
-					.texture = g_textAtlas->get_default_texture(),
-					.color = {0, 0.5, 0, 1},
-					.pipeline = PipelineIndex::OUTLINE,
-				});
+				emit_rect(lineX + positions[2 * i], lineY - paragraphLayout.lines[lineIndex].ascent, 0.5f,
+						paragraphLayout.get_line_height(lineIndex), {0, 0.5f, 0, 1}, PipelineIndex::OUTLINE);
 			}
 		});
 	}
+}
+
+void TextBox::emit_rect(float x, float y, float width, float height, const float* texCoords, Image* texture,
+		const Color& color, PipelineIndex pipeline) {
+	m_textRects.push_back({
+		.x = x,
+		.y = y,
+		.width = width,
+		.height = height,
+		.texCoords = {texCoords[0], texCoords[1], texCoords[2], texCoords[3]},
+		.texture = texture,
+		.color = color,
+		.pipeline = pipeline,
+	});
+}
+
+void TextBox::emit_rect(float x, float y, float width, float height, const Color& color,
+		PipelineIndex pipeline) {
+	m_textRects.push_back({
+		.x = x,
+		.y = y,
+		.width = width,
+		.height = height,
+		.texture = g_textAtlas->get_default_texture(),
+		.color = color,
+		.pipeline = pipeline,
+	});
 }
 
 // Setters

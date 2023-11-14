@@ -128,7 +128,7 @@ static void convert_runs(ValueRuns<T>& runs, const std::string& srcText, const c
 	uint32_t srcCounter{};
 	uint32_t dstCounter{};
 
-	for (size_t i = 0; i < runs.get_value_count(); ++i) {
+	for (size_t i = 0; i < runs.get_run_count(); ++i) {
 		auto& limit = const_cast<int32_t&>(runs.get_limits()[i]);
 		limit = static_cast<int32_t>(utf8_index_to_utf16(srcText.data(), srcText.size(), dstText, dstTextLength,
 				limit, srcCounter, dstCounter));
@@ -168,7 +168,7 @@ FormattingRuns FormattingParser::get_result(std::string& contentText) {
 		auto fontIndexRuns = m_fontRuns.get();
 
 		FormattingRuns result{
-			.fontRuns{fontIndexRuns.get_value_count()},
+			.fontRuns{fontIndexRuns.get_run_count()},
 			.colorRuns = m_colorRuns.get(),
 			.strokeRuns = m_strokeRuns.get(),
 			.strikethroughRuns = m_strikethroughRuns.get(),
@@ -176,7 +176,7 @@ FormattingRuns FormattingParser::get_result(std::string& contentText) {
 			.ownedFonts = std::move(m_ownedFonts),
 		};
 
-		for (uint32_t i = 0; i < fontIndexRuns.get_value_count(); ++i) {
+		for (uint32_t i = 0; i < fontIndexRuns.get_run_count(); ++i) {
 			result.fontRuns.add(fontIndexRuns.get_limits()[i],
 					&result.ownedFonts[fontIndexRuns.get_values()[i]]);
 		}

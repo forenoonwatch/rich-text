@@ -67,5 +67,13 @@ struct Color {
 	constexpr Color operator*(float s) const {
 		return {r * s, g * s, b * s, a * s};
 	}
+
+	constexpr bool operator==(const Color& c) const {
+		return r == c.r && g == c.g && b == c.b && a == c.a;
+	}
+
+	constexpr bool operator!=(const Color& c) const {
+		return !(*this == c);
+	}
 };
 

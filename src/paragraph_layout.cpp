@@ -332,7 +332,7 @@ float ParagraphLayout::get_glyph_offset_rtl(size_t runIndex, uint32_t cursor) co
 void build_paragraph_layout_icu_lx(ParagraphLayout& result, const char16_t* chars, int32_t count,
 		const Text::ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, ParagraphLayoutFlags flags) {
-	Text::ValueRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_value_count());
+	Text::ValueRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_run_count());
 
 	auto* start = chars;
 	auto* end = start + count;
@@ -366,7 +366,7 @@ void build_paragraph_layout_icu_lx(ParagraphLayout& result, const char16_t* char
 				LEErrorCode err{};
 				auto** ppFonts = const_cast<const MultiScriptFont**>(subsetFontRuns.get_values());
 				icu::FontRuns fontRuns(reinterpret_cast<const icu::LEFontInstance**>(ppFonts),
-						subsetFontRuns.get_limits(), subsetFontRuns.get_value_count());
+						subsetFontRuns.get_limits(), subsetFontRuns.get_run_count());
 				icu::ParagraphLayout pl(chars + byteIndex, byteCount, &fontRuns, nullptr,
 						nullptr, nullptr, paragraphLevel, false, err);
 
