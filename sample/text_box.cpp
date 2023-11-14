@@ -455,7 +455,7 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 		auto& font = *run.pFont;
 
 		Text::FormattingIterator iter(textInfo, run.rightToLeft ? run.charEndIndex : run.charStartIndex);
-		underlineStartPos = paragraphLayout.glyphPositions[glyphPosIndex];	
+		underlineStartPos = strikethroughStartPos = paragraphLayout.glyphPositions[glyphPosIndex];	
 
 		for (; glyphIndex < run.glyphEndIndex; ++glyphIndex, glyphPosIndex += 2) {
 			auto pX = paragraphLayout.glyphPositions[glyphPosIndex];
