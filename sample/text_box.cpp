@@ -204,7 +204,19 @@ bool TextBox::handle_mouse_move(double mouseX, double mouseY) {
 }
 
 bool TextBox::handle_text_input(unsigned codepoint) {
-	return g_focusedTextBox == this;
+	if (g_focusedTextBox == this && m_editable) {
+		if (m_selectionStart.is_valid()) {
+			remove_highlighted_text();
+		}
+
+		int32_t len{};
+		char buffer[4]{};
+		U8_APPEND_UNSAFE(buffer, len, codepoint);
+		insert_text(std::string(buffer, len), m_cursorPosition.get_position());
+		return true;
+	}
+
+	return false;
 }
 
 void TextBox::capture_focus() {
@@ -476,6 +488,19 @@ void TextBox::handle_key_delete(bool ctrl) {
 		auto endPos = m_cursorPosition.get_position();
 		m_cursorPosition = startPos;
 		remove_text(startPos.get_position(), endPos);
+	}
+}
+
+void TextBox::insert_text(const std::string& text, uint32_t startIndex) {
+	m_cursorPosition = {static_cast<uint32_t>(m_cursorPosition.get_position() + text.size())};
+
+	if (startIndex < m_text.size()) {
+		auto before = m_text.substr(0, startIndex);
+		auto after = m_text.substr(startIndex);
+		set_text(before + text + after);
+	}
+	else {
+		set_text(m_text + text);
 	}
 }
 

@@ -99,6 +99,7 @@ class TextBox {
 		void handle_key_backspace(bool ctrl);
 		void handle_key_delete(bool ctrl);
 
+		void insert_text(const std::string& text, uint32_t startIndex);
 		void remove_text(uint32_t startIndex, uint32_t endIndex);
 		void remove_highlighted_text();
 
