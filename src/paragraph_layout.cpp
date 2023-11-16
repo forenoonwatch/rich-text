@@ -248,8 +248,10 @@ bool ParagraphLayout::run_contains_char_range(size_t runIndex, uint32_t firstCha
 Text::Pair<float, float> ParagraphLayout::get_position_range_in_run(size_t runIndex, uint32_t firstCharIndex,
 		uint32_t lastCharIndex) const {
 	auto& run = visualRuns[runIndex];
-	auto minPos = get_glyph_offset_in_run(runIndex, std::min(firstCharIndex, run.charEndIndex));
-	auto maxPos = get_glyph_offset_in_run(runIndex, std::min(lastCharIndex, run.charEndIndex));
+	auto minPos = get_glyph_offset_in_run(runIndex, std::max(std::min(firstCharIndex, run.charEndIndex),
+			run.charStartIndex));
+	auto maxPos = get_glyph_offset_in_run(runIndex, std::max(std::min(lastCharIndex, run.charEndIndex),
+			run.charStartIndex));
 
 	if (run.rightToLeft) {
 		std::swap(minPos, maxPos);
