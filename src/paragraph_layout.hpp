@@ -5,9 +5,11 @@
 #include "text_alignment.hpp"
 #include "value_runs.hpp"
 #include "font.hpp"
+#include "pair.hpp"
 
 #include <cstdint>
 
+// FIXME: Find the header where ICU declares its namespace
 namespace icu_73 { class BreakIterator; }
 
 class MultiScriptFont;
@@ -92,6 +94,20 @@ struct ParagraphLayout {
 
 	float get_line_x_start(size_t lineIndex, float textWidth, TextXAlignment) const;
 
+	/**
+	 * Whether the range [firstCharIndex, lastCharIndex) intersect's the run's [charStartIndex, charEndIndex)
+	 */
+	bool run_contains_char_range(size_t runIndex, uint32_t firstCharIndex, uint32_t lastCharIndex) const;
+
+	/**
+	 * Gets the horizontal range covered by the character range [firstCharIndex, lastCharIndex) within the
+	 * given run.
+	 * NOTE: Behavior is undefined if the range falls completely outside of
+	 * [run.charStartIndex, run.charEndIndex)
+	 */
+	Text::Pair<float, float> get_position_range_in_run(size_t runIndex, uint32_t firstCharIndex,
+			uint32_t lastCharIndex) const;
+
 	uint32_t get_first_run_index(size_t lineIndex) const;
 	uint32_t get_first_glyph_index(size_t runIndex) const;
 	uint32_t get_first_position_index(size_t runIndex) const;
@@ -101,6 +117,10 @@ struct ParagraphLayout {
 	const float* get_run_positions(size_t runIndex) const;
 	uint32_t get_run_glyph_count(size_t runIndex) const;
 
+	/**
+	 * Gets the horizontal offset of the given cursor index from the start of its current line.
+	 * NOTE: Behavior is undefined if `cursor` is outside the range of charStartIndex < cursor <= charEndIndex
+	 */
 	float get_glyph_offset_in_run(size_t runIndex, uint32_t cursor) const;
 	float get_glyph_offset_ltr(size_t runIndex, uint32_t cursor) const;
 	float get_glyph_offset_rtl(size_t runIndex, uint32_t cursor) const;

@@ -10,9 +10,9 @@
 #include <vector>
 
 namespace Text { struct FormattingRuns; }
+namespace Text { template <typename, typename> struct Pair; };
 
 class Image;
-class Pipeline;
 
 struct TextRect {
 	float x;
@@ -65,8 +65,12 @@ class TextBox {
 		TextYAlignment m_textYAlignment{TextYAlignment::TOP};
 		bool m_textWrapped = false;
 		bool m_richText = false;
+		bool m_editable = false;
+		bool m_selectable = true;
 
 		std::vector<TextRect> m_textRects;
+
+		bool should_focused_use_rich_text() const;
 
 		void cursor_move_to_next_character(bool selectionMode);
 		void cursor_move_to_prev_character(bool selectionMode);
@@ -90,8 +94,11 @@ class TextBox {
 		void recalc_text();
 		void recalc_text_internal(bool richText, const void* postLayoutOp);
 		void create_text_rects(Text::FormattingRuns&, const std::string& text, const void* postLayoutOp);
+
 		void emit_rect(float x, float y, float width, float height, const float* texCoords, Image* texture,
-				const Color& color, PipelineIndex pipeline);
-		void emit_rect(float x, float y, float width, float height, const Color& color, PipelineIndex pipeline);
+				const Color& color, PipelineIndex pipeline,
+				const Text::Pair<float, float>* pClip = nullptr);
+		void emit_rect(float x, float y, float width, float height, const Color& color, PipelineIndex pipeline,
+				const Text::Pair<float, float>* pClip = nullptr);
 };
 

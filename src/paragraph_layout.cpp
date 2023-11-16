@@ -239,6 +239,25 @@ CursorPosition ParagraphLayout::find_closest_cursor_position(float textWidth, Te
 	return {clusterStartChar};
 }
 
+bool ParagraphLayout::run_contains_char_range(size_t runIndex, uint32_t firstCharIndex,
+		uint32_t lastCharIndex) const {
+	return visualRuns[runIndex].charStartIndex < lastCharIndex
+			&& visualRuns[runIndex].charEndIndex > firstCharIndex;
+}
+
+Text::Pair<float, float> ParagraphLayout::get_position_range_in_run(size_t runIndex, uint32_t firstCharIndex,
+		uint32_t lastCharIndex) const {
+	auto& run = visualRuns[runIndex];
+	auto minPos = get_glyph_offset_in_run(runIndex, std::min(firstCharIndex, run.charEndIndex));
+	auto maxPos = get_glyph_offset_in_run(runIndex, std::min(lastCharIndex, run.charEndIndex));
+
+	if (run.rightToLeft) {
+		std::swap(minPos, maxPos);
+	}
+
+	return {minPos, maxPos};
+}
+
 uint32_t ParagraphLayout::get_first_run_index(size_t lineIndex) const {
 	return lineIndex == 0 ? 0 : lines[lineIndex - 1].visualRunsEndIndex;
 }

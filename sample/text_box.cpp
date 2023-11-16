@@ -45,10 +45,7 @@ static constexpr const UChar32 CH_PSEP = 0x2029;
 
 static icu::BreakIterator* g_charBreakIter = nullptr;
 static TextBox* g_focusedTextBox = nullptr;
-static float g_cursorPixelX = 0.f;
-static float g_cursorPixelY = 0.f;
-static float g_cursorHeight = 0.f;
-static size_t g_lineNumber = 0; 
+static CursorPositionResult g_cursorPos{};
 
 static CursorPosition apply_cursor_move(const ParagraphLayout& paragraphLayout, float textWidth,
 		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor);
@@ -163,7 +160,7 @@ void TextBox::capture_focus() {
 	utext_openUTF8(&uText, m_text.data(), m_text.size(), &errc);
 	g_charBreakIter->setText(&uText, errc);
 
-	recalc_text_internal(false, nullptr);
+	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
 void TextBox::release_focus() {
@@ -220,8 +217,8 @@ void TextBox::render(const float* invScreenSize) {
 
 	// Draw Cursor
 	if (is_focused()) {
-		float cursorExtents[] = {m_position[0] + g_cursorPixelX, m_position[1] + g_cursorPixelY, 1,
-				g_cursorHeight};
+		float cursorExtents[] = {m_position[0] + g_cursorPos.x, m_position[1] + g_cursorPos.y, 1,
+				g_cursorPos.height};
 		Color cursorColor{0, 0, 0, 1};
 
 		pPipeline = &g_pipelines[static_cast<size_t>(PipelineIndex::RECT)];
@@ -245,13 +242,19 @@ bool TextBox::is_focused() const {
 
 // Private Methods
 
+bool TextBox::should_focused_use_rich_text() const {
+	// Focused should only use rich text if the text box is not editable
+	// NOTE: In a more general sense, this is only true whenever the formatting source is inline
+	return m_richText && !m_editable;
+}
+
 void TextBox::cursor_move_to_next_character(bool selectionMode) {
 	if (auto nextIndex = g_charBreakIter->following(m_cursorPosition.get_position());
 			nextIndex != icu::BreakIterator::DONE) {
 		set_cursor_position_internal({static_cast<uint32_t>(nextIndex)}, selectionMode);
 	}
 
-	recalc_text_internal(false, nullptr);
+	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
 void TextBox::cursor_move_to_prev_character(bool selectionMode) {
@@ -260,7 +263,7 @@ void TextBox::cursor_move_to_prev_character(bool selectionMode) {
 		set_cursor_position_internal({static_cast<uint32_t>(nextIndex)}, selectionMode);
 	}
 
-	recalc_text_internal(false, nullptr);
+	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
 void TextBox::cursor_move_to_next_word(bool selectionMode) {
@@ -286,7 +289,7 @@ void TextBox::cursor_move_to_next_word(bool selectionMode) {
 		lastWhitespace = whitespace;
 	}
 
-	recalc_text_internal(false, nullptr);
+	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
 void TextBox::cursor_move_to_prev_word(bool selectionMode) {
@@ -317,37 +320,37 @@ void TextBox::cursor_move_to_prev_word(bool selectionMode) {
 		lastWhitespace = whitespace;
 	}
 
-	recalc_text_internal(false, nullptr);
+	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
 void TextBox::cursor_move_to_next_line(bool selectionMode) {
 	PostLayoutCursorMove op{PostLayoutCursorMoveType::LINE_BELOW, selectionMode};
-	recalc_text_internal(false, &op);
+	recalc_text_internal(should_focused_use_rich_text(), &op);
 }
 
 void TextBox::cursor_move_to_prev_line(bool selectionMode) {
 	PostLayoutCursorMove op{PostLayoutCursorMoveType::LINE_ABOVE, selectionMode};
-	recalc_text_internal(false, &op);
+	recalc_text_internal(should_focused_use_rich_text(), &op);
 }
 
 void TextBox::cursor_move_to_line_start(bool selectionMode) {
 	PostLayoutCursorMove op{PostLayoutCursorMoveType::LINE_START, selectionMode};
-	recalc_text_internal(false, &op);
+	recalc_text_internal(should_focused_use_rich_text(), &op);
 }
 
 void TextBox::cursor_move_to_line_end(bool selectionMode) {
 	PostLayoutCursorMove op{PostLayoutCursorMoveType::LINE_END, selectionMode};
-	recalc_text_internal(false, &op);
+	recalc_text_internal(should_focused_use_rich_text(), &op);
 }
 
 void TextBox::cursor_move_to_text_start(bool selectionMode) {
 	set_cursor_position_internal({}, selectionMode);
-	recalc_text_internal(false, nullptr);
+	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
 void TextBox::cursor_move_to_text_end(bool selectionMode) {
 	set_cursor_position_internal({static_cast<uint32_t>(m_text.size())}, selectionMode);
-	recalc_text_internal(false, nullptr);
+	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
 void TextBox::cursor_move_to_mouse(double mouseX, double mouseY, bool selectionMode) {
@@ -357,7 +360,7 @@ void TextBox::cursor_move_to_mouse(double mouseX, double mouseY, bool selectionM
 	};
 	op.type = PostLayoutCursorMoveType::MOUSE_POSITION;
 	op.selectionMode = selectionMode;
-	recalc_text_internal(false, &op);
+	recalc_text_internal(should_focused_use_rich_text(), &op);
 }
 
 void TextBox::set_cursor_position_internal(CursorPosition pos, bool selectionMode) {
@@ -396,7 +399,7 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 	create_text_rects(runs, richText ? m_contentText : m_text, postLayoutOp);
 }
 
-void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::string& text, \
+void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::string& text,
 		const void* postLayoutOp) {
 	ParagraphLayout paragraphLayout{};
 	build_paragraph_layout_utf8(paragraphLayout, text.data(), text.size(), textInfo.fontRuns, m_size[0],
@@ -408,16 +411,16 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 				reinterpret_cast<const PostLayoutCursorMove*>(postLayoutOp)->selectionMode);
 	}
 
-	auto cursorPixelInfo = paragraphLayout.calc_cursor_pixel_pos(m_size[0], m_textXAlignment, m_cursorPosition);
-	g_cursorPixelX = cursorPixelInfo.x;
-	g_cursorPixelY = cursorPixelInfo.y;
-	g_cursorHeight = cursorPixelInfo.height;
-	g_lineNumber = cursorPixelInfo.lineNumber;
+	g_cursorPos = paragraphLayout.calc_cursor_pixel_pos(m_size[0], m_textXAlignment, m_cursorPosition);
 
-	// Add highlight ranges
-	if (m_selectionStart.is_valid()) {
-		uint32_t selectionStart = m_selectionStart.get_position();
-		uint32_t selectionEnd = m_cursorPosition.get_position();
+	bool hasHighlighting = m_selectionStart.is_valid();
+	uint32_t selectionStart{};
+	uint32_t selectionEnd{};
+
+	// Add highlight ranges in a separate pass to keep from accidental clipping across runs
+	if (hasHighlighting) {
+		selectionStart = m_selectionStart.get_position();
+		selectionEnd = m_cursorPosition.get_position();
 
 		if (selectionStart > selectionEnd) {
 			std::swap(selectionStart, selectionEnd);
@@ -425,18 +428,10 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 
 		paragraphLayout.for_each_run(m_size[0], m_textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
 				auto lineY) {
-			auto charStartIndex = paragraphLayout.visualRuns[runIndex].charStartIndex;
-			auto charEndIndex = paragraphLayout.visualRuns[runIndex].charEndIndex;
-
-			if (charStartIndex < selectionEnd && charEndIndex > selectionStart) {
-				auto minPos = paragraphLayout.get_glyph_offset_in_run(runIndex,
-						std::min(selectionStart, charEndIndex));
-				auto maxPos = paragraphLayout.get_glyph_offset_in_run(runIndex,
-						std::min(selectionEnd, charEndIndex));
-				if (paragraphLayout.visualRuns[runIndex].rightToLeft) {
-					std::swap(minPos, maxPos);
-				}
-
+			if (paragraphLayout.run_contains_char_range(runIndex, selectionStart, selectionEnd)) {
+				auto [minPos, maxPos] = paragraphLayout.get_position_range_in_run(runIndex, selectionStart,
+						selectionEnd);
+				
 				emit_rect(lineX + minPos, paragraphLayout.textStartY + lineY
 						- paragraphLayout.lines[lineIndex].ascent, maxPos - minPos,
 						paragraphLayout.get_line_height(lineIndex), Color::from_rgb(0, 120, 215),
@@ -453,6 +448,16 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 			auto lineY) {
 		auto& run = paragraphLayout.visualRuns[runIndex];
 		auto& font = *run.pFont;
+
+		bool runHasHighlighting = hasHighlighting && paragraphLayout.run_contains_char_range(runIndex,
+				selectionStart, selectionEnd);
+		Text::Pair<float, float> highlightRange{};
+		const Text::Pair<float, float>* pClip = nullptr;
+
+		if (runHasHighlighting) {
+			highlightRange = paragraphLayout.get_position_range_in_run(runIndex, selectionStart, selectionEnd);
+			pClip = &highlightRange;
+		}
 
 		Text::FormattingIterator iter(textInfo, run.rightToLeft ? run.charEndIndex : run.charStartIndex);
 		underlineStartPos = strikethroughStartPos = paragraphLayout.glyphPositions[glyphPosIndex];	
@@ -495,14 +500,14 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 
 			emit_rect(lineX + pX + offset[0], paragraphLayout.textStartY + lineY + pY + offset[1], glyphSize[0],
 					glyphSize[1], texCoordExtents, pGlyphImage, textColor,
-					CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT);
+					CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT, pClip);
 			
 			// Underline
 			if ((event & Text::FormattingEvent::UNDERLINE_END) != Text::FormattingEvent::NONE) {
 				auto height = font.get_underline_thickness() + 0.5f;
 				emit_rect(lineX + underlineStartPos, paragraphLayout.textStartY + lineY
 						+ font.get_underline_position(), pX - underlineStartPos, height, iter.get_prev_color(),
-						PipelineIndex::RECT);
+						PipelineIndex::RECT, pClip);
 			}
 
 			if ((event & Text::FormattingEvent::UNDERLINE_BEGIN) != Text::FormattingEvent::NONE) {
@@ -514,7 +519,7 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 				auto height = run.pFont->get_strikethrough_thickness() + 0.5f;
 				emit_rect(lineX + strikethroughStartPos, paragraphLayout.textStartY + lineY
 						+ font.get_strikethrough_position(), pX - strikethroughStartPos, height,
-						iter.get_prev_color(), PipelineIndex::RECT);
+						iter.get_prev_color(), PipelineIndex::RECT, pClip);
 			}
 
 			if ((event & Text::FormattingEvent::STRIKETHROUGH_BEGIN) != Text::FormattingEvent::NONE) {
@@ -528,7 +533,7 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 			auto height = font.get_strikethrough_thickness() + 0.5f;
 			emit_rect(lineX + strikethroughStartPos, paragraphLayout.textStartY + lineY
 					+ font.get_strikethrough_position(), strikethroughEndPos - strikethroughStartPos, height,
-					iter.get_color(), PipelineIndex::RECT);
+					iter.get_color(), PipelineIndex::RECT, pClip);
 		}
 
 		// Finalize last underline
@@ -537,7 +542,7 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 			auto height = font.get_underline_thickness() + 0.5f;
 			emit_rect(lineX + underlineStartPos, paragraphLayout.textStartY + lineY
 					+ font.get_underline_position(), underlineEndPos - underlineStartPos, height,
-					iter.get_color(), PipelineIndex::RECT);
+					iter.get_color(), PipelineIndex::RECT, pClip);
 		}
 
 		glyphPosIndex += 2;
@@ -570,30 +575,69 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 }
 
 void TextBox::emit_rect(float x, float y, float width, float height, const float* texCoords, Image* texture,
-		const Color& color, PipelineIndex pipeline) {
-	m_textRects.push_back({
-		.x = x,
-		.y = y,
-		.width = width,
-		.height = height,
-		.texCoords = {texCoords[0], texCoords[1], texCoords[2], texCoords[3]},
-		.texture = texture,
-		.color = color,
-		.pipeline = pipeline,
-	});
+		const Color& color, PipelineIndex pipeline, const Text::Pair<float, float>* pClip) {
+	if (pClip) {
+		// Rect is completely uncovered by clip range, just emit this rect with no clip
+		if (x >= pClip->second || x + width <= pClip->first) {
+			emit_rect(x, y, width, height, texCoords, texture, color, pipeline);
+		}
+		// Rect is partially clipped
+		else {
+			auto newX = x;
+			auto newWidth = width;
+			auto newUVX = texCoords[0];
+			auto newUVWidth = texCoords[2];
+
+			// The left side of the rect is partially unclipped by at least 1px, emit left as normal
+			if (pClip->first >= x + 1.f && pClip->first < x + width) {
+				auto diff = pClip->first - x;
+				newX += diff;
+				newWidth -= diff;
+
+				auto tcDiff = texCoords[2] * diff / width;
+				newUVX += tcDiff;
+				newUVWidth -= tcDiff;
+
+				float texCoordsOut[4] = {texCoords[0], texCoords[1], tcDiff, texCoords[3]};
+				emit_rect(x, y, diff, height, texCoordsOut, texture, color, pipeline);
+			}
+
+			// The right side of the rect is partially unclipped by at least 1px, emit right as normal
+			if (pClip->second > x && pClip->second + 1.f <= x + width) {
+				auto diff = x + width - pClip->second;
+				newWidth -= diff;
+
+				auto tcDiff = texCoords[2] * diff / width; 
+				newUVWidth -= tcDiff;
+
+				float texCoordsOut[4] = {texCoords[0] + texCoords[2] - tcDiff, texCoords[1], tcDiff,
+					texCoords[3]};
+				emit_rect(x + width - diff, y, diff, height, texCoordsOut, texture, color, pipeline);
+			}
+
+			// Result of the intersection is the clipped rect
+			float texCoordsOut[4] = {newUVX, texCoords[1], newUVWidth, texCoords[3]};
+			emit_rect(newX, y, newWidth, height, texCoordsOut, texture, {1.f, 1.f, 1.f, 1.f}, pipeline);
+		}
+	}
+	else {
+		m_textRects.push_back({
+			.x = x,
+			.y = y,
+			.width = width,
+			.height = height,
+			.texCoords = {texCoords[0], texCoords[1], texCoords[2], texCoords[3]},
+			.texture = texture,
+			.color = color,
+			.pipeline = pipeline,
+		});
+	}
 }
 
 void TextBox::emit_rect(float x, float y, float width, float height, const Color& color,
-		PipelineIndex pipeline) {
-	m_textRects.push_back({
-		.x = x,
-		.y = y,
-		.width = width,
-		.height = height,
-		.texture = g_textAtlas->get_default_texture(),
-		.color = color,
-		.pipeline = pipeline,
-	});
+		PipelineIndex pipeline, const Text::Pair<float, float>* pClip) {
+	float texCoords[4] = {0.f, 0.f, 1.f, 1.f};
+	emit_rect(x, y, width, height, texCoords, g_textAtlas->get_default_texture(), color, pipeline, pClip);
 }
 
 // Setters
@@ -646,18 +690,18 @@ static CursorPosition apply_cursor_move(const ParagraphLayout& paragraphLayout, 
 		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor) {
 	switch (op.type) {
 		case PostLayoutCursorMoveType::LINE_START:
-			return paragraphLayout.get_line_start_position(g_lineNumber);
+			return paragraphLayout.get_line_start_position(g_cursorPos.lineNumber);
 		case PostLayoutCursorMoveType::LINE_END:
-			return paragraphLayout.get_line_end_position(g_lineNumber);
+			return paragraphLayout.get_line_end_position(g_cursorPos.lineNumber);
 		case PostLayoutCursorMoveType::LINE_ABOVE:
-			return g_lineNumber > 0
+			return g_cursorPos.lineNumber > 0
 					? paragraphLayout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,
-							g_lineNumber - 1, g_cursorPixelX)
+							g_cursorPos.lineNumber - 1, g_cursorPos.x)
 					: cursor;
 		case PostLayoutCursorMoveType::LINE_BELOW:
-			return g_lineNumber < paragraphLayout.lines.size() - 1
+			return g_cursorPos.lineNumber < paragraphLayout.lines.size() - 1
 					? paragraphLayout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,
-							g_lineNumber + 1, g_cursorPixelX)
+							g_cursorPos.lineNumber + 1, g_cursorPos.x)
 					: cursor;
 		case PostLayoutCursorMoveType::MOUSE_POSITION:
 		{
