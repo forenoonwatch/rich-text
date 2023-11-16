@@ -49,7 +49,10 @@ class TextBox {
 		void set_text_x_alignment(TextXAlignment);
 		void set_text_y_alignment(TextYAlignment);
 		void set_text_wrapped(bool);
+		void set_multi_line(bool);
 		void set_rich_text(bool);
+		void set_editable(bool);
+		void set_selectable(bool);
 
 		bool is_mouse_inside(double mouseX, double mouseY) const;
 		bool is_focused() const;
@@ -65,8 +68,9 @@ class TextBox {
 		TextXAlignment m_textXAlignment{TextXAlignment::LEFT};
 		TextYAlignment m_textYAlignment{TextYAlignment::TOP};
 		bool m_textWrapped = false;
+		bool m_multiLine = true;
 		bool m_richText = false;
-		bool m_editable = false;
+		bool m_editable = true;
 		bool m_selectable = true;
 
 		std::vector<TextRect> m_textRects;
@@ -91,6 +95,12 @@ class TextBox {
 		void cursor_move_to_mouse(double mouseX, double mouseY, bool selectionMode);
 
 		void set_cursor_position_internal(CursorPosition pos, bool selectionMode);
+
+		void handle_key_backspace(bool ctrl);
+		void handle_key_delete(bool ctrl);
+
+		void remove_text(uint32_t startIndex, uint32_t endIndex);
+		void remove_highlighted_text();
 
 		void recalc_text();
 		void recalc_text_internal(bool richText, const void* postLayoutOp);

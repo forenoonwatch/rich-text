@@ -67,6 +67,10 @@ TextBox::~TextBox() {
 }
 
 bool TextBox::handle_mouse_button(int button, int action, int mods, double mouseX, double mouseY) {
+	if (button != GLFW_MOUSE_BUTTON_1) {
+		return false;
+	}
+
 	bool mouseInside = is_mouse_inside(mouseX, mouseY);
 
 	if (action == GLFW_PRESS) {
@@ -175,6 +179,12 @@ bool TextBox::handle_key_press(int key, int action, int mods) {
 					cursor_move_to_line_end(selectionMode);
 				}
 				break;
+			case GLFW_KEY_BACKSPACE:
+				handle_key_backspace(mods & GLFW_MOD_CONTROL);
+				break;
+			case GLFW_KEY_DELETE:
+				handle_key_delete(mods & GLFW_MOD_CONTROL);
+				break;
 			default:
 				break;
 		}
@@ -209,15 +219,7 @@ void TextBox::capture_focus() {
 
 	UErrorCode errc{};
 	g_charBreakIter = icu::BreakIterator::createCharacterInstance(icu::Locale::getDefault(), errc);
-	UText uText UTEXT_INITIALIZER;
-	if (should_focused_use_rich_text()) {
-		utext_openUTF8(&uText, m_contentText.data(), m_contentText.size(), &errc);
-	}
-	else {
-		utext_openUTF8(&uText, m_text.data(), m_text.size(), &errc);
-	}
-	g_charBreakIter->setText(&uText, errc);
-
+	
 	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
@@ -277,7 +279,8 @@ void TextBox::render(const float* invScreenSize) {
 	}
 
 	// Draw Cursor
-	if (is_focused()) {
+	// FIXME: Get proper cursor position for empty text
+	if (is_focused() && !m_text.empty()) {
 		float cursorExtents[] = {m_position[0] + g_cursorPos.x, m_position[1] + g_cursorPos.y, 1,
 				g_cursorPos.height};
 		Color cursorColor{0, 0, 0, 1};
@@ -438,8 +441,68 @@ void TextBox::set_cursor_position_internal(CursorPosition pos, bool selectionMod
 	}
 }
 
+void TextBox::handle_key_backspace(bool ctrl) {
+	if (m_selectionStart.is_valid()) {
+		remove_highlighted_text();
+	}
+	else if (m_cursorPosition.get_position() > 0) {
+		auto endPos = m_cursorPosition.get_position();
+
+		if (ctrl) {
+			cursor_move_to_prev_word(false);
+		}
+		else {
+			cursor_move_to_prev_character(false);
+		}
+
+		remove_text(m_cursorPosition.get_position(), endPos);
+	}
+}
+
+void TextBox::handle_key_delete(bool ctrl) {
+	if (m_selectionStart.is_valid()) {
+		remove_highlighted_text();
+	}
+	else if (m_cursorPosition.get_position() < m_text.size()) {
+		auto startPos = m_cursorPosition;
+
+		if (ctrl) {
+			cursor_move_to_next_word(false);
+		}
+		else {
+			cursor_move_to_next_character(false);
+		}
+
+		auto endPos = m_cursorPosition.get_position();
+		m_cursorPosition = startPos;
+		remove_text(startPos.get_position(), endPos);
+	}
+}
+
+void TextBox::remove_text(uint32_t startIndex, uint32_t endIndex) {
+	auto before = m_text.substr(0, startIndex);
+	auto after = m_text.substr(endIndex);
+	set_text(before + after);
+}
+
+void TextBox::remove_highlighted_text() {
+	auto start = m_selectionStart;
+	auto end = m_cursorPosition;
+
+	if (start == end) {
+		return;
+	}
+	else if (start.get_position() > end.get_position()) {
+		std::swap(start, end);
+	}
+
+	m_cursorPosition = start;
+	m_selectionStart = {CursorPosition::INVALID_VALUE};
+	remove_text(start.get_position(), end.get_position());
+}
+
 void TextBox::recalc_text() {
-	recalc_text_internal(m_richText, nullptr);
+	recalc_text_internal(is_focused() ? should_focused_use_rich_text() : m_richText, nullptr);
 }
 
 void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
@@ -457,14 +520,26 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 		return;
 	}
 
+	if (g_focusedTextBox == this) {
+		UErrorCode errc{};
+		UText uText UTEXT_INITIALIZER;
+		if (should_focused_use_rich_text()) {
+			utext_openUTF8(&uText, m_contentText.data(), m_contentText.size(), &errc);
+		}
+		else {
+			utext_openUTF8(&uText, m_text.data(), m_text.size(), &errc);
+		}
+		g_charBreakIter->setText(&uText, errc);
+	}
+
 	create_text_rects(runs, richText ? m_contentText : m_text, postLayoutOp);
 }
 
 void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::string& text,
 		const void* postLayoutOp) {
 	ParagraphLayout paragraphLayout{};
-	build_paragraph_layout_utf8(paragraphLayout, text.data(), text.size(), textInfo.fontRuns, m_size[0],
-			m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);
+	build_paragraph_layout_utf8(paragraphLayout, text.data(), text.size(), textInfo.fontRuns,
+			m_multiLine ? m_size[0] : 0.f, m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);
 
 	if (postLayoutOp) {
 		set_cursor_position_internal(apply_cursor_move(paragraphLayout, m_size[0], m_textXAlignment,
@@ -740,9 +815,22 @@ void TextBox::set_text_wrapped(bool wrapped) {
 	recalc_text();
 }
 
+void TextBox::set_multi_line(bool multiLine) {
+	m_multiLine = multiLine;
+	recalc_text();
+}
+
 void TextBox::set_rich_text(bool richText) {
 	m_richText = richText;
 	recalc_text();
+}
+
+void TextBox::set_editable(bool editable) {
+	m_editable = editable;
+}
+
+void TextBox::set_selectable(bool selectable) {
+	m_selectable = selectable;
 }
 
 // Static Functions
