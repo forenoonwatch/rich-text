@@ -46,6 +46,7 @@ static constexpr const UChar32 CH_PSEP = 0x2029;
 static icu::BreakIterator* g_charBreakIter = nullptr;
 static TextBox* g_focusedTextBox = nullptr;
 static CursorPositionResult g_cursorPos{};
+static bool g_isMouseDown = false;
 
 static CursorPosition apply_cursor_move(const ParagraphLayout& paragraphLayout, float textWidth,
 		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor);
@@ -61,26 +62,33 @@ TextBox::~TextBox() {
 }
 
 bool TextBox::handle_mouse_button(int button, int action, int mods, double mouseX, double mouseY) {
-	if (action == GLFW_RELEASE) {
-		return false;
-	}
-
 	bool mouseInside = is_mouse_inside(mouseX, mouseY);
 
-	if (g_focusedTextBox == this) {
-		if (is_mouse_inside(mouseX, mouseY)) {
-			cursor_move_to_mouse(mouseX - m_position[0], mouseY - m_position[1], mods & GLFW_MOD_SHIFT);
+	if (action == GLFW_PRESS) {
+		if (g_focusedTextBox == this) {
+			if (mouseInside) {
+				cursor_move_to_mouse(mouseX - m_position[0], mouseY - m_position[1], mods & GLFW_MOD_SHIFT);
+			}
+			else {
+				release_focus();
+			}
 		}
 		else {
-			release_focus();
+			capture_focus();
+			cursor_move_to_mouse(mouseX - m_position[0], mouseY - m_position[1], mods & GLFW_MOD_SHIFT);
+		}
+
+		g_isMouseDown = true;
+
+		return mouseInside;
+	}
+	else if (action == GLFW_RELEASE) {
+		if (g_focusedTextBox == this) {
+			g_isMouseDown = false;
 		}
 	}
-	else {
-		capture_focus();
-		cursor_move_to_mouse(mouseX - m_position[0], mouseY - m_position[1], mods & GLFW_MOD_SHIFT);
-	}
 
-	return mouseInside;
+	return false;
 }
 
 bool TextBox::handle_key_press(int key, int action, int mods) {
@@ -140,6 +148,14 @@ bool TextBox::handle_key_press(int key, int action, int mods) {
 	return false;
 }
 
+bool TextBox::handle_mouse_move(double mouseX, double mouseY) {
+	if (g_focusedTextBox == this && g_isMouseDown) {
+		cursor_move_to_mouse(mouseX - m_position[0], mouseY - m_position[1], true);
+	}
+
+	return false;
+}
+
 bool TextBox::handle_text_input(unsigned codepoint) {
 	return g_focusedTextBox == this;
 }
@@ -170,6 +186,7 @@ void TextBox::release_focus() {
 
 	delete g_charBreakIter;
 	g_focusedTextBox = nullptr;
+	g_isMouseDown = false;
 
 	m_selectionStart = {CursorPosition::INVALID_VALUE};
 

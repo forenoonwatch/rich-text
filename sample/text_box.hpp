@@ -34,6 +34,7 @@ class TextBox {
 
 		bool handle_mouse_button(int button, int action, int mods, double mouseX, double mouseY);
 		bool handle_key_press(int key, int action, int mods);
+		bool handle_mouse_move(double mouseX, double mouseY);
 		bool handle_text_input(unsigned codepoint);
 
 		void capture_focus();

@@ -20,6 +20,7 @@ static int g_height = 480;
 
 static void on_key_event(GLFWwindow* window, int key, int scancode, int action, int mods);
 static void on_mouse_button_event(GLFWwindow* window, int button, int action, int mods);
+static void on_mouse_move_event(GLFWwindow* window, double xPos, double yPos);
 static void on_text_event(GLFWwindow* window, unsigned codepoint);
 static void on_focus_event(GLFWwindow* window, int focused);
 static void on_resize(GLFWwindow* window, int width, int height);
@@ -79,6 +80,7 @@ int main() {
 
 	glfwSetKeyCallback(window, on_key_event);
 	glfwSetMouseButtonCallback(window, on_mouse_button_event);
+	glfwSetCursorPosCallback(window, on_mouse_move_event);
 	glfwSetCharCallback(window, on_text_event);
 	glfwSetWindowFocusCallback(window, on_focus_event);
 	glfwSetFramebufferSizeCallback(window, on_resize);
@@ -113,6 +115,10 @@ static void on_mouse_button_event(GLFWwindow* window, int button, int action, in
 	glfwGetCursorPos(window, &mouseX, &mouseY);
 
 	g_textBox->handle_mouse_button(button, action, mods, mouseX, mouseY);
+}
+
+static void on_mouse_move_event(GLFWwindow* window, double xPos, double yPos) {
+	g_textBox->handle_mouse_move(xPos, yPos);
 }
 
 static void on_text_event(GLFWwindow* window, unsigned codepoint) {
