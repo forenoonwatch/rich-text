@@ -14,6 +14,8 @@ set(MSDFGEN_USE_OPENMP OFF CACHE BOOL "")
 set(MSDFGEN_USE_SKIA OFF CACHE BOOL "")
 set(MSDFGEN_USE_VCPKG OFF CACHE BOOL "")
 
+set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "")
+
 add_subdirectory(benchmark)
 add_subdirectory(Catch2)
 add_subdirectory(freetype)
