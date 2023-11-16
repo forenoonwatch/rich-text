@@ -42,5 +42,13 @@ struct CursorPosition {
 	constexpr bool is_valid() const {
 		return data != INVALID_VALUE;
 	}
+
+	constexpr bool operator==(const CursorPosition& other) const {
+		return data == other.data;
+	}
+
+	constexpr bool operator!=(const CursorPosition& other) const {
+		return !(*this == other);
+	}
 };
 

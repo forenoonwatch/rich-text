@@ -38,6 +38,8 @@ struct CursorToMouse : public PostLayoutCursorMove {
 
 }
 
+static constexpr const double DOUBLE_CLICK_TIME = 0.5;
+
 static constexpr const UChar32 CH_LF = 0x000A;
 static constexpr const UChar32 CH_CR = 0x000D;
 static constexpr const UChar32 CH_LSEP = 0x2028;
@@ -47,6 +49,9 @@ static icu::BreakIterator* g_charBreakIter = nullptr;
 static TextBox* g_focusedTextBox = nullptr;
 static CursorPositionResult g_cursorPos{};
 static bool g_isMouseDown = false;
+static double g_lastClickTime = 0.0;
+static uint32_t g_clickCount = 0;
+static CursorPosition g_lastClickPos{CursorPosition::INVALID_VALUE};
 
 static CursorPosition apply_cursor_move(const ParagraphLayout& paragraphLayout, float textWidth,
 		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor);
@@ -68,6 +73,38 @@ bool TextBox::handle_mouse_button(int button, int action, int mods, double mouse
 		if (g_focusedTextBox == this) {
 			if (mouseInside) {
 				cursor_move_to_mouse(mouseX - m_position[0], mouseY - m_position[1], mods & GLFW_MOD_SHIFT);
+
+				auto time = glfwGetTime();
+
+				if (m_cursorPosition == g_lastClickPos && time - g_lastClickTime <= DOUBLE_CLICK_TIME) {
+					++g_clickCount;
+				}
+				else {
+					g_clickCount = 0;
+				}
+
+				g_lastClickTime = time;
+				g_lastClickPos = m_cursorPosition;
+
+				switch (g_clickCount % 4) {
+					// Highlight Current Word
+					case 1:
+						cursor_move_to_prev_word(false);
+						cursor_move_to_next_word(true);
+						break;
+					// Highlight Current Line
+					case 2:
+						cursor_move_to_line_start(false);
+						cursor_move_to_line_end(true);
+						break;
+					// Highlight Whole Text
+					case 3:
+						cursor_move_to_text_start(false);
+						cursor_move_to_text_end(true);
+						break;
+					default:
+						break;
+				}
 			}
 			else {
 				release_focus();
@@ -173,7 +210,12 @@ void TextBox::capture_focus() {
 	UErrorCode errc{};
 	g_charBreakIter = icu::BreakIterator::createCharacterInstance(icu::Locale::getDefault(), errc);
 	UText uText UTEXT_INITIALIZER;
-	utext_openUTF8(&uText, m_text.data(), m_text.size(), &errc);
+	if (should_focused_use_rich_text()) {
+		utext_openUTF8(&uText, m_contentText.data(), m_contentText.size(), &errc);
+	}
+	else {
+		utext_openUTF8(&uText, m_text.data(), m_text.size(), &errc);
+	}
 	g_charBreakIter->setText(&uText, errc);
 
 	recalc_text_internal(should_focused_use_rich_text(), nullptr);
@@ -187,6 +229,8 @@ void TextBox::release_focus() {
 	delete g_charBreakIter;
 	g_focusedTextBox = nullptr;
 	g_isMouseDown = false;
+	g_clickCount = 0;
+	g_lastClickPos = {CursorPosition::INVALID_VALUE};
 
 	m_selectionStart = {CursorPosition::INVALID_VALUE};
 
