@@ -203,6 +203,12 @@ bool TextBox::handle_key_press(int key, int action, int mods) {
 					clipboard_paste_text();
 				}
 				break;
+			case GLFW_KEY_A:
+				if (mods & GLFW_MOD_CONTROL) {
+					cursor_move_to_text_start(false);
+					cursor_move_to_text_end(true);
+				}
+				break;
 			default:
 				break;
 		}
