@@ -309,8 +309,7 @@ void TextBox::render(const float* invScreenSize) {
 	}
 
 	// Draw Cursor
-	// FIXME: Get proper cursor position for empty text
-	if (is_focused() && !m_text.empty()) {
+	if (is_focused()) {
 		float cursorExtents[] = {m_position[0] + g_cursorPos.x, m_position[1] + g_cursorPos.y, 1,
 				g_cursorPos.height};
 		Color cursorColor{0, 0, 0, 1};
@@ -598,6 +597,11 @@ void TextBox::recalc_text() {
 void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 	m_textRects.clear();
 
+	g_cursorPos.x = 0.f;
+	g_cursorPos.y = 0.f;
+	g_cursorPos.height = 0.f;
+	g_cursorPos.lineNumber = 0;
+
 	if (!m_font) {
 		return;
 	}
@@ -607,6 +611,7 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 			: Text::make_default_formatting_runs(m_text, m_contentText, m_font, m_textColor, strokeState);
 
 	if (m_contentText.empty()) {
+		g_cursorPos.height = static_cast<float>(m_font.getAscent() + m_font.getDescent());
 		return;
 	}
 
