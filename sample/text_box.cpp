@@ -185,6 +185,9 @@ bool TextBox::handle_key_press(int key, int action, int mods) {
 			case GLFW_KEY_DELETE:
 				handle_key_delete(mods & GLFW_MOD_CONTROL);
 				break;
+			case GLFW_KEY_ENTER:
+				handle_key_enter();
+				break;
 			case GLFW_KEY_X:
 				if (mods & GLFW_MOD_CONTROL) {
 					clipboard_cut_text();
@@ -503,6 +506,16 @@ void TextBox::handle_key_delete(bool ctrl) {
 		auto endPos = m_cursorPosition.get_position();
 		m_cursorPosition = startPos;
 		remove_text(startPos.get_position(), endPos);
+	}
+}
+
+void TextBox::handle_key_enter() {
+	if (m_multiLine) {
+		remove_highlighted_text();
+		insert_text("\n", m_cursorPosition.get_position());
+	}
+	else {
+		release_focus();
 	}
 }
 

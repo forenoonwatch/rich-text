@@ -98,6 +98,7 @@ class TextBox {
 
 		void handle_key_backspace(bool ctrl);
 		void handle_key_delete(bool ctrl);
+		void handle_key_enter();
 
 		void clipboard_cut_text();
 		void clipboard_copy_text();
