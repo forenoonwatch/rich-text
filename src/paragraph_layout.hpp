@@ -21,7 +21,7 @@ enum class ParagraphLayoutFlags : uint8_t {
 	VERTICAL = 4, // Whether the text is composed vertically. Leave unset for horizontal text.
 };
 
-ZN_DEFINE_ENUM_BITFLAG_OPERATORS(ParagraphLayoutFlags)
+RICHTEXT_DEFINE_ENUM_BITFLAG_OPERATORS(ParagraphLayoutFlags)
 
 struct CursorPositionResult {
 	float x;

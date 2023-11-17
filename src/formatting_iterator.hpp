@@ -15,7 +15,7 @@ enum class FormattingEvent : uint32_t {
 	UNDERLINE_END = 8,
 };
 
-ZN_DEFINE_ENUM_BITFLAG_OPERATORS(FormattingEvent)
+RICHTEXT_DEFINE_ENUM_BITFLAG_OPERATORS(FormattingEvent)
 
 class FormattingIterator {
 	public:
