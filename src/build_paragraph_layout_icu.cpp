@@ -86,7 +86,7 @@ static void append_visual_run(LayoutBuildState& state, ParagraphLayout& result, 
 
 // Public Functions
 
-void build_paragraph_layout_icu(ParagraphLayout& result, const char16_t* chars, int32_t count,
+void Text::build_paragraph_layout_icu(ParagraphLayout& result, const char16_t* chars, int32_t count,
 		const ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, ParagraphLayoutFlags flags) {
 	LayoutBuildState state{};

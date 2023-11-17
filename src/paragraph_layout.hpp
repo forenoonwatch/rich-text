@@ -14,6 +14,8 @@ namespace icu_73 { class BreakIterator; }
 
 class MultiScriptFont;
 
+namespace Text {
+
 enum class ParagraphLayoutFlags : uint8_t {
 	NONE = 0,
 	RIGHT_TO_LEFT = 1, // Whether the text direction default should be RTL. Leave unset to default to LTR
@@ -160,8 +162,10 @@ void build_paragraph_layout_utf8(ParagraphLayout& result, const char* chars, int
 void convert_paragraph_layout_to_utf8(ParagraphLayout& result, const char16_t* srcChars, int32_t srcCharCount,
 		const char* dstChars, int32_t dstCharCount);
 
+}
+
 template <typename Functor>
-void ParagraphLayout::for_each_line(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
+void Text::ParagraphLayout::for_each_line(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
 	auto lineY = lines.front().ascent;
 
 	for (size_t i = 0; i < lines.size(); ++i) {
@@ -172,7 +176,7 @@ void ParagraphLayout::for_each_line(float textWidth, TextXAlignment textXAlignme
 }
 
 template <typename Functor>
-void ParagraphLayout::for_each_run(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
+void Text::ParagraphLayout::for_each_run(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
 	uint32_t runIndex{};
 
 	for_each_line(textWidth, textXAlignment, [&](auto lineIndex, auto lineX, auto lineY) {
@@ -183,7 +187,7 @@ void ParagraphLayout::for_each_run(float textWidth, TextXAlignment textXAlignmen
 }
 
 template <typename Functor>
-void ParagraphLayout::for_each_glyph(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
+void Text::ParagraphLayout::for_each_glyph(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
 	uint32_t glyphIndex{};
 	uint32_t glyphPosIndex{};
 

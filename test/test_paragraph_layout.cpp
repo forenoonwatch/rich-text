@@ -18,14 +18,14 @@ static constexpr const char* g_testStrings[] = {
 	"beffiإلابسم اللهffter\r\nbeffiإلابسم اللهffter",
 	"beffiإلابسم الله\r\nhello",
 	//"	 ̈‫ aaa ‭ אאא ‮ aaa ‪ אאא ‬ aaa ‬ ااا ‬ aaa ‬ aaa ‬&‬‌‌&‬",
-	//"aaa⁧אאא⁦bbb‫בבב‬ccc⁩גגג",
+	//"aaa\u2067אאא\u2066bbb\u202bבבב\u202cccc\u2069גגג",
 };
 
 static void init_font_cache();
 
 static void test_lx_vs_icu(const MultiScriptFont& font, const char* str, float width);
 static void test_lx_vs_utf8(const MultiScriptFont& font, const char* str, float width);
-static void test_compare_layouts(const ParagraphLayout& lxLayout, const ParagraphLayout& icuLayout);
+static void test_compare_layouts(const Text::ParagraphLayout& lxLayout, const Text::ParagraphLayout& icuLayout);
 
 TEST_CASE("ICU UTF-16", "[ParagraphLayout]") {
 	init_font_cache();
@@ -77,13 +77,13 @@ static void test_lx_vs_icu(const MultiScriptFont& font, const char* str, float w
 	icu::UnicodeString text(str);
 	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, text.length());
 
-	ParagraphLayout lxLayout{};
+	Text::ParagraphLayout lxLayout{};
 	build_paragraph_layout_icu_lx(lxLayout, text.getBuffer(), text.length(), fontRuns, width, 100.f,
-			TextYAlignment::BOTTOM, ParagraphLayoutFlags::NONE);
+			TextYAlignment::BOTTOM, Text::ParagraphLayoutFlags::NONE);
 
-	ParagraphLayout icuLayout{};
+	Text::ParagraphLayout icuLayout{};
 	build_paragraph_layout_icu(icuLayout, text.getBuffer(), text.length(), fontRuns, width, 100.f,
-			TextYAlignment::BOTTOM, ParagraphLayoutFlags::NONE);
+			TextYAlignment::BOTTOM, Text::ParagraphLayoutFlags::NONE);
 
 	test_compare_layouts(lxLayout, icuLayout);
 }
@@ -94,19 +94,19 @@ static void test_lx_vs_utf8(const MultiScriptFont& font, const char* str, float 
 	Text::ValueRuns<const MultiScriptFont*> fontRuns8(&font, count);
 	Text::ValueRuns<const MultiScriptFont*> fontRuns16(&font, text.length());
 
-	ParagraphLayout lxLayout{};
+	Text::ParagraphLayout lxLayout{};
 	build_paragraph_layout_icu_lx(lxLayout, text.getBuffer(), text.length(), fontRuns16, width, 100.f,
-			TextYAlignment::BOTTOM, ParagraphLayoutFlags::NONE);
+			TextYAlignment::BOTTOM, Text::ParagraphLayoutFlags::NONE);
 	convert_paragraph_layout_to_utf8(lxLayout, text.getBuffer(), text.length(), str, count);
 
-	ParagraphLayout utf8Layout{};
+	Text::ParagraphLayout utf8Layout{};
 	build_paragraph_layout_utf8(utf8Layout, str, count, fontRuns8, width, 100.f, TextYAlignment::BOTTOM,
-			ParagraphLayoutFlags::NONE);
+			Text::ParagraphLayoutFlags::NONE);
 
 	test_compare_layouts(lxLayout, utf8Layout);
 }
 
-static void test_compare_layouts(const ParagraphLayout& lxLayout, const ParagraphLayout& icuLayout) {
+static void test_compare_layouts(const Text::ParagraphLayout& lxLayout, const Text::ParagraphLayout& icuLayout) {
 	REQUIRE(lxLayout.visualRuns.size() == icuLayout.visualRuns.size());
 	REQUIRE(lxLayout.glyphs.size() == icuLayout.glyphs.size());
 	REQUIRE(lxLayout.charIndices.size() == icuLayout.charIndices.size());

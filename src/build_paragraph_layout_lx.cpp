@@ -19,7 +19,7 @@ static void handle_line_icu_lx(ParagraphLayout& result, icu::ParagraphLayout::Li
 
 // Public Functions
 
-void build_paragraph_layout_icu_lx(ParagraphLayout& result, const char16_t* chars, int32_t count,
+void Text::build_paragraph_layout_icu_lx(ParagraphLayout& result, const char16_t* chars, int32_t count,
 		const ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, ParagraphLayoutFlags flags) {
 	ValueRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_run_count());

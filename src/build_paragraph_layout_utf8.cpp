@@ -54,8 +54,8 @@ struct LogicalRun {
 
 // FIXME: Using `stringOffset` is a bit cumbersome, refactor this logic to have full view of the string
 static size_t build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result, SBParagraphRef sbParagraph,
-		const char* chars, int32_t count, int32_t stringOffset, const ValueRuns<const MultiScriptFont*>& fontRuns,
-		int32_t fixedWidth);
+		const char* chars, int32_t count, int32_t stringOffset,
+		const ValueRuns<const MultiScriptFont*>& fontRuns, int32_t fixedWidth);
 
 static ValueRuns<SBLevel> compute_levels(SBParagraphRef sbParagraph, size_t paragraphLength);
 static ValueRuns<UScriptCode> compute_scripts(const char* chars, int32_t count);
@@ -77,7 +77,7 @@ static void append_visual_run(LayoutBuildState& state, ParagraphLayout& result, 
 
 // Public Functions
 
-void build_paragraph_layout_utf8(ParagraphLayout& result, const char* chars, int32_t count,
+void Text::build_paragraph_layout_utf8(ParagraphLayout& result, const char* chars, int32_t count,
 		const ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, ParagraphLayoutFlags flags) {
 	LayoutBuildState state{};
@@ -150,8 +150,8 @@ void build_paragraph_layout_utf8(ParagraphLayout& result, const char* chars, int
 // Static Functions
 
 static size_t build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result, SBParagraphRef sbParagraph,
-		const char* chars, int32_t count, int32_t stringOffset, const ValueRuns<const MultiScriptFont*>& fontRuns,
-		int32_t textAreaWidth) {
+		const char* chars, int32_t count, int32_t stringOffset, 
+		const ValueRuns<const MultiScriptFont*>& fontRuns, int32_t textAreaWidth) {
 	auto levelRuns = compute_levels(sbParagraph, count);
 	auto scriptRuns = compute_scripts(chars, count);
 	ValueRuns<const icu::Locale*> localeRuns(&icu::Locale::getDefault(), count);

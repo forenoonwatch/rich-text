@@ -1,6 +1,8 @@
 #include "paragraph_layout.hpp"
 #include "utf_conversion_util.hpp"
 
+using namespace Text;
+
 static void convert_char_indices(std::vector<uint32_t>& charIndices, const char16_t* srcChars,
 		int32_t srcCharCount, const char* dstChars, int32_t dstCharCount);
 static void convert_runs(std::vector<VisualRun>& runs, const char16_t* srcChars,
@@ -8,8 +10,8 @@ static void convert_runs(std::vector<VisualRun>& runs, const char16_t* srcChars,
 
 // Public Functions
 
-void convert_paragraph_layout_to_utf8(ParagraphLayout& result, const char16_t* srcChars, int32_t srcCharCount,
-		const char* dstChars, int32_t dstCharCount) {
+void Text::convert_paragraph_layout_to_utf8(ParagraphLayout& result, const char16_t* srcChars,
+		int32_t srcCharCount, const char* dstChars, int32_t dstCharCount) {
 	convert_char_indices(result.charIndices, srcChars, srcCharCount, dstChars, dstCharCount);
 	convert_runs(result.visualRuns, srcChars, srcCharCount, dstChars, dstCharCount);
 }
