@@ -185,6 +185,21 @@ bool TextBox::handle_key_press(int key, int action, int mods) {
 			case GLFW_KEY_DELETE:
 				handle_key_delete(mods & GLFW_MOD_CONTROL);
 				break;
+			case GLFW_KEY_X:
+				if (mods & GLFW_MOD_CONTROL) {
+					clipboard_cut_text();
+				}
+				break;
+			case GLFW_KEY_C:
+				if (mods & GLFW_MOD_CONTROL) {
+					clipboard_copy_text();
+				}
+				break;
+			case GLFW_KEY_V:
+				if (mods & GLFW_MOD_CONTROL) {
+					clipboard_paste_text();
+				}
+				break;
 			default:
 				break;
 		}
@@ -491,6 +506,43 @@ void TextBox::handle_key_delete(bool ctrl) {
 	}
 }
 
+void TextBox::clipboard_cut_text() {
+	if (!m_editable) {
+		return;
+	}
+
+	clipboard_copy_text();
+	remove_highlighted_text();
+}
+
+void TextBox::clipboard_copy_text() {
+	if (!m_selectionStart.is_valid()) {
+		return;
+	}
+
+	auto startPos = m_selectionStart.get_position();
+	auto endPos = m_cursorPosition.get_position();
+
+	if (startPos == endPos) {
+		return;
+	}
+	else if (startPos > endPos) {
+		std::swap(startPos, endPos);
+	}
+
+	auto str = m_text.substr(startPos, endPos - startPos);
+	glfwSetClipboardString(NULL, str.c_str());
+}
+
+void TextBox::clipboard_paste_text() {
+	if (!m_editable) {
+		return;
+	}
+
+	remove_highlighted_text();
+	insert_text(glfwGetClipboardString(NULL), m_cursorPosition.get_position());
+}
+
 void TextBox::insert_text(const std::string& text, uint32_t startIndex) {
 	m_cursorPosition = {static_cast<uint32_t>(m_cursorPosition.get_position() + text.size())};
 
@@ -514,7 +566,7 @@ void TextBox::remove_highlighted_text() {
 	auto start = m_selectionStart;
 	auto end = m_cursorPosition;
 
-	if (start == end) {
+	if (start == end || !start.is_valid()) {
 		return;
 	}
 	else if (start.get_position() > end.get_position()) {
@@ -564,7 +616,7 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 		const void* postLayoutOp) {
 	ParagraphLayout paragraphLayout{};
 	build_paragraph_layout_utf8(paragraphLayout, text.data(), text.size(), textInfo.fontRuns,
-			m_multiLine ? m_size[0] : 0.f, m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);
+			m_textWrapped ? m_size[0] : 0.f, m_size[1], m_textYAlignment, ParagraphLayoutFlags::NONE);
 
 	if (postLayoutOp) {
 		set_cursor_position_internal(apply_cursor_move(paragraphLayout, m_size[0], m_textXAlignment,
@@ -842,7 +894,6 @@ void TextBox::set_text_wrapped(bool wrapped) {
 
 void TextBox::set_multi_line(bool multiLine) {
 	m_multiLine = multiLine;
-	recalc_text();
 }
 
 void TextBox::set_rich_text(bool richText) {

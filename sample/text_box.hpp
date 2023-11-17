@@ -67,7 +67,7 @@ class TextBox {
 		CursorPosition m_selectionStart{CursorPosition::INVALID_VALUE};
 		TextXAlignment m_textXAlignment{TextXAlignment::LEFT};
 		TextYAlignment m_textYAlignment{TextYAlignment::TOP};
-		bool m_textWrapped = false;
+		bool m_textWrapped = true;
 		bool m_multiLine = true;
 		bool m_richText = false;
 		bool m_editable = true;
@@ -98,6 +98,10 @@ class TextBox {
 
 		void handle_key_backspace(bool ctrl);
 		void handle_key_delete(bool ctrl);
+
+		void clipboard_cut_text();
+		void clipboard_copy_text();
+		void clipboard_paste_text();
 
 		void insert_text(const std::string& text, uint32_t startIndex);
 		void remove_text(uint32_t startIndex, uint32_t endIndex);
