@@ -390,6 +390,7 @@ FontAttributes FormattingParser::parse_font_attributes() {
 				return result;
 			default:
 				raise_error();
+				return result;
 		}
 	}
 
@@ -477,6 +478,7 @@ StrokeState FormattingParser::parse_stroke_attributes() {
 				return result;
 			default:
 				raise_error();
+				return result;
 		}
 	}
 
@@ -677,7 +679,7 @@ bool FormattingParser::consume_word(std::string_view word) {
 }
 
 char FormattingParser::next_char() {
-	return m_iter == m_end ? SENTINEL : *(m_iter++);
+	return m_iter >= m_end ? SENTINEL : *(m_iter++);
 }
 
 int32_t FormattingParser::get_current_string_index() const {
