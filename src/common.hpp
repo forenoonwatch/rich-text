@@ -27,3 +27,12 @@
 	RICHTEXT_DEFINE_ASSIGNMENT_ENUM_OPERATOR(Enum, Enum, |)											\
 	RICHTEXT_DEFINE_ASSIGNMENT_ENUM_OPERATOR(Enum, Enum, &)											\
 
+#if defined(__GNUC__) || defined(__clang__)
+#define RICHTEXT_UNREACHABLE() __builtin_unreachable()
+#elif defined(_MSC_VER)
+#define RICHTEXT_UNREACHABLE() __assume(false)
+#else
+#include <cassert>
+#define RICHTEXT_UNREACHABLE() assert(0)
+#endif
+

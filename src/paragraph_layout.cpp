@@ -118,8 +118,7 @@ float ParagraphLayout::get_line_x_start(size_t lineNumber, float textWidth, Text
 			return 0.5f * (textWidth - lineWidth);
 	}
 
-	// FIXME: Assert unreachable
-	return 0.f;
+	RICHTEXT_UNREACHABLE();
 }
 
 CursorPosition ParagraphLayout::find_closest_cursor_position(float textWidth, TextXAlignment textXAlignment,
@@ -225,8 +224,7 @@ CursorPosition ParagraphLayout::find_closest_cursor_position(float textWidth, Te
 		currPos = nextPos;
 	}
 
-	// FIXME: Assert unreachable
-	return {clusterStartChar};
+	RICHTEXT_UNREACHABLE();
 }
 
 bool ParagraphLayout::run_contains_char_range(size_t runIndex, uint32_t firstCharIndex,
