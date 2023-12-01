@@ -62,7 +62,6 @@ struct LayoutInfo {
 	std::vector<uint32_t> charIndices;
 	std::vector<float> glyphPositions;
 	float textStartY;
-	bool rightToLeft;
 
 	/**
 	 * Calculates the pixel position, height, and line number of the text cursor given the provided

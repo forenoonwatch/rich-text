@@ -143,6 +143,5 @@ static void test_compare_layouts(const Text::LayoutInfo& lxLayout, const Text::L
 	}
 
 	REQUIRE(lxLayout.textStartY == icuLayout.textStartY);
-	REQUIRE(lxLayout.rightToLeft == icuLayout.rightToLeft);
 }
 

@@ -111,7 +111,7 @@ float LayoutInfo::get_line_x_start(size_t lineNumber, float textWidth, TextXAlig
 
 	switch (align) {
 		case TextXAlignment::LEFT:
-			return rightToLeft ? textWidth - lineWidth : 0.f;
+			return 0.f;
 		case TextXAlignment::RIGHT:
 			return textWidth - lineWidth;
 		case TextXAlignment::CENTER:
