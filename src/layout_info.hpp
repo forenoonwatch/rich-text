@@ -9,8 +9,13 @@
 
 #include <cstdint>
 
-// FIXME: Find the header where ICU declares its namespace
-namespace icu_73 { class BreakIterator; }
+#include <unicode/uversion.h>
+
+U_NAMESPACE_BEGIN
+
+class BreakIterator;
+
+U_NAMESPACE_END
 
 class MultiScriptFont;
 
@@ -91,7 +96,7 @@ struct LayoutInfo {
 	CursorPosition get_line_start_position(size_t lineIndex) const;
 	CursorPosition get_line_end_position(size_t lineIndex) const;
 
-	CursorPosition find_closest_cursor_position(float textWidth, TextXAlignment, icu_73::BreakIterator&,
+	CursorPosition find_closest_cursor_position(float textWidth, TextXAlignment, icu::BreakIterator&,
 			size_t lineNumber, float cursorX) const;
 
 	float get_line_x_start(size_t lineIndex, float textWidth, TextXAlignment) const;
