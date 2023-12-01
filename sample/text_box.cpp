@@ -8,7 +8,7 @@
 #include "msdf_text_atlas.hpp"
 #include "formatting.hpp"
 #include "formatting_iterator.hpp"
-#include "paragraph_layout.hpp"
+#include "layout_info.hpp"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -53,7 +53,7 @@ static double g_lastClickTime = 0.0;
 static uint32_t g_clickCount = 0;
 static CursorPosition g_lastClickPos{CursorPosition::INVALID_VALUE};
 
-static CursorPosition apply_cursor_move(const Text::ParagraphLayout& paragraphLayout, float textWidth,
+static CursorPosition apply_cursor_move(const Text::LayoutInfo& paragraphLayout, float textWidth,
 		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor);
 
 static bool is_line_break(UChar32 c);
@@ -638,9 +638,9 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 
 void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::string& text,
 		const void* postLayoutOp) {
-	Text::ParagraphLayout paragraphLayout{};
-	Text::build_paragraph_layout_utf8(paragraphLayout, text.data(), text.size(), textInfo.fontRuns,
-			m_textWrapped ? m_size[0] : 0.f, m_size[1], m_textYAlignment, Text::ParagraphLayoutFlags::NONE);
+	Text::LayoutInfo paragraphLayout{};
+	Text::build_layout_info_utf8(paragraphLayout, text.data(), text.size(), textInfo.fontRuns,
+			m_textWrapped ? m_size[0] : 0.f, m_size[1], m_textYAlignment, Text::LayoutInfoFlags::NONE);
 
 	if (postLayoutOp) {
 		set_cursor_position_internal(apply_cursor_move(paragraphLayout, m_size[0], m_textXAlignment,
@@ -935,7 +935,7 @@ void TextBox::set_selectable(bool selectable) {
 
 // Static Functions
 
-static CursorPosition apply_cursor_move(const Text::ParagraphLayout& paragraphLayout, float textWidth,
+static CursorPosition apply_cursor_move(const Text::LayoutInfo& paragraphLayout, float textWidth,
 		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor) {
 	switch (op.type) {
 		case PostLayoutCursorMoveType::LINE_START:

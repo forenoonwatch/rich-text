@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <font_cache.hpp>
-#include <paragraph_layout.hpp>
+#include <layout_info.hpp>
 
 #include <unicode/unistr.h>
 
@@ -25,9 +25,9 @@ static void init_font_cache();
 
 static void test_lx_vs_icu(const MultiScriptFont& font, const char* str, float width);
 static void test_lx_vs_utf8(const MultiScriptFont& font, const char* str, float width);
-static void test_compare_layouts(const Text::ParagraphLayout& lxLayout, const Text::ParagraphLayout& icuLayout);
+static void test_compare_layouts(const Text::LayoutInfo& lxLayout, const Text::LayoutInfo& icuLayout);
 
-TEST_CASE("ICU UTF-16", "[ParagraphLayout]") {
+TEST_CASE("ICU UTF-16", "[LayoutInfo]") {
 	init_font_cache();
 	auto famIdx = g_fontCache->get_font_family("Noto Sans"); 
 	auto font = g_fontCache->get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
@@ -45,7 +45,7 @@ TEST_CASE("ICU UTF-16", "[ParagraphLayout]") {
 	}
 }
 
-TEST_CASE("ICU UTF-8", "[ParagraphLayout]") {
+TEST_CASE("ICU UTF-8", "[LayoutInfo]") {
 	init_font_cache();
 	auto famIdx = g_fontCache->get_font_family("Noto Sans"); 
 	auto font = g_fontCache->get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
@@ -77,13 +77,13 @@ static void test_lx_vs_icu(const MultiScriptFont& font, const char* str, float w
 	icu::UnicodeString text(str);
 	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, text.length());
 
-	Text::ParagraphLayout lxLayout{};
-	build_paragraph_layout_icu_lx(lxLayout, text.getBuffer(), text.length(), fontRuns, width, 100.f,
-			TextYAlignment::BOTTOM, Text::ParagraphLayoutFlags::NONE);
+	Text::LayoutInfo lxLayout{};
+	build_layout_info_icu_lx(lxLayout, text.getBuffer(), text.length(), fontRuns, width, 100.f,
+			TextYAlignment::BOTTOM, Text::LayoutInfoFlags::NONE);
 
-	Text::ParagraphLayout icuLayout{};
-	build_paragraph_layout_icu(icuLayout, text.getBuffer(), text.length(), fontRuns, width, 100.f,
-			TextYAlignment::BOTTOM, Text::ParagraphLayoutFlags::NONE);
+	Text::LayoutInfo icuLayout{};
+	build_layout_info_icu(icuLayout, text.getBuffer(), text.length(), fontRuns, width, 100.f,
+			TextYAlignment::BOTTOM, Text::LayoutInfoFlags::NONE);
 
 	test_compare_layouts(lxLayout, icuLayout);
 }
@@ -94,19 +94,19 @@ static void test_lx_vs_utf8(const MultiScriptFont& font, const char* str, float 
 	Text::ValueRuns<const MultiScriptFont*> fontRuns8(&font, count);
 	Text::ValueRuns<const MultiScriptFont*> fontRuns16(&font, text.length());
 
-	Text::ParagraphLayout lxLayout{};
-	build_paragraph_layout_icu_lx(lxLayout, text.getBuffer(), text.length(), fontRuns16, width, 100.f,
-			TextYAlignment::BOTTOM, Text::ParagraphLayoutFlags::NONE);
-	convert_paragraph_layout_to_utf8(lxLayout, text.getBuffer(), text.length(), str, count);
+	Text::LayoutInfo lxLayout{};
+	build_layout_info_icu_lx(lxLayout, text.getBuffer(), text.length(), fontRuns16, width, 100.f,
+			TextYAlignment::BOTTOM, Text::LayoutInfoFlags::NONE);
+	convert_layout_info_to_utf8(lxLayout, text.getBuffer(), text.length(), str, count);
 
-	Text::ParagraphLayout utf8Layout{};
-	build_paragraph_layout_utf8(utf8Layout, str, count, fontRuns8, width, 100.f, TextYAlignment::BOTTOM,
-			Text::ParagraphLayoutFlags::NONE);
+	Text::LayoutInfo utf8Layout{};
+	build_layout_info_utf8(utf8Layout, str, count, fontRuns8, width, 100.f, TextYAlignment::BOTTOM,
+			Text::LayoutInfoFlags::NONE);
 
 	test_compare_layouts(lxLayout, utf8Layout);
 }
 
-static void test_compare_layouts(const Text::ParagraphLayout& lxLayout, const Text::ParagraphLayout& icuLayout) {
+static void test_compare_layouts(const Text::LayoutInfo& lxLayout, const Text::LayoutInfo& icuLayout) {
 	REQUIRE(lxLayout.visualRuns.size() == icuLayout.visualRuns.size());
 	REQUIRE(lxLayout.glyphs.size() == icuLayout.glyphs.size());
 	REQUIRE(lxLayout.charIndices.size() == icuLayout.charIndices.size());

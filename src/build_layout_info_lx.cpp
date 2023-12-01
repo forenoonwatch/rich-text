@@ -1,4 +1,4 @@
-#include "paragraph_layout.hpp"
+#include "layout_info.hpp"
 
 #include "multi_script_font.hpp"
 
@@ -14,14 +14,14 @@ static constexpr const UChar32 CH_CR = 0x000D;
 static constexpr const UChar32 CH_LSEP = 0x2028;
 static constexpr const UChar32 CH_PSEP = 0x2029;
 
-static void handle_line_icu_lx(ParagraphLayout& result, icu::ParagraphLayout::Line& line, int32_t charOffset,
+static void handle_line_icu_lx(LayoutInfo& result, icu::ParagraphLayout::Line& line, int32_t charOffset,
 		const char16_t* chars, size_t& highestRun, int32_t& highestRunCharEnd);
 
 // Public Functions
 
-void Text::build_paragraph_layout_icu_lx(ParagraphLayout& result, const char16_t* chars, int32_t count,
+void Text::build_layout_info_icu_lx(LayoutInfo& result, const char16_t* chars, int32_t count,
 		const ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
-		TextYAlignment textYAlignment, ParagraphLayoutFlags flags) {
+		TextYAlignment textYAlignment, LayoutInfoFlags flags) {
 	ValueRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_run_count());
 
 	auto* start = chars;
@@ -32,10 +32,10 @@ void Text::build_paragraph_layout_icu_lx(ParagraphLayout& result, const char16_t
 
 	int32_t byteIndex = 0;
 
-	UBiDiLevel paragraphLevel = ((flags & ParagraphLayoutFlags::RIGHT_TO_LEFT) == ParagraphLayoutFlags::NONE)
+	UBiDiLevel paragraphLevel = ((flags & LayoutInfoFlags::RIGHT_TO_LEFT) == LayoutInfoFlags::NONE)
 			? UBIDI_DEFAULT_LTR : UBIDI_DEFAULT_RTL;
 
-	if ((flags & ParagraphLayoutFlags::OVERRIDE_DIRECTIONALITY) != ParagraphLayoutFlags::NONE) {
+	if ((flags & LayoutInfoFlags::OVERRIDE_DIRECTIONALITY) != LayoutInfoFlags::NONE) {
 		paragraphLevel |= UBIDI_LEVEL_OVERRIDE;
 	}
 
@@ -113,7 +113,7 @@ void Text::build_paragraph_layout_icu_lx(ParagraphLayout& result, const char16_t
 	result.textStartY = static_cast<float>(textYAlignment) * (textAreaHeight - totalHeight) * 0.5f;
 }
 
-static void handle_line_icu_lx(ParagraphLayout& result, icu::ParagraphLayout::Line& line,
+static void handle_line_icu_lx(LayoutInfo& result, icu::ParagraphLayout::Line& line,
 		int32_t charOffset, const char16_t* chars, size_t& highestRun, int32_t& highestRunCharEnd) {
 	result.visualRuns.reserve(result.visualRuns.size() + line.countRuns());
 

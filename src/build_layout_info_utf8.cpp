@@ -1,4 +1,4 @@
-#include "paragraph_layout.hpp"
+#include "layout_info.hpp"
 
 #include "binary_search.hpp"
 #include "value_run_utils.hpp"
@@ -53,7 +53,7 @@ struct LogicalRun {
 }
 
 // FIXME: Using `stringOffset` is a bit cumbersome, refactor this logic to have full view of the string
-static size_t build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result, SBParagraphRef sbParagraph,
+static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, SBParagraphRef sbParagraph,
 		const char* chars, int32_t count, int32_t stringOffset,
 		const ValueRuns<const MultiScriptFont*>& fontRuns, int32_t fixedWidth);
 
@@ -67,19 +67,19 @@ static void shape_logical_run(LayoutBuildState& state, hb_font_t* pFont, const c
 		int32_t stringOffset);
 static int32_t find_previous_line_break(icu::BreakIterator& iter, const char* chars, int32_t count,
 		int32_t charIndex);
-static void compute_line_visual_runs(LayoutBuildState& state, ParagraphLayout& result,
+static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result,
 		const std::vector<LogicalRun>& logicalRuns, SBParagraphRef sbParagraph,
 		const char* chars, int32_t count, int32_t lineStart, int32_t lineEnd,  int32_t stringOffset,
 		size_t& highestRun, int32_t& highestRunCharEnd);
-static void append_visual_run(LayoutBuildState& state, ParagraphLayout& result, const LogicalRun* logicalRuns,
+static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const LogicalRun* logicalRuns,
 		size_t logicalRunIndex, int32_t charStartIndex, int32_t charEndIndex, float& visualRunLastX,
 		size_t& highestRun, int32_t& highestRunCharEnd);
 
 // Public Functions
 
-void Text::build_paragraph_layout_utf8(ParagraphLayout& result, const char* chars, int32_t count,
+void Text::build_layout_info_utf8(LayoutInfo& result, const char* chars, int32_t count,
 		const ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
-		TextYAlignment textYAlignment, ParagraphLayoutFlags flags) {
+		TextYAlignment textYAlignment, LayoutInfoFlags flags) {
 	LayoutBuildState state{};
 	SBCodepointSequence codepointSequence{SBStringEncodingUTF8, (void*)chars, (size_t)count};
 	SBAlgorithmRef sbAlgorithm = SBAlgorithmCreate(&codepointSequence);
@@ -89,7 +89,7 @@ void Text::build_paragraph_layout_utf8(ParagraphLayout& result, const char* char
 	ValueRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_run_count());
 	size_t lastHighestRun = 0;
 
-	SBLevel baseDefaultLevel = ((flags & ParagraphLayoutFlags::RIGHT_TO_LEFT) == ParagraphLayoutFlags::NONE)
+	SBLevel baseDefaultLevel = ((flags & LayoutInfoFlags::RIGHT_TO_LEFT) == LayoutInfoFlags::NONE)
 			? SBLevelDefaultLTR : SBLevelDefaultRTL;
 
 	// 26.6 fixed-point text area width
@@ -149,7 +149,7 @@ void Text::build_paragraph_layout_utf8(ParagraphLayout& result, const char* char
 
 // Static Functions
 
-static size_t build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result, SBParagraphRef sbParagraph,
+static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, SBParagraphRef sbParagraph,
 		const char* chars, int32_t count, int32_t stringOffset, 
 		const ValueRuns<const MultiScriptFont*>& fontRuns, int32_t textAreaWidth) {
 	auto levelRuns = compute_levels(sbParagraph, count);
@@ -381,7 +381,7 @@ static int32_t find_previous_line_break(icu::BreakIterator& iter, const char* ch
 	return iter.preceding(charIndex);
 }
 
-static void compute_line_visual_runs(LayoutBuildState& state, ParagraphLayout& result,
+static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result,
 		const std::vector<LogicalRun>& logicalRuns, SBParagraphRef sbParagraph, const char* chars,
 		int32_t count, int32_t lineStart, int32_t lineEnd, int32_t stringOffset, size_t& highestRun,
 		int32_t& highestRunCharEnd) {
@@ -475,7 +475,7 @@ static void compute_line_visual_runs(LayoutBuildState& state, ParagraphLayout& r
 	SBLineRelease(sbLine);
 }
 
-static void append_visual_run(LayoutBuildState& state, ParagraphLayout& result, const LogicalRun* logicalRuns,
+static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const LogicalRun* logicalRuns,
 		size_t run, int32_t charStartIndex, int32_t charEndIndex, float& visualRunLastX, size_t& highestRun,
 		int32_t& highestRunCharEnd) {
 	auto logicalFirstGlyph = run == 0 ? 0 : logicalRuns[run - 1].glyphEndIndex;

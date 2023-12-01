@@ -1,4 +1,4 @@
-#include "paragraph_layout.hpp"
+#include "layout_info.hpp"
 
 #include "binary_search.hpp"
 
@@ -15,9 +15,9 @@ static constexpr CursorPosition make_cursor(uint32_t position, bool oppositeAffi
 	return {position | (static_cast<uint32_t>(oppositeAffinity) << 31)};
 }
 
-// ParagraphLayout
+// LayoutInfo
 
-CursorPositionResult ParagraphLayout::calc_cursor_pixel_pos(float textWidth, TextXAlignment textXAlignment,
+CursorPositionResult LayoutInfo::calc_cursor_pixel_pos(float textWidth, TextXAlignment textXAlignment,
 		CursorPosition cursor) const {
 	size_t lineIndex;
 	auto runIndex = get_run_containing_cursor(cursor, lineIndex);
@@ -32,7 +32,7 @@ CursorPositionResult ParagraphLayout::calc_cursor_pixel_pos(float textWidth, Tex
 	};
 }
 
-size_t ParagraphLayout::get_run_containing_cursor(CursorPosition cursor, size_t& outLineNumber) const {
+size_t LayoutInfo::get_run_containing_cursor(CursorPosition cursor, size_t& outLineNumber) const {
 	outLineNumber = 0;
 	auto cursorPos = cursor.get_position();
 
@@ -68,13 +68,13 @@ size_t ParagraphLayout::get_run_containing_cursor(CursorPosition cursor, size_t&
 	return visualRuns.size() - 1;
 }
 
-size_t ParagraphLayout::get_closest_line_to_height(float y) const {
+size_t LayoutInfo::get_closest_line_to_height(float y) const {
 	return binary_search(0, lines.size(), [&](auto index) {
 		return lines[index].totalDescent < y;
 	});
 }
 
-CursorPosition ParagraphLayout::get_line_start_position(size_t lineIndex) const {
+CursorPosition LayoutInfo::get_line_start_position(size_t lineIndex) const {
 	auto lowestRun = get_first_run_index(lineIndex);
 	auto lowestRunEnd = visualRuns[lowestRun].charEndIndex;
 
@@ -89,7 +89,7 @@ CursorPosition ParagraphLayout::get_line_start_position(size_t lineIndex) const 
 			: visualRuns[lowestRun].charStartIndex};
 }
 
-CursorPosition ParagraphLayout::get_line_end_position(size_t lineIndex) const {
+CursorPosition LayoutInfo::get_line_end_position(size_t lineIndex) const {
 	auto highestRun = get_first_run_index(lineIndex);
 	auto highestRunEnd = visualRuns[highestRun].charEndIndex;
 
@@ -106,7 +106,7 @@ CursorPosition ParagraphLayout::get_line_end_position(size_t lineIndex) const {
 			: visualRuns[highestRun].charEndIndex, oppositeAffinity);
 }
 
-float ParagraphLayout::get_line_x_start(size_t lineNumber, float textWidth, TextXAlignment align) const {
+float LayoutInfo::get_line_x_start(size_t lineNumber, float textWidth, TextXAlignment align) const {
 	auto lineWidth = lines[lineNumber].width;
 
 	switch (align) {
@@ -121,7 +121,7 @@ float ParagraphLayout::get_line_x_start(size_t lineNumber, float textWidth, Text
 	RICHTEXT_UNREACHABLE();
 }
 
-CursorPosition ParagraphLayout::find_closest_cursor_position(float textWidth, TextXAlignment textXAlignment,
+CursorPosition LayoutInfo::find_closest_cursor_position(float textWidth, TextXAlignment textXAlignment,
 		icu::BreakIterator& iter, size_t lineNumber, float cursorX) const {
 	cursorX -= get_line_x_start(lineNumber, textWidth, textXAlignment);
 
@@ -227,13 +227,13 @@ CursorPosition ParagraphLayout::find_closest_cursor_position(float textWidth, Te
 	RICHTEXT_UNREACHABLE();
 }
 
-bool ParagraphLayout::run_contains_char_range(size_t runIndex, uint32_t firstCharIndex,
+bool LayoutInfo::run_contains_char_range(size_t runIndex, uint32_t firstCharIndex,
 		uint32_t lastCharIndex) const {
 	return visualRuns[runIndex].charStartIndex < lastCharIndex
 			&& visualRuns[runIndex].charEndIndex > firstCharIndex;
 }
 
-Pair<float, float> ParagraphLayout::get_position_range_in_run(size_t runIndex, uint32_t firstCharIndex,
+Pair<float, float> LayoutInfo::get_position_range_in_run(size_t runIndex, uint32_t firstCharIndex,
 		uint32_t lastCharIndex) const {
 	auto& run = visualRuns[runIndex];
 	auto minPos = get_glyph_offset_in_run(runIndex, std::max(std::min(firstCharIndex, run.charEndIndex),
@@ -248,37 +248,37 @@ Pair<float, float> ParagraphLayout::get_position_range_in_run(size_t runIndex, u
 	return {minPos, maxPos};
 }
 
-uint32_t ParagraphLayout::get_first_run_index(size_t lineIndex) const {
+uint32_t LayoutInfo::get_first_run_index(size_t lineIndex) const {
 	return lineIndex == 0 ? 0 : lines[lineIndex - 1].visualRunsEndIndex;
 }
 
-uint32_t ParagraphLayout::get_first_glyph_index(size_t runIndex) const {
+uint32_t LayoutInfo::get_first_glyph_index(size_t runIndex) const {
 	return runIndex == 0 ? 0 : visualRuns[runIndex - 1].glyphEndIndex;
 }
 
-uint32_t ParagraphLayout::get_first_position_index(size_t runIndex) const {
+uint32_t LayoutInfo::get_first_position_index(size_t runIndex) const {
 	return runIndex == 0 ? 0 : 2 * (visualRuns[runIndex - 1].glyphEndIndex + runIndex);
 }
 
-float ParagraphLayout::get_line_height(size_t lineIndex) const {
+float LayoutInfo::get_line_height(size_t lineIndex) const {
 	return lineIndex == 0 ? lines.front().totalDescent
 			: lines[lineIndex].totalDescent - lines[lineIndex - 1].totalDescent;
 }
 
-const float* ParagraphLayout::get_run_positions(size_t runIndex) const {
+const float* LayoutInfo::get_run_positions(size_t runIndex) const {
 	return glyphPositions.data() + get_first_position_index(runIndex);
 }
 
-uint32_t ParagraphLayout::get_run_glyph_count(size_t runIndex) const {
+uint32_t LayoutInfo::get_run_glyph_count(size_t runIndex) const {
 	return visualRuns[runIndex].glyphEndIndex - get_first_glyph_index(runIndex);
 }
 
-float ParagraphLayout::get_glyph_offset_in_run(size_t runIndex, uint32_t cursor) const {
+float LayoutInfo::get_glyph_offset_in_run(size_t runIndex, uint32_t cursor) const {
 	return visualRuns[runIndex].rightToLeft ? get_glyph_offset_rtl(runIndex, cursor)
 			: get_glyph_offset_ltr(runIndex, cursor);
 }
 
-float ParagraphLayout::get_glyph_offset_ltr(size_t runIndex, uint32_t cursor) const {
+float LayoutInfo::get_glyph_offset_ltr(size_t runIndex, uint32_t cursor) const {
 	auto firstGlyphIndex = get_first_glyph_index(runIndex);
 	auto lastGlyphIndex = visualRuns[runIndex].glyphEndIndex;
 	auto firstPosIndex = get_first_position_index(runIndex);
@@ -307,7 +307,7 @@ float ParagraphLayout::get_glyph_offset_ltr(size_t runIndex, uint32_t cursor) co
 	return glyphOffset;
 }
 
-float ParagraphLayout::get_glyph_offset_rtl(size_t runIndex, uint32_t cursor) const {
+float LayoutInfo::get_glyph_offset_rtl(size_t runIndex, uint32_t cursor) const {
 	auto firstGlyphIndex = get_first_glyph_index(runIndex);
 	auto lastGlyphIndex = visualRuns[runIndex].glyphEndIndex;
 	auto firstPosIndex = get_first_position_index(runIndex);

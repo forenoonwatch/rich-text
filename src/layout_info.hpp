@@ -16,14 +16,14 @@ class MultiScriptFont;
 
 namespace Text {
 
-enum class ParagraphLayoutFlags : uint8_t {
+enum class LayoutInfoFlags : uint8_t {
 	NONE = 0,
 	RIGHT_TO_LEFT = 1, // Whether the text direction default should be RTL. Leave unset to default to LTR
 	OVERRIDE_DIRECTIONALITY = 2, // Whether the configured text direction should override script directions
 	VERTICAL = 4, // Whether the text is composed vertically. Leave unset for horizontal text.
 };
 
-RICHTEXT_DEFINE_ENUM_BITFLAG_OPERATORS(ParagraphLayoutFlags)
+RICHTEXT_DEFINE_ENUM_BITFLAG_OPERATORS(LayoutInfoFlags)
 
 struct CursorPositionResult {
 	float x;
@@ -50,7 +50,7 @@ struct LineInfo {
 	float totalDescent;
 };
 
-struct ParagraphLayout {
+struct LayoutInfo {
 	std::vector<VisualRun> visualRuns;
 	std::vector<LineInfo> lines;
 	std::vector<uint32_t> glyphs;
@@ -107,7 +107,7 @@ struct ParagraphLayout {
 	 * NOTE: Behavior is undefined if the range falls completely outside of
 	 * [run.charStartIndex, run.charEndIndex)
 	 */
-	Text::Pair<float, float> get_position_range_in_run(size_t runIndex, uint32_t firstCharIndex,
+	Pair<float, float> get_position_range_in_run(size_t runIndex, uint32_t firstCharIndex,
 			uint32_t lastCharIndex) const;
 
 	uint32_t get_first_run_index(size_t lineIndex) const;
@@ -138,34 +138,34 @@ struct ParagraphLayout {
 /**
  * @brief Builds the paragraph layout using LayoutEx
  */
-void build_paragraph_layout_icu_lx(ParagraphLayout& result, const char16_t* chars, int32_t count,
-		const Text::ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
-		TextYAlignment textYAlignment, ParagraphLayoutFlags flags);
+void build_layout_info_icu_lx(LayoutInfo& result, const char16_t* chars, int32_t count,
+		const ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
+		TextYAlignment textYAlignment, LayoutInfoFlags flags);
 
 /**
  * @brief Builds the paragraph layout using direct calls to ubidi.h and usc_impl.h run calculation functions
  */
-void build_paragraph_layout_icu(ParagraphLayout& result, const char16_t* chars, int32_t count,
-		const Text::ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
-		TextYAlignment textYAlignment, ParagraphLayoutFlags flags);
+void build_layout_info_icu(LayoutInfo& result, const char16_t* chars, int32_t count,
+		const ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
+		TextYAlignment textYAlignment, LayoutInfoFlags flags);
 
 /**
  * @brief Builds the paragraph layout using UTF-8 APIs
  */
-void build_paragraph_layout_utf8(ParagraphLayout& result, const char* chars, int32_t count,
-		const Text::ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
-		TextYAlignment textYAlignment, ParagraphLayoutFlags flags);
+void build_layout_info_utf8(LayoutInfo& result, const char* chars, int32_t count,
+		const ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
+		TextYAlignment textYAlignment, LayoutInfoFlags flags);
 
 /**
- * @brief Converts a UTF-16 ParagraphLayout to UTF-8 based indices 
+ * @brief Converts a UTF-16 LayoutInfo to UTF-8 based indices 
  */
-void convert_paragraph_layout_to_utf8(ParagraphLayout& result, const char16_t* srcChars, int32_t srcCharCount,
+void convert_layout_info_to_utf8(LayoutInfo& result, const char16_t* srcChars, int32_t srcCharCount,
 		const char* dstChars, int32_t dstCharCount);
 
 }
 
 template <typename Functor>
-void Text::ParagraphLayout::for_each_line(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
+void Text::LayoutInfo::for_each_line(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
 	auto lineY = lines.front().ascent;
 
 	for (size_t i = 0; i < lines.size(); ++i) {
@@ -176,7 +176,7 @@ void Text::ParagraphLayout::for_each_line(float textWidth, TextXAlignment textXA
 }
 
 template <typename Functor>
-void Text::ParagraphLayout::for_each_run(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
+void Text::LayoutInfo::for_each_run(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
 	uint32_t runIndex{};
 
 	for_each_line(textWidth, textXAlignment, [&](auto lineIndex, auto lineX, auto lineY) {
@@ -187,7 +187,7 @@ void Text::ParagraphLayout::for_each_run(float textWidth, TextXAlignment textXAl
 }
 
 template <typename Functor>
-void Text::ParagraphLayout::for_each_glyph(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
+void Text::LayoutInfo::for_each_glyph(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
 	uint32_t glyphIndex{};
 	uint32_t glyphPosIndex{};
 

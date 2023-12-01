@@ -1,4 +1,4 @@
-#include "paragraph_layout.hpp"
+#include "layout_info.hpp"
 
 #include "binary_search.hpp"
 #include "value_run_utils.hpp"
@@ -62,7 +62,7 @@ static constexpr const UChar32 CH_LSEP = 0x2028;
 static constexpr const UChar32 CH_PSEP = 0x2029;
 
 // FIXME: Using `stringOffset` is a bit cumbersome, refactor this logic to have full view of the string
-static size_t build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result, const char16_t* chars,
+static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, const char16_t* chars,
 		int32_t count, int32_t stringOffset, const ValueRuns<const MultiScriptFont*>& fontRuns,
 		UBiDiLevel paragraphLevel, int32_t fixedWidth);
 
@@ -77,18 +77,18 @@ static void shape_logical_run(LayoutBuildState& state, hb_font_t* pFont, const c
 		int32_t stringOffset);
 static int32_t find_previous_line_break(icu::BreakIterator& iter, const char16_t* chars, int32_t count,
 		int32_t charIndex);
-static void compute_line_visual_runs(LayoutBuildState& state, ParagraphLayout& result,
+static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result,
 		const std::vector<LogicalRun>& logicalRuns, int32_t lineStart, int32_t lineEnd, int32_t stringOffset,
 		size_t& highestRun, int32_t& highestRunCharEnd);
-static void append_visual_run(LayoutBuildState& state, ParagraphLayout& result, const LogicalRun* logicalRuns,
+static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const LogicalRun* logicalRuns,
 		size_t logicalRunIndex, int32_t charStartIndex, int32_t charEndIndex, float& visualRunLastX,
 		size_t& highestRun, int32_t& highestRunCharEnd);
 
 // Public Functions
 
-void Text::build_paragraph_layout_icu(ParagraphLayout& result, const char16_t* chars, int32_t count,
+void Text::build_layout_info_icu(LayoutInfo& result, const char16_t* chars, int32_t count,
 		const ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
-		TextYAlignment textYAlignment, ParagraphLayoutFlags flags) {
+		TextYAlignment textYAlignment, LayoutInfoFlags flags) {
 	LayoutBuildState state{};
 
 	UText iter UTEXT_INITIALIZER;
@@ -100,10 +100,10 @@ void Text::build_paragraph_layout_icu(ParagraphLayout& result, const char16_t* c
 	int32_t byteIndex = 0;
 	size_t lastHighestRun = 0;
 
-	UBiDiLevel paragraphLevel = ((flags & ParagraphLayoutFlags::RIGHT_TO_LEFT) == ParagraphLayoutFlags::NONE)
+	UBiDiLevel paragraphLevel = ((flags & LayoutInfoFlags::RIGHT_TO_LEFT) == LayoutInfoFlags::NONE)
 			? UBIDI_DEFAULT_LTR : UBIDI_DEFAULT_RTL;
 
-	if ((flags & ParagraphLayoutFlags::OVERRIDE_DIRECTIONALITY) != ParagraphLayoutFlags::NONE) {
+	if ((flags & LayoutInfoFlags::OVERRIDE_DIRECTIONALITY) != LayoutInfoFlags::NONE) {
 		paragraphLevel |= UBIDI_LEVEL_OVERRIDE;
 	}
 
@@ -166,7 +166,7 @@ void Text::build_paragraph_layout_icu(ParagraphLayout& result, const char16_t* c
 
 // Static Functions
 
-static size_t build_sub_paragraph(LayoutBuildState& state, ParagraphLayout& result, const char16_t* chars,
+static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, const char16_t* chars,
 		int32_t count, int32_t stringOffset, const ValueRuns<const MultiScriptFont*>& fontRuns,
 		UBiDiLevel paragraphLevel, int32_t textAreaWidth) {
 	auto levelRuns = compute_levels(state.pParaBiDi, paragraphLevel, chars, count);
@@ -405,7 +405,7 @@ static int32_t find_previous_line_break(icu::BreakIterator& iter, const char16_t
 	return iter.preceding(charIndex + 1);
 }
 
-static void compute_line_visual_runs(LayoutBuildState& state, ParagraphLayout& result,
+static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result,
 		const std::vector<LogicalRun>& logicalRuns, int32_t lineStart, int32_t lineEnd, int32_t stringOffset,
 		size_t& highestRun, int32_t& highestRunCharEnd) {
 	UErrorCode err{};
@@ -496,7 +496,7 @@ static void compute_line_visual_runs(LayoutBuildState& state, ParagraphLayout& r
 	});
 }
 
-static void append_visual_run(LayoutBuildState& state, ParagraphLayout& result, const LogicalRun* logicalRuns,
+static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const LogicalRun* logicalRuns,
 		size_t run, int32_t charStartIndex, int32_t charEndIndex, float& visualRunLastX, size_t& highestRun,
 		int32_t& highestRunCharEnd) {
 	auto logicalFirstGlyph = run == 0 ? 0 : logicalRuns[run - 1].glyphEndIndex;
