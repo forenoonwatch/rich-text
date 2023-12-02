@@ -43,7 +43,7 @@ class TextBox final : public UIObject {
 		void capture_focus();
 		void release_focus();
 
-		void render(const float* invScreenSize) override;
+		void render(UIContainer&) override;
 
 		void set_font(MultiScriptFont);
 		void set_text(std::string);

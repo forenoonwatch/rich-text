@@ -1,6 +1,6 @@
 #include "ui_object.hpp"
 
-void UIObject::render(const float* /*invScreenSize*/) {
+void UIObject::render(UIContainer& /*container*/) {
 }
 
 bool UIObject::handle_mouse_button(int /*button*/, int /*action*/, int /*mods*/, double /*mouseX*/,

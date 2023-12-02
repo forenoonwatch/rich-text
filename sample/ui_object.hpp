@@ -4,11 +4,13 @@
 
 #include <memory>
 
+class UIContainer;
+
 class UIObject : public std::enable_shared_from_this<UIObject> {
 	public:
 		virtual ~UIObject() = default;
 
-		virtual void render(const float* invScreenSize);
+		virtual void render(UIContainer&);
 
 		virtual bool handle_mouse_button(int button, int action, int mods, double mouseX, double mouseY);
 		virtual bool handle_key_press(int key, int action, int mods);

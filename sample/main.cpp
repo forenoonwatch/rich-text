@@ -155,11 +155,8 @@ static void on_resize(GLFWwindow* window, int width, int height) {
 }
 
 static void render(UIContainer& container) {
-	float invScreenSize[] = {1.f / static_cast<float>(g_width), 1.f / static_cast<float>(g_height)};
-
 	glClearColor(1.f, 1.f, 1.f, 1.f);
 	glClear(GL_COLOR_BUFFER_BIT);
-
-	container.render(invScreenSize);
+	container.render();
 }
 

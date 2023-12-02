@@ -9,6 +9,7 @@
 #include "formatting.hpp"
 #include "formatting_iterator.hpp"
 #include "layout_info.hpp"
+#include "ui_container.hpp"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -280,43 +281,10 @@ void TextBox::release_focus() {
 	recalc_text();
 }
 
-void TextBox::render(const float* invScreenSize) {
-	PipelineIndex pipelineIndex{PipelineIndex::INVALID};
-	Pipeline* pPipeline = nullptr;
-
+void TextBox::render(UIContainer& container) {
 	for (auto& rect : m_textRects) {
-		if (!rect.texture) {
-			continue;
-		}
-
-		if (rect.pipeline != pipelineIndex) {
-			pipelineIndex = rect.pipeline;
-			pPipeline = &g_pipelines[static_cast<size_t>(pipelineIndex)];
-			pPipeline->bind();
-			pPipeline->set_uniform_float2(0, invScreenSize);
-		}
-
-		rect.texture->bind();
-		float extents[] = {get_position()[0] + rect.x, get_position()[1] + rect.y, rect.width, rect.height}; 
-		pPipeline->set_uniform_float4(1, extents);
-		pPipeline->set_uniform_float4(2, rect.texCoords);
-		pPipeline->set_uniform_float4(3, reinterpret_cast<const float*>(&rect.color));
-		pPipeline->draw();
-
-		if (CVars::showGlyphOutlines && rect.pipeline != PipelineIndex::OUTLINE) {
-			if (pipelineIndex != PipelineIndex::OUTLINE) {
-				pipelineIndex = PipelineIndex::OUTLINE;
-				pPipeline = &g_pipelines[static_cast<size_t>(pipelineIndex)];
-				pPipeline->bind();
-				pPipeline->set_uniform_float2(0, invScreenSize);
-			}
-
-			Color outlineColor{0.f, 0.5f, 0.f, 1.f};
-			pPipeline->set_uniform_float4(1, extents);
-			pPipeline->set_uniform_float4(2, rect.texCoords);
-			pPipeline->set_uniform_float4(3, reinterpret_cast<const float*>(&outlineColor));
-			pPipeline->draw();
-		}
+		container.emit_rect(get_position()[0] + rect.x, get_position()[1] + rect.y, rect.width, rect.height,
+				rect.texCoords, rect.texture, rect.color, rect.pipeline);
 	}
 
 	// Draw Cursor
@@ -325,13 +293,8 @@ void TextBox::render(const float* invScreenSize) {
 				g_cursorPos.height};
 		Color cursorColor{0, 0, 0, 1};
 
-		pPipeline = &g_pipelines[static_cast<size_t>(PipelineIndex::RECT)];
-		pPipeline->bind();
-		pPipeline->set_uniform_float2(0, invScreenSize);
-		pPipeline->set_uniform_float4(1, cursorExtents);
-		pPipeline->set_uniform_float4(3, reinterpret_cast<const float*>(&cursorColor));
-		g_textAtlas->get_default_texture()->bind();
-		pPipeline->draw();
+		container.emit_rect(get_position()[0] + g_cursorPos.x, get_position()[1] + g_cursorPos.y, 1,
+				g_cursorPos.height, cursorColor, PipelineIndex::RECT);
 	}
 }
 
