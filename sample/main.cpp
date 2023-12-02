@@ -67,7 +67,7 @@ int main() {
 	textBox->set_position(INSET, 0.f);
 	textBox->set_rich_text(true);
 	textBox->set_font(std::move(font));
-	textBox->set_size(g_width - INSET, g_height);
+	textBox->set_size(g_width - 2 * INSET, g_height - INSET);
 	textBox->set_parent(container.get());
 
 	{
@@ -137,10 +137,10 @@ static void on_text_event(GLFWwindow* window, unsigned codepoint) {
 }
 
 static void on_focus_event(GLFWwindow* window, int focused) {
+	auto* pContainer = reinterpret_cast<UIContainer*>(glfwGetWindowUserPointer(window));
+
 	if (!focused) {
-		if (auto* pFocusedTextBox = TextBox::get_focused_text_box()) {
-			pFocusedTextBox->release_focus();
-		}
+		pContainer->handle_focus_lost();
 	}
 }
 
@@ -152,6 +152,11 @@ static void on_resize(GLFWwindow* window, int width, int height) {
 	g_height = height;
 
 	pContainer->set_size(static_cast<float>(width), static_cast<float>(height));
+
+	pContainer->for_each_child([&](auto& child) {
+		child.set_size(static_cast<float>(width) - 2 * INSET, static_cast<float>(height) - INSET);
+		return IterationDecision::CONTINUE;
+	});
 }
 
 static void render(UIContainer& container) {

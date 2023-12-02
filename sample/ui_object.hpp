@@ -12,10 +12,11 @@ class UIObject : public std::enable_shared_from_this<UIObject> {
 
 		virtual void render(UIContainer&);
 
-		virtual bool handle_mouse_button(int button, int action, int mods, double mouseX, double mouseY);
-		virtual bool handle_key_press(int key, int action, int mods);
-		virtual bool handle_mouse_move(double mouseX, double mouseY);
-		virtual bool handle_text_input(unsigned codepoint);
+		virtual bool handle_mouse_button(UIContainer&, int button, int action, int mods, double mouseX,
+				double mouseY);
+		virtual bool handle_key_press(UIContainer&, int key, int action, int mods);
+		virtual bool handle_mouse_move(UIContainer&, double mouseX, double mouseY);
+		virtual bool handle_text_input(UIContainer&, unsigned codepoint);
 
 		UIObject(UIObject&&) = delete;
 		void operator=(UIObject&&) = delete;

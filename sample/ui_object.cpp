@@ -3,20 +3,20 @@
 void UIObject::render(UIContainer& /*container*/) {
 }
 
-bool UIObject::handle_mouse_button(int /*button*/, int /*action*/, int /*mods*/, double /*mouseX*/,
-		double /*mouseY*/) {
+bool UIObject::handle_mouse_button(UIContainer& /*container*/, int /*button*/, int /*action*/, int /*mods*/,
+		double /*mouseX*/, double /*mouseY*/) {
 	return false;
 }
 
-bool UIObject::handle_key_press(int /*key*/, int /*action*/, int /*mods*/) {
+bool UIObject::handle_key_press(UIContainer& /*container*/, int /*key*/, int /*action*/, int /*mods*/) {
 	return false;
 }
 
-bool UIObject::handle_mouse_move(double /*mouseX*/, double /*mouseY*/) {
+bool UIObject::handle_mouse_move(UIContainer& /*container*/, double /*mouseX*/, double /*mouseY*/) {
 	return false;
 }
 
-bool UIObject::handle_text_input(unsigned /*codepoint*/) {
+bool UIObject::handle_text_input(UIContainer& /*container*/, unsigned /*codepoint*/) {
 	return false;
 }
 

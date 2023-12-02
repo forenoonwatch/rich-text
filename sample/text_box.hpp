@@ -10,18 +10,14 @@ class TextBox final : public UIObject {
 	public:
 		static std::shared_ptr<TextBox> create();
 
-		static TextBox* get_focused_text_box();
+		bool handle_mouse_button(UIContainer&, int button, int action, int mods, double mouseX,
+				double mouseY) override;
+		bool handle_key_press(UIContainer&, int key, int action, int mods) override;
+		bool handle_mouse_move(UIContainer&, double mouseX, double mouseY) override;
+		bool handle_text_input(UIContainer&, unsigned codepoint) override;
 
-		TextBox() = default;
-		~TextBox();
-
-		bool handle_mouse_button(int button, int action, int mods, double mouseX, double mouseY) override;
-		bool handle_key_press(int key, int action, int mods) override;
-		bool handle_mouse_move(double mouseX, double mouseY) override;
-		bool handle_text_input(unsigned codepoint) override;
-
-		void capture_focus();
-		void release_focus();
+		void capture_focus(UIContainer&);
+		void release_focus(UIContainer&);
 
 		void render(UIContainer&) override;
 
@@ -52,6 +48,7 @@ class TextBox final : public UIObject {
 		bool m_richText = false;
 		bool m_editable = true;
 		bool m_selectable = true;
+		bool m_focused = false;
 
 		Text::LayoutInfo m_layout;
 		Text::FormattingRuns m_formatting;
@@ -81,7 +78,7 @@ class TextBox final : public UIObject {
 
 		void handle_key_backspace(bool ctrl);
 		void handle_key_delete(bool ctrl);
-		void handle_key_enter();
+		void handle_key_enter(UIContainer&);
 
 		void clipboard_cut_text();
 		void clipboard_copy_text();

@@ -9,56 +9,27 @@
 #include "formatting_iterator.hpp"
 #include "ui_container.hpp"
 
-#include <glad/glad.h>
 #include <GLFW/glfw3.h>
-
-static constexpr const double DOUBLE_CLICK_TIME = 0.5;
-
-static TextBox* g_focusedTextBox = nullptr;
-static bool g_isMouseDown = false;
-static double g_lastClickTime = 0.0;
-static uint32_t g_clickCount = 0;
-static CursorPosition g_lastClickPos{CursorPosition::INVALID_VALUE};
 
 std::shared_ptr<TextBox> TextBox::create() {
 	return std::make_shared<TextBox>();
 }
 
-TextBox* TextBox::get_focused_text_box() {
-	return g_focusedTextBox;
-}
-
-TextBox::~TextBox() {
-	release_focus();
-}
-
-bool TextBox::handle_mouse_button(int button, int action, int mods, double mouseX, double mouseY) {
+bool TextBox::handle_mouse_button(UIContainer& container, int button, int action, int mods, double mouseX,
+		double mouseY) {
 	if (button != GLFW_MOUSE_BUTTON_1) {
 		return false;
 	}
 
-	// FIXME: handle_mouse_button no longer gets fired when mouse is outside the bounds
 	bool mouseInside = is_mouse_inside(mouseX, mouseY);
 
 	if (action == GLFW_PRESS) {
-		if (g_focusedTextBox == this) {
+		if (is_focused()) {
 			if (mouseInside) {
 				cursor_move_to_mouse(mouseX - get_position()[0], mouseY - get_position()[1],
 						mods & GLFW_MOD_SHIFT);
 
-				auto time = glfwGetTime();
-
-				if (m_cursorPosition == g_lastClickPos && time - g_lastClickTime <= DOUBLE_CLICK_TIME) {
-					++g_clickCount;
-				}
-				else {
-					g_clickCount = 0;
-				}
-
-				g_lastClickTime = time;
-				g_lastClickPos = m_cursorPosition;
-
-				switch (g_clickCount % 4) {
+				switch (container.text_box_click(m_cursorPosition) % 4) {
 					// Highlight Current Word
 					case 1:
 						cursor_move_to_prev_word(false);
@@ -79,28 +50,28 @@ bool TextBox::handle_mouse_button(int button, int action, int mods, double mouse
 				}
 			}
 			else {
-				release_focus();
+				release_focus(container);
 			}
 		}
 		else {
-			capture_focus();
+			capture_focus(container);
 			cursor_move_to_mouse(mouseX - get_position()[0], mouseY - get_position()[1], mods & GLFW_MOD_SHIFT);
 		}
 
-		g_isMouseDown = true;
+		container.set_drag_selecting(true);
 
 		return mouseInside;
 	}
 	else if (action == GLFW_RELEASE) {
-		if (g_focusedTextBox == this) {
-			g_isMouseDown = false;
+		if (is_focused()) {
+			container.set_drag_selecting(false);
 		}
 	}
 
 	return false;
 }
 
-bool TextBox::handle_key_press(int key, int action, int mods) {
+bool TextBox::handle_key_press(UIContainer& container, int key, int action, int mods) {
 	if (action == GLFW_RELEASE) {
 		return false;
 	}
@@ -154,7 +125,7 @@ bool TextBox::handle_key_press(int key, int action, int mods) {
 				handle_key_delete(mods & GLFW_MOD_CONTROL);
 				break;
 			case GLFW_KEY_ENTER:
-				handle_key_enter();
+				handle_key_enter(container);
 				break;
 			case GLFW_KEY_X:
 				if (mods & GLFW_MOD_CONTROL) {
@@ -187,16 +158,16 @@ bool TextBox::handle_key_press(int key, int action, int mods) {
 	return false;
 }
 
-bool TextBox::handle_mouse_move(double mouseX, double mouseY) {
-	if (g_focusedTextBox == this && g_isMouseDown) {
+bool TextBox::handle_mouse_move(UIContainer& container, double mouseX, double mouseY) {
+	if (is_focused() && container.is_drag_selecting()) {
 		cursor_move_to_mouse(mouseX - get_position()[0], mouseY - get_position()[1], true);
 	}
 
 	return false;
 }
 
-bool TextBox::handle_text_input(unsigned codepoint) {
-	if (g_focusedTextBox == this && m_editable) {
+bool TextBox::handle_text_input(UIContainer&, unsigned codepoint) {
+	if (is_focused() && m_editable) {
 		if (m_selectionStart.is_valid()) {
 			remove_highlighted_text();
 		}
@@ -211,35 +182,35 @@ bool TextBox::handle_text_input(unsigned codepoint) {
 	return false;
 }
 
-void TextBox::capture_focus() {
-	if (g_focusedTextBox == this) {
+void TextBox::capture_focus(UIContainer& container) {
+	if (is_focused()) {
 		return;
 	}
-	else if (g_focusedTextBox) {
-		g_focusedTextBox->release_focus();
-	}
 
-	g_focusedTextBox = this;
+	m_focused = true;
 
+	container.focus_text_box(*this);
 	recalc_text();
 }
 
-void TextBox::release_focus() {
-	if (g_focusedTextBox != this) {
+void TextBox::release_focus(UIContainer& container) {
+	if (!is_focused()) {
 		return;
 	}
 
-	g_focusedTextBox = nullptr;
-	g_isMouseDown = false;
-	g_clickCount = 0;
-	g_lastClickPos = {CursorPosition::INVALID_VALUE};
+	m_focused = false;
+
+	container.unfocus_text_box();
 
 	m_selectionStart = {CursorPosition::INVALID_VALUE};
-
 	recalc_text();
 }
 
 void TextBox::render(UIContainer& container) {
+	// Outline
+	container.emit_rect(get_position()[0], get_position()[1], get_size()[0], get_size()[1], {0, 0.5f, 0, 1.f},
+			PipelineIndex::OUTLINE);
+
 	bool hasHighlighting = m_selectionStart.is_valid();
 	uint32_t selectionStart{};
 	uint32_t selectionEnd{};
@@ -418,7 +389,7 @@ void TextBox::render(UIContainer& container) {
 }
 
 bool TextBox::is_focused() const {
-	return g_focusedTextBox == this;
+	return m_focused;
 }
 
 // Private Methods
@@ -537,13 +508,13 @@ void TextBox::handle_key_delete(bool ctrl) {
 	}
 }
 
-void TextBox::handle_key_enter() {
+void TextBox::handle_key_enter(UIContainer& container) {
 	if (m_multiLine) {
 		remove_highlighted_text();
 		insert_text("\n", m_cursorPosition.get_position());
 	}
 	else {
-		release_focus();
+		release_focus(container);
 	}
 }
 

@@ -1,6 +1,9 @@
 #include "ui_container.hpp"
 
 #include "text_atlas.hpp"
+#include "text_box.hpp"
+
+#include <GLFW/glfw3.h>
 
 std::shared_ptr<UIContainer> UIContainer::create() {
 	return std::make_shared<UIContainer>();
@@ -76,10 +79,8 @@ void UIContainer::render() {
 
 bool UIContainer::handle_mouse_button(int button, int action, int mods, double mouseX, double mouseY) {
 	auto iterDec = for_each_descendant([&](auto& desc) {
-		if (desc.is_mouse_inside(mouseX, mouseY)) {
-			return desc.handle_mouse_button(button, action, mods, mouseX, mouseY) ? IterationDecision::BREAK
-					: IterationDecision::CONTINUE;
-		}
+		return desc.handle_mouse_button(*this, button, action, mods, mouseX, mouseY) ? IterationDecision::BREAK
+				: IterationDecision::CONTINUE;
 		
 		return IterationDecision::CONTINUE;
 	});
@@ -90,7 +91,7 @@ bool UIContainer::handle_mouse_button(int button, int action, int mods, double m
 bool UIContainer::handle_key_press(int key, int action, int mods, double mouseX, double mouseY) {
 	auto iterDec = for_each_descendant([&](auto& desc) {
 		if (desc.is_mouse_inside(mouseX, mouseY)) {
-			return desc.handle_key_press(key, action, mods) ? IterationDecision::BREAK
+			return desc.handle_key_press(*this, key, action, mods) ? IterationDecision::BREAK
 					: IterationDecision::CONTINUE;
 		}
 		
@@ -102,10 +103,8 @@ bool UIContainer::handle_key_press(int key, int action, int mods, double mouseX,
 
 bool UIContainer::handle_mouse_move(double mouseX, double mouseY) {
 	auto iterDec = for_each_descendant([&](auto& desc) {
-		if (desc.is_mouse_inside(mouseX, mouseY)) {
-			return desc.handle_mouse_move(mouseX, mouseY) ? IterationDecision::BREAK
-					: IterationDecision::CONTINUE;
-		}
+		return desc.handle_mouse_move(*this, mouseX, mouseY) ? IterationDecision::BREAK
+				: IterationDecision::CONTINUE;
 		
 		return IterationDecision::CONTINUE;
 	});
@@ -115,10 +114,52 @@ bool UIContainer::handle_mouse_move(double mouseX, double mouseY) {
 
 bool UIContainer::handle_text_input(unsigned codepoint) {
 	auto iterDec = for_each_descendant([&](auto& desc) {
-		return desc.handle_text_input(codepoint) ? IterationDecision::BREAK : IterationDecision::CONTINUE;
+		return desc.handle_text_input(*this, codepoint) ? IterationDecision::BREAK : IterationDecision::CONTINUE;
 	});
 
 	return iterDec == IterationDecision::BREAK;
+}
+
+void UIContainer::handle_focus_lost() {
+	if (auto textBox = m_focusedTextBox.lock()) {
+		static_cast<TextBox&>(*textBox).release_focus(*this);
+	}
+}
+
+void UIContainer::focus_text_box(TextBox& textBox) {
+	unfocus_text_box();
+	m_focusedTextBox = textBox.weak_from_this();
+}
+
+void UIContainer::unfocus_text_box() {
+	m_focusedTextBox = {};
+	m_dragSelecting = false;
+	m_clickCount = 0;
+	m_lastClickPos = {CursorPosition::INVALID_VALUE};
+}
+
+void UIContainer::set_drag_selecting(bool dragSelecting) {
+	m_dragSelecting = dragSelecting;
+}
+
+uint32_t UIContainer::text_box_click(CursorPosition pos) {
+	auto time = glfwGetTime();
+
+	if (pos == m_lastClickPos && time - m_lastClickTime <= DOUBLE_CLICK_TIME) {
+		++m_clickCount;
+	}
+	else {
+		m_clickCount = 0;
+	}
+
+	m_lastClickTime = time;
+	m_lastClickPos = pos;
+
+	return m_clickCount;
+}
+
+bool UIContainer::is_drag_selecting() const {
+	return m_dragSelecting;
 }
 
 void UIContainer::draw_rect_internal(float x, float y, float width, float height, const float* texCoords,
