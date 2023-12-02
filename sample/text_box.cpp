@@ -39,14 +39,14 @@ static constexpr const double DOUBLE_CLICK_TIME = 0.5;
 
 static Text::CursorController g_cursorCtrl;
 static TextBox* g_focusedTextBox = nullptr;
-static Text::CursorPositionResult g_cursorPos{};
 static bool g_isMouseDown = false;
 static double g_lastClickTime = 0.0;
 static uint32_t g_clickCount = 0;
 static CursorPosition g_lastClickPos{CursorPosition::INVALID_VALUE};
 
 static CursorPosition apply_cursor_move(const Text::LayoutInfo& layout, float textWidth,
-		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor);
+		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor,
+		const Text::VisualCursorInfo& visualCursorInfo);
 
 std::shared_ptr<TextBox> TextBox::create() {
 	return std::make_shared<TextBox>();
@@ -438,12 +438,9 @@ void TextBox::render(UIContainer& container) {
 
 	// Draw Cursor
 	if (is_focused()) {
-		float cursorExtents[] = {get_position()[0] + g_cursorPos.x, get_position()[1] + g_cursorPos.y, 1,
-				g_cursorPos.height};
 		Color cursorColor{0, 0, 0, 1};
-
-		container.emit_rect(get_position()[0] + g_cursorPos.x, get_position()[1] + g_cursorPos.y, 1,
-				g_cursorPos.height, cursorColor, PipelineIndex::RECT);
+		container.emit_rect(get_position()[0] + m_visualCursorInfo.x, get_position()[1] + m_visualCursorInfo.y,
+				1, m_visualCursorInfo.height, cursorColor, PipelineIndex::RECT);
 	}
 }
 
@@ -658,10 +655,10 @@ void TextBox::recalc_text() {
 }
 
 void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
-	g_cursorPos.x = 0.f;
-	g_cursorPos.y = 0.f;
-	g_cursorPos.height = 0.f;
-	g_cursorPos.lineNumber = 0;
+	m_visualCursorInfo.x = 0.f;
+	m_visualCursorInfo.y = 0.f;
+	m_visualCursorInfo.height = 0.f;
+	m_visualCursorInfo.lineNumber = 0;
 
 	if (!m_font) {
 		return;
@@ -673,7 +670,7 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 			: Text::make_default_formatting_runs(m_text, m_contentText, m_font, m_textColor, strokeState);
 
 	if (m_contentText.empty()) {
-		g_cursorPos.height = static_cast<float>(m_font.getAscent() + m_font.getDescent());
+		m_visualCursorInfo.height = static_cast<float>(m_font.getAscent() + m_font.getDescent());
 		return;
 	}
 
@@ -687,11 +684,12 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 
 	if (postLayoutOp) {
 		set_cursor_position_internal(apply_cursor_move(m_layout, get_size()[0], m_textXAlignment,
-				*reinterpret_cast<const PostLayoutCursorMove*>(postLayoutOp), m_cursorPosition),
+				*reinterpret_cast<const PostLayoutCursorMove*>(postLayoutOp), m_cursorPosition,
+				m_visualCursorInfo),
 				reinterpret_cast<const PostLayoutCursorMove*>(postLayoutOp)->selectionMode);
 	}
 
-	g_cursorPos = m_layout.calc_cursor_pixel_pos(get_size()[0], m_textXAlignment, m_cursorPosition);
+	m_visualCursorInfo = m_layout.calc_cursor_pixel_pos(get_size()[0], m_textXAlignment, m_cursorPosition);
 }
 
 // Setters
@@ -741,21 +739,22 @@ void TextBox::set_selectable(bool selectable) {
 // Static Functions
 
 static CursorPosition apply_cursor_move(const Text::LayoutInfo& layout, float textWidth,
-		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor) {
+		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor,
+		const Text::VisualCursorInfo& visualCursorInfo) {
 	switch (op.type) {
 		case PostLayoutCursorMoveType::LINE_START:
-			return layout.get_line_start_position(g_cursorPos.lineNumber);
+			return layout.get_line_start_position(visualCursorInfo.lineNumber);
 		case PostLayoutCursorMoveType::LINE_END:
-			return layout.get_line_end_position(g_cursorPos.lineNumber);
+			return layout.get_line_end_position(visualCursorInfo.lineNumber);
 		case PostLayoutCursorMoveType::LINE_ABOVE:
-			return g_cursorPos.lineNumber > 0
-					? g_cursorCtrl.closest_in_line(layout, textWidth, textXAlignment, g_cursorPos.lineNumber - 1,
-							g_cursorPos.x)
+			return visualCursorInfo.lineNumber > 0
+					? g_cursorCtrl.closest_in_line(layout, textWidth, textXAlignment,
+							visualCursorInfo.lineNumber - 1, visualCursorInfo.x)
 					: cursor;
 		case PostLayoutCursorMoveType::LINE_BELOW:
-			return g_cursorPos.lineNumber < layout.get_line_count() - 1
-					? g_cursorCtrl.closest_in_line(layout, textWidth, textXAlignment, g_cursorPos.lineNumber + 1,
-							g_cursorPos.x)
+			return visualCursorInfo.lineNumber < layout.get_line_count() - 1
+					? g_cursorCtrl.closest_in_line(layout, textWidth, textXAlignment,
+							visualCursorInfo.lineNumber + 1, visualCursorInfo.x)
 					: cursor;
 		case PostLayoutCursorMoveType::MOUSE_POSITION:
 		{

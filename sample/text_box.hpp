@@ -52,6 +52,7 @@ class TextBox final : public UIObject {
 
 		Text::LayoutInfo m_layout;
 		Text::FormattingRuns m_formatting;
+		Text::VisualCursorInfo m_visualCursorInfo;
 
 		bool should_focused_use_rich_text() const;
 

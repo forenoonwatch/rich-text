@@ -91,7 +91,7 @@ void LayoutInfo::set_text_start_y(float textStartY) {
 	m_textStartY = textStartY;
 }
 
-CursorPositionResult LayoutInfo::calc_cursor_pixel_pos(float textWidth, TextXAlignment textXAlignment,
+VisualCursorInfo LayoutInfo::calc_cursor_pixel_pos(float textWidth, TextXAlignment textXAlignment,
 		CursorPosition cursor) const {
 	size_t lineIndex;
 	auto runIndex = get_run_containing_cursor(cursor, lineIndex);
@@ -102,7 +102,7 @@ CursorPositionResult LayoutInfo::calc_cursor_pixel_pos(float textWidth, TextXAli
 		.x = lineX + glyphOffset,
 		.y = m_textStartY + (lineIndex == 0 ? 0.f : m_lines[lineIndex - 1].totalDescent),
 		.height = m_lines[lineIndex].totalDescent - (lineIndex == 0 ? 0.f : m_lines[lineIndex - 1].totalDescent),
-		.lineNumber = lineIndex,
+		.lineNumber = static_cast<uint32_t>(lineIndex),
 	};
 }
 

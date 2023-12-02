@@ -30,11 +30,11 @@ enum class LayoutInfoFlags : uint8_t {
 
 RICHTEXT_DEFINE_ENUM_BITFLAG_OPERATORS(LayoutInfoFlags)
 
-struct CursorPositionResult {
+struct VisualCursorInfo {
 	float x;
 	float y;
 	float height;
-	size_t lineNumber;
+	uint32_t lineNumber;
 };
 
 class LayoutInfo {
@@ -62,7 +62,7 @@ class LayoutInfo {
 		 * @param textXAlignment The X alignment of the paragraph text
 		 * @param cursorPosition The position of the cursor
 		 */
-		CursorPositionResult calc_cursor_pixel_pos(float textWidth, TextXAlignment textXAlignment,
+		VisualCursorInfo calc_cursor_pixel_pos(float textWidth, TextXAlignment textXAlignment,
 				CursorPosition cursorPosition) const;
 
 		/**
