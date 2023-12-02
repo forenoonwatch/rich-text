@@ -118,33 +118,18 @@ void Text::build_layout_info_utf8(LayoutInfo& result, const char* chars, int32_t
 			auto* pFont = fontRuns.get_value(paragraphOffset == count ? count - 1 : paragraphOffset);
 			auto height = static_cast<float>(pFont->getAscent() + pFont->getDescent());
 
-			lastHighestRun = result.visualRuns.size();
-
-			// All inserted runs need at least 2 glyph position entries
-			result.glyphPositions.emplace_back();
-			result.glyphPositions.emplace_back();
-
-			result.visualRuns.push_back({
-				.glyphEndIndex = result.visualRuns.empty() ? 0 : result.visualRuns.back().glyphEndIndex,
-				.charStartIndex = static_cast<uint32_t>(paragraphOffset),
-				.charEndIndex = static_cast<uint32_t>(paragraphOffset),
-			});
-
-			result.lines.push_back({
-				.visualRunsEndIndex = static_cast<uint32_t>(result.visualRuns.size()),
-				.width = 0.f,
-				.ascent = static_cast<float>(pFont->getAscent()),
-				.totalDescent = result.lines.empty() ? height : result.lines.back().totalDescent + height,
-			});
+			lastHighestRun = result.get_run_count();
+			result.append_empty_line(static_cast<uint32_t>(paragraphOffset), height,
+					static_cast<float>(pFont->getAscent()));
 		}
 
-		result.visualRuns[lastHighestRun].charEndOffset = separatorLength * (!isLastParagraph);
+		result.set_run_char_end_offset(lastHighestRun, separatorLength * (!isLastParagraph));
 
 		paragraphOffset += paragraphLength;
 	}
 
-	auto totalHeight = result.lines.empty() ? 0.f : result.lines.back().totalDescent;
-	result.textStartY = static_cast<float>(textYAlignment) * (textAreaHeight - totalHeight) * 0.5f;
+	auto totalHeight = result.get_text_height();
+	result.set_text_start_y(static_cast<float>(textYAlignment) * (textAreaHeight - totalHeight) * 0.5f);
 
 	SBAlgorithmRelease(sbAlgorithm);
 }
@@ -462,18 +447,8 @@ static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result
 		}
 	}
 
-	auto height = static_cast<float>(maxAscent + maxDescent);
-
-	auto lastRunIndex = static_cast<uint32_t>(result.visualRuns.size()) - 1;
-	auto width = result.glyphPositions[2 * (result.visualRuns[lastRunIndex].glyphEndIndex + lastRunIndex)];
-
-	result.lines.push_back({
-		.visualRunsEndIndex = static_cast<uint32_t>(result.visualRuns.size()),
-		.width = width,
-		.ascent = static_cast<float>(maxAscent),
-		.totalDescent = result.lines.empty() ? height : result.lines.back().totalDescent + height,
-	});
-
+	result.append_line(static_cast<float>(maxAscent + maxDescent), static_cast<float>(maxAscent));
+	
 	SBLineRelease(sbLine);
 }
 
@@ -488,7 +463,7 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 	uint32_t visualLastGlyph;
 
 	if (charEndIndex > highestRunCharEnd) {
-		highestRun = result.visualRuns.size();
+		highestRun = result.get_run_count();
 		highestRunCharEnd = charEndIndex;
 	}
 
@@ -507,8 +482,8 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 
 	if (rightToLeft) {
 		for (uint32_t i = visualLastGlyph - 1; ; --i) {
-			result.glyphs.emplace_back(state.glyphs[i]);
-			result.charIndices.emplace_back(state.charIndices[i]);
+			result.append_glyph(state.glyphs[i]);
+			result.append_char_index(state.charIndices[i]);
 
 			if (i == visualFirstGlyph) {
 				break;
@@ -520,8 +495,8 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 	}
 	else {
 		for (uint32_t i = visualFirstGlyph; i < visualLastGlyph; ++i) {
-			result.glyphs.emplace_back(state.glyphs[i]);
-			result.charIndices.emplace_back(state.charIndices[i]);
+			result.append_glyph(state.glyphs[i]);
+			result.append_char_index(state.charIndices[i]);
 		}
 
 		visualFirstPosIndex = visualFirstGlyph;
@@ -532,22 +507,17 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 
 	for (uint32_t i = visualFirstPosIndex; i < visualLastPosIndex; ++i) {
 		auto posIndex = logicalFirstPos + 2 * (i - logicalFirstGlyph);
-		result.glyphPositions.emplace_back(state.glyphPositions[posIndex] + visualRunLastX);
-		result.glyphPositions.emplace_back(state.glyphPositions[posIndex + 1]);
+		result.append_glyph_position(state.glyphPositions[posIndex] + visualRunLastX,
+				state.glyphPositions[posIndex + 1]);
 	}
 
 	auto logicalLastPos = logicalFirstPos + 2 * (visualLastPosIndex - logicalFirstGlyph);
-	result.glyphPositions.emplace_back(state.glyphPositions[logicalLastPos] + visualRunLastX);
-	result.glyphPositions.emplace_back(state.glyphPositions[logicalLastPos + 1]);
+	result.append_glyph_position(state.glyphPositions[logicalLastPos] + visualRunLastX,
+			state.glyphPositions[logicalLastPos + 1]);
 
 	visualRunLastX += state.glyphPositions[logicalLastPos];
 
-	result.visualRuns.push_back({
-		.pFont = logicalRuns[run].pFont,
-		.glyphEndIndex = static_cast<uint32_t>(result.glyphs.size()),
-		.charStartIndex = static_cast<uint32_t>(charStartIndex),
-		.charEndIndex = static_cast<uint32_t>(charEndIndex + 1),
-		.rightToLeft = rightToLeft,
-	});
+	result.append_run(logicalRuns[run].pFont, static_cast<uint32_t>(charStartIndex),
+			static_cast<uint32_t>(charEndIndex + 1), rightToLeft);
 }
 

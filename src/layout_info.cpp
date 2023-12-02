@@ -18,11 +18,77 @@ static constexpr CursorPosition make_cursor(uint32_t position, bool oppositeAffi
 // LayoutInfo
 
 void LayoutInfo::clear() {
-	visualRuns.clear();
-	lines.clear();
-	glyphs.clear();
-	charIndices.clear();
-	glyphPositions.clear();
+	m_visualRuns.clear();
+	m_lines.clear();
+	m_glyphs.clear();
+	m_charIndices.clear();
+	m_glyphPositions.clear();
+}
+
+void LayoutInfo::reserve_runs(size_t runCount) {
+	m_visualRuns.reserve(runCount);
+}
+
+void LayoutInfo::append_glyph(uint32_t glyphID) {
+	m_glyphs.emplace_back(glyphID);
+}
+
+void LayoutInfo::append_char_index(uint32_t charIndex) {
+	m_charIndices.emplace_back(charIndex);
+}
+
+void LayoutInfo::append_glyph_position(float x, float y) {
+	m_glyphPositions.emplace_back(x);
+	m_glyphPositions.emplace_back(y);
+}
+
+void LayoutInfo::append_run(const Font* pFont, uint32_t charStartIndex, uint32_t charEndIndex,
+		bool rightToLeft) {
+	m_visualRuns.push_back({
+		.pFont = pFont,
+		.glyphEndIndex = static_cast<uint32_t>(m_glyphs.size()),
+		.charStartIndex = charStartIndex,
+		.charEndIndex = charEndIndex,
+		.rightToLeft = rightToLeft,
+	});
+}
+
+void LayoutInfo::append_line(float height, float ascent) {
+	auto lastRunIndex = static_cast<uint32_t>(m_visualRuns.size()) - 1;
+	auto width = m_glyphPositions[2 * (m_visualRuns[lastRunIndex].glyphEndIndex + lastRunIndex)];
+
+	m_lines.push_back({
+		.visualRunsEndIndex = static_cast<uint32_t>(m_visualRuns.size()),
+		.width = width,
+		.ascent = ascent,
+		.totalDescent = m_lines.empty() ? height : m_lines.back().totalDescent + height,
+	});
+}
+
+void LayoutInfo::append_empty_line(uint32_t charIndex, float height, float ascent) {
+	// All inserted runs need at least 2 glyph position entries
+	m_glyphPositions.emplace_back();
+	m_glyphPositions.emplace_back();
+
+	m_visualRuns.push_back({
+		.glyphEndIndex = m_visualRuns.empty() ? 0 : m_visualRuns.back().glyphEndIndex,
+		.charStartIndex = charIndex,
+		.charEndIndex = charIndex,
+	});
+
+	m_lines.push_back({
+		.visualRunsEndIndex = static_cast<uint32_t>(m_visualRuns.size()),
+		.ascent = ascent,
+		.totalDescent = m_lines.empty() ? height : m_lines.back().totalDescent + height,
+	});
+}
+
+void LayoutInfo::set_run_char_end_offset(size_t runIndex, uint8_t charEndOffset) {
+	m_visualRuns[runIndex].charEndOffset = charEndOffset;
+}
+
+void LayoutInfo::set_text_start_y(float textStartY) {
+	m_textStartY = textStartY;
 }
 
 CursorPositionResult LayoutInfo::calc_cursor_pixel_pos(float textWidth, TextXAlignment textXAlignment,
@@ -34,8 +100,8 @@ CursorPositionResult LayoutInfo::calc_cursor_pixel_pos(float textWidth, TextXAli
 
 	return {
 		.x = lineX + glyphOffset,
-		.y = textStartY + (lineIndex == 0 ? 0.f : lines[lineIndex - 1].totalDescent),
-		.height = lines[lineIndex].totalDescent - (lineIndex == 0 ? 0.f : lines[lineIndex - 1].totalDescent),
+		.y = m_textStartY + (lineIndex == 0 ? 0.f : m_lines[lineIndex - 1].totalDescent),
+		.height = m_lines[lineIndex].totalDescent - (lineIndex == 0 ? 0.f : m_lines[lineIndex - 1].totalDescent),
 		.lineNumber = lineIndex,
 	};
 }
@@ -45,22 +111,23 @@ size_t LayoutInfo::get_run_containing_cursor(CursorPosition cursor, size_t& outL
 	auto cursorPos = cursor.get_position();
 
 	size_t firstGlyphIndex = 0;
-	for (size_t i = 0; i < visualRuns.size(); ++i) {
-		auto& run = visualRuns[i];
+	for (size_t i = 0; i < m_visualRuns.size(); ++i) {
+		auto& run = m_visualRuns[i];
 		auto lastGlyphIndex = run.glyphEndIndex;
-		bool runBeforeLineBreak = i + 1 < visualRuns.size() && i + 1 == lines[outLineNumber].visualRunsEndIndex;
-		bool runAfterLineBreak = i == lines[outLineNumber].visualRunsEndIndex;
+		bool runBeforeLineBreak = i + 1 < m_visualRuns.size()
+				&& i + 1 == m_lines[outLineNumber].visualRunsEndIndex;
+		bool runAfterLineBreak = i == m_lines[outLineNumber].visualRunsEndIndex;
 
 		if (runAfterLineBreak) {
 			++outLineNumber;
 		}
 
-		bool runBeforeSoftBreak = runBeforeLineBreak && visualRuns[i].charEndOffset == 0;
-		bool runAfterSoftBreak = runAfterLineBreak && i > 0 && visualRuns[i - 1].charEndOffset == 0;
+		bool runBeforeSoftBreak = runBeforeLineBreak && m_visualRuns[i].charEndOffset == 0;
+		bool runAfterSoftBreak = runAfterLineBreak && i > 0 && m_visualRuns[i - 1].charEndOffset == 0;
 		bool usePrevRunEnd = i > 0 && affinity_prefer_prev_run(runAfterLineBreak, runAfterSoftBreak,
-				visualRuns[i - 1].rightToLeft, visualRuns[i].rightToLeft, cursor.get_affinity());
-		bool useNextRunStart = i + 1 < visualRuns.size() && !affinity_prefer_prev_run(runBeforeLineBreak,
-				runBeforeSoftBreak, visualRuns[i].rightToLeft, visualRuns[i + 1].rightToLeft,
+				m_visualRuns[i - 1].rightToLeft, m_visualRuns[i].rightToLeft, cursor.get_affinity());
+		bool useNextRunStart = i + 1 < m_visualRuns.size() && !affinity_prefer_prev_run(runBeforeLineBreak,
+				runBeforeSoftBreak, m_visualRuns[i].rightToLeft, m_visualRuns[i + 1].rightToLeft,
 				cursor.get_affinity());
 		bool ignoreStart = cursorPos == run.charStartIndex && usePrevRunEnd;
 		bool ignoreEnd = cursorPos == run.charEndIndex + run.charEndOffset && useNextRunStart;
@@ -73,49 +140,49 @@ size_t LayoutInfo::get_run_containing_cursor(CursorPosition cursor, size_t& outL
 		firstGlyphIndex = lastGlyphIndex;
 	}
 
-	return visualRuns.size() - 1;
+	return m_visualRuns.size() - 1;
 }
 
 size_t LayoutInfo::get_closest_line_to_height(float y) const {
-	return binary_search(0, lines.size(), [&](auto index) {
-		return lines[index].totalDescent < y;
+	return binary_search(0, m_lines.size(), [&](auto index) {
+		return m_lines[index].totalDescent < y;
 	});
 }
 
 CursorPosition LayoutInfo::get_line_start_position(size_t lineIndex) const {
 	auto lowestRun = get_first_run_index(lineIndex);
-	auto lowestRunEnd = visualRuns[lowestRun].charEndIndex;
+	auto lowestRunEnd = m_visualRuns[lowestRun].charEndIndex;
 
-	for (uint32_t i = lowestRun + 1; i < lines[lineIndex].visualRunsEndIndex; ++i) {
-		if (visualRuns[i].charEndIndex < lowestRunEnd) {
+	for (uint32_t i = lowestRun + 1; i < m_lines[lineIndex].visualRunsEndIndex; ++i) {
+		if (m_visualRuns[i].charEndIndex < lowestRunEnd) {
 			lowestRun = i;
-			lowestRunEnd = visualRuns[i].charEndIndex;
+			lowestRunEnd = m_visualRuns[i].charEndIndex;
 		}
 	}
 
-	return {visualRuns[lowestRun].rightToLeft ? visualRuns[lowestRun].charEndIndex
-			: visualRuns[lowestRun].charStartIndex};
+	return {m_visualRuns[lowestRun].rightToLeft ? m_visualRuns[lowestRun].charEndIndex
+			: m_visualRuns[lowestRun].charStartIndex};
 }
 
 CursorPosition LayoutInfo::get_line_end_position(size_t lineIndex) const {
 	auto highestRun = get_first_run_index(lineIndex);
-	auto highestRunEnd = visualRuns[highestRun].charEndIndex;
+	auto highestRunEnd = m_visualRuns[highestRun].charEndIndex;
 
-	for (uint32_t i = highestRun + 1; i < lines[lineIndex].visualRunsEndIndex; ++i) {
-		if (visualRuns[i].charEndIndex > highestRunEnd) {
+	for (uint32_t i = highestRun + 1; i < m_lines[lineIndex].visualRunsEndIndex; ++i) {
+		if (m_visualRuns[i].charEndIndex > highestRunEnd) {
 			highestRun = i;
-			highestRunEnd = visualRuns[i].charEndIndex;
+			highestRunEnd = m_visualRuns[i].charEndIndex;
 		}
 	}
 
-	bool oppositeAffinity = highestRun == lines[lineIndex].visualRunsEndIndex - 1
-			&& visualRuns[highestRun].charEndOffset == 0;
-	return make_cursor(visualRuns[highestRun].rightToLeft ? visualRuns[highestRun].charStartIndex
-			: visualRuns[highestRun].charEndIndex, oppositeAffinity);
+	bool oppositeAffinity = highestRun == m_lines[lineIndex].visualRunsEndIndex - 1
+			&& m_visualRuns[highestRun].charEndOffset == 0;
+	return make_cursor(m_visualRuns[highestRun].rightToLeft ? m_visualRuns[highestRun].charStartIndex
+			: m_visualRuns[highestRun].charEndIndex, oppositeAffinity);
 }
 
 float LayoutInfo::get_line_x_start(size_t lineNumber, float textWidth, TextXAlignment align) const {
-	auto lineWidth = lines[lineNumber].width;
+	auto lineWidth = m_lines[lineNumber].width;
 
 	switch (align) {
 		case TextXAlignment::LEFT:
@@ -135,25 +202,25 @@ CursorPosition LayoutInfo::find_closest_cursor_position(float textWidth, TextXAl
 
 	// Find run containing char
 	auto firstRunIndex = get_first_run_index(lineNumber);
-	auto lastRunIndex = lines[lineNumber].visualRunsEndIndex;
+	auto lastRunIndex = m_lines[lineNumber].visualRunsEndIndex;
 	auto runIndex = binary_search(firstRunIndex, lastRunIndex - firstRunIndex, [&](auto index) {
-		auto lastPosIndex = 2 * (visualRuns[index].glyphEndIndex + index);
-		return glyphPositions[lastPosIndex] < cursorX;
+		auto lastPosIndex = 2 * (m_visualRuns[index].glyphEndIndex + index);
+		return m_glyphPositions[lastPosIndex] < cursorX;
 	});
 
 	if (runIndex == lastRunIndex) {
-		return {visualRuns.back().rightToLeft ? visualRuns.back().charStartIndex
-				: visualRuns.back().charEndIndex + visualRuns.back().charEndOffset};
+		return {m_visualRuns.back().rightToLeft ? m_visualRuns.back().charStartIndex
+				: m_visualRuns.back().charEndIndex + m_visualRuns.back().charEndOffset};
 	}
 
 	// Find closest glyph in run
 	auto firstGlyphIndex = get_first_glyph_index(runIndex);
-	auto lastGlyphIndex = visualRuns[runIndex].glyphEndIndex;
+	auto lastGlyphIndex = m_visualRuns[runIndex].glyphEndIndex;
 	auto firstPosIndex = get_first_position_index(runIndex);
-	bool rightToLeft = visualRuns[runIndex].rightToLeft;
+	bool rightToLeft = m_visualRuns[runIndex].rightToLeft;
 
 	auto glyphIndex = firstGlyphIndex + binary_search(0, lastGlyphIndex - firstGlyphIndex, [&](auto index) {
-		return glyphPositions[firstPosIndex + 2 * index] < cursorX;
+		return m_glyphPositions[firstPosIndex + 2 * index] < cursorX;
 	});
 
 	// Find visual and logical bounds of the current glyph's cluster
@@ -164,35 +231,35 @@ CursorPosition LayoutInfo::find_closest_cursor_position(float textWidth, TextXAl
 
 	if (rightToLeft) {
 		if (glyphIndex == firstGlyphIndex) {
-			clusterStartChar = clusterEndChar = visualRuns[runIndex].charEndIndex;
-			clusterStartPos = clusterEndPos = glyphPositions[firstPosIndex];
+			clusterStartChar = clusterEndChar = m_visualRuns[runIndex].charEndIndex;
+			clusterStartPos = clusterEndPos = m_glyphPositions[firstPosIndex];
 		}
 		else {
-			clusterStartChar = charIndices[glyphIndex - 1];
-			clusterEndChar = glyphIndex - 1 == firstGlyphIndex ? visualRuns[runIndex].charEndIndex
-					: charIndices[glyphIndex - 2];
-			clusterStartPos = glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex)];
-			clusterEndPos = glyphPositions[firstPosIndex + 2 * (glyphIndex - 1 - firstGlyphIndex)];
+			clusterStartChar = m_charIndices[glyphIndex - 1];
+			clusterEndChar = glyphIndex - 1 == firstGlyphIndex ? m_visualRuns[runIndex].charEndIndex
+					: m_charIndices[glyphIndex - 2];
+			clusterStartPos = m_glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex)];
+			clusterEndPos = m_glyphPositions[firstPosIndex + 2 * (glyphIndex - 1 - firstGlyphIndex)];
 		}
 	}
 	else {
-		clusterStartChar = glyphIndex == firstGlyphIndex ? visualRuns[runIndex].charStartIndex
-				: charIndices[glyphIndex - 1];
-		clusterEndChar = glyphIndex == lastGlyphIndex ? visualRuns[runIndex].charEndIndex
-				: charIndices[glyphIndex];
-		clusterStartPos = glyphIndex == firstGlyphIndex ? glyphPositions[firstPosIndex]
-				: glyphPositions[firstPosIndex + 2 * (glyphIndex - 1 - firstGlyphIndex)];
-		clusterEndPos = glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex)];
+		clusterStartChar = glyphIndex == firstGlyphIndex ? m_visualRuns[runIndex].charStartIndex
+				: m_charIndices[glyphIndex - 1];
+		clusterEndChar = glyphIndex == lastGlyphIndex ? m_visualRuns[runIndex].charEndIndex
+				: m_charIndices[glyphIndex];
+		clusterStartPos = glyphIndex == firstGlyphIndex ? m_glyphPositions[firstPosIndex]
+				: m_glyphPositions[firstPosIndex + 2 * (glyphIndex - 1 - firstGlyphIndex)];
+		clusterEndPos = m_glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex)];
 	}
 
 	// Determine necessary affinity of the cursor
 	bool firstRunInLine = runIndex == firstRunIndex;
 	bool lastRunInLine = runIndex == lastRunIndex - 1;
-	bool atSoftLineBreak = lastRunInLine && visualRuns[runIndex].charEndOffset == 0;
+	bool atSoftLineBreak = lastRunInLine && m_visualRuns[runIndex].charEndOffset == 0;
 
-	bool firstGlyphAffinity = !firstRunInLine && !rightToLeft && visualRuns[runIndex - 1].rightToLeft;
+	bool firstGlyphAffinity = !firstRunInLine && !rightToLeft && m_visualRuns[runIndex - 1].rightToLeft;
 	bool lastGlyphAffinity = atSoftLineBreak
-			|| (!lastRunInLine && !rightToLeft && visualRuns[runIndex + 1].rightToLeft);
+			|| (!lastRunInLine && !rightToLeft && m_visualRuns[runIndex + 1].rightToLeft);
 
 	if (clusterStartChar == clusterEndChar) {
 		return make_cursor(clusterStartChar, firstGlyphAffinity);
@@ -210,16 +277,16 @@ CursorPosition LayoutInfo::find_closest_cursor_position(float textWidth, TextXAl
 		if (rightToLeft) {
 			if (cursorX > nextPos && cursorX <= currPos) {
 				auto selectedChar = cursorX - nextPos < currPos - cursorX ? nextCharIndex : currCharIndex;
-				bool affinity = (selectedChar == visualRuns[runIndex].charEndIndex && firstGlyphAffinity)
-						|| (selectedChar == visualRuns[runIndex].charStartIndex && lastGlyphAffinity);
+				bool affinity = (selectedChar == m_visualRuns[runIndex].charEndIndex && firstGlyphAffinity)
+						|| (selectedChar == m_visualRuns[runIndex].charStartIndex && lastGlyphAffinity);
 				return make_cursor(selectedChar, affinity);
 			}
 		}
 		else {
 			if (cursorX > currPos && cursorX <= nextPos) {
 				auto selectedChar = nextPos - cursorX < cursorX - currPos ? nextCharIndex : currCharIndex;
-				bool affinity = (selectedChar == visualRuns[runIndex].charStartIndex && firstGlyphAffinity)
-						|| (selectedChar == visualRuns[runIndex].charEndIndex && lastGlyphAffinity);
+				bool affinity = (selectedChar == m_visualRuns[runIndex].charStartIndex && firstGlyphAffinity)
+						|| (selectedChar == m_visualRuns[runIndex].charEndIndex && lastGlyphAffinity);
 				return make_cursor(selectedChar, affinity);
 			}
 		}
@@ -237,13 +304,13 @@ CursorPosition LayoutInfo::find_closest_cursor_position(float textWidth, TextXAl
 
 bool LayoutInfo::run_contains_char_range(size_t runIndex, uint32_t firstCharIndex,
 		uint32_t lastCharIndex) const {
-	return visualRuns[runIndex].charStartIndex < lastCharIndex
-			&& visualRuns[runIndex].charEndIndex > firstCharIndex;
+	return m_visualRuns[runIndex].charStartIndex < lastCharIndex
+			&& m_visualRuns[runIndex].charEndIndex > firstCharIndex;
 }
 
 Pair<float, float> LayoutInfo::get_position_range_in_run(size_t runIndex, uint32_t firstCharIndex,
 		uint32_t lastCharIndex) const {
-	auto& run = visualRuns[runIndex];
+	auto& run = m_visualRuns[runIndex];
 	auto minPos = get_glyph_offset_in_run(runIndex, std::max(std::min(firstCharIndex, run.charEndIndex),
 			run.charStartIndex));
 	auto maxPos = get_glyph_offset_in_run(runIndex, std::max(std::min(lastCharIndex, run.charEndIndex),
@@ -256,56 +323,136 @@ Pair<float, float> LayoutInfo::get_position_range_in_run(size_t runIndex, uint32
 	return {minPos, maxPos};
 }
 
+float LayoutInfo::get_glyph_offset_in_run(size_t runIndex, uint32_t cursor) const {
+	return m_visualRuns[runIndex].rightToLeft ? get_glyph_offset_rtl(runIndex, cursor)
+			: get_glyph_offset_ltr(runIndex, cursor);
+}
+
 uint32_t LayoutInfo::get_first_run_index(size_t lineIndex) const {
-	return lineIndex == 0 ? 0 : lines[lineIndex - 1].visualRunsEndIndex;
+	return lineIndex == 0 ? 0 : m_lines[lineIndex - 1].visualRunsEndIndex;
 }
 
 uint32_t LayoutInfo::get_first_glyph_index(size_t runIndex) const {
-	return runIndex == 0 ? 0 : visualRuns[runIndex - 1].glyphEndIndex;
+	return runIndex == 0 ? 0 : m_visualRuns[runIndex - 1].glyphEndIndex;
 }
 
 uint32_t LayoutInfo::get_first_position_index(size_t runIndex) const {
-	return runIndex == 0 ? 0 : 2 * (visualRuns[runIndex - 1].glyphEndIndex + runIndex);
+	return runIndex == 0 ? 0 : 2 * (m_visualRuns[runIndex - 1].glyphEndIndex + runIndex);
+}
+
+uint32_t LayoutInfo::get_line_run_end_index(size_t lineIndex) const {
+	return m_lines[lineIndex].visualRunsEndIndex;
+}
+
+float LayoutInfo::get_line_width(size_t lineIndex) const {
+	return m_lines[lineIndex].width;
 }
 
 float LayoutInfo::get_line_height(size_t lineIndex) const {
-	return lineIndex == 0 ? lines.front().totalDescent
-			: lines[lineIndex].totalDescent - lines[lineIndex - 1].totalDescent;
+	return lineIndex == 0 ? m_lines.front().totalDescent
+			: m_lines[lineIndex].totalDescent - m_lines[lineIndex - 1].totalDescent;
+}
+
+float LayoutInfo::get_line_ascent(size_t lineIndex) const {
+	return m_lines[lineIndex].ascent;
+}
+
+float LayoutInfo::get_line_total_descent(size_t lineIndex) const {
+	return m_lines[lineIndex].totalDescent;
+}
+
+const Font* LayoutInfo::get_run_font(size_t runIndex) const {
+	return m_visualRuns[runIndex].pFont;
+}
+
+uint32_t LayoutInfo::get_run_glyph_end_index(size_t runIndex) const {
+	return m_visualRuns[runIndex].glyphEndIndex;
+}
+
+uint32_t LayoutInfo::get_run_char_start_index(size_t runIndex) const {
+	return m_visualRuns[runIndex].charStartIndex;
+}
+
+uint32_t LayoutInfo::get_run_char_end_index(size_t runIndex) const {
+	return m_visualRuns[runIndex].charEndIndex;
+}
+
+uint8_t LayoutInfo::get_run_char_end_offset(size_t runIndex) const {
+	return m_visualRuns[runIndex].charEndOffset;
+}
+
+bool LayoutInfo::is_run_rtl(size_t runIndex) const {
+	return m_visualRuns[runIndex].rightToLeft;
 }
 
 const float* LayoutInfo::get_run_positions(size_t runIndex) const {
-	return glyphPositions.data() + get_first_position_index(runIndex);
+	return m_glyphPositions.data() + get_first_position_index(runIndex);
 }
 
 uint32_t LayoutInfo::get_run_glyph_count(size_t runIndex) const {
-	return visualRuns[runIndex].glyphEndIndex - get_first_glyph_index(runIndex);
+	return m_visualRuns[runIndex].glyphEndIndex - get_first_glyph_index(runIndex);
 }
 
-float LayoutInfo::get_glyph_offset_in_run(size_t runIndex, uint32_t cursor) const {
-	return visualRuns[runIndex].rightToLeft ? get_glyph_offset_rtl(runIndex, cursor)
-			: get_glyph_offset_ltr(runIndex, cursor);
+size_t LayoutInfo::get_line_count() const {
+	return m_lines.size();
+}
+
+size_t LayoutInfo::get_run_count() const {
+	return m_visualRuns.size();
+}
+
+size_t LayoutInfo::get_glyph_count() const {
+	return m_glyphs.size();
+}
+
+size_t LayoutInfo::get_char_index_count() const {
+	return m_charIndices.size();
+}
+
+float LayoutInfo::get_text_start_y() const {
+	return m_textStartY;
+}
+
+float LayoutInfo::get_text_height() const {
+	return m_lines.empty() ? 0.f : m_lines.back().totalDescent;
+}
+
+uint32_t LayoutInfo::get_glyph_id(uint32_t glyphIndex) const {
+	return m_glyphs[glyphIndex];
+}
+
+uint32_t LayoutInfo::get_char_index(uint32_t glyphIndex) const {
+	return m_charIndices[glyphIndex];
+}
+
+const float* LayoutInfo::get_glyph_position_data() const {
+	return m_glyphPositions.data();
+}
+
+size_t LayoutInfo::get_glyph_position_data_count() const {
+	return m_glyphPositions.size();
 }
 
 float LayoutInfo::get_glyph_offset_ltr(size_t runIndex, uint32_t cursor) const {
 	auto firstGlyphIndex = get_first_glyph_index(runIndex);
-	auto lastGlyphIndex = visualRuns[runIndex].glyphEndIndex;
+	auto lastGlyphIndex = m_visualRuns[runIndex].glyphEndIndex;
 	auto firstPosIndex = get_first_position_index(runIndex);
 
 	float glyphOffset = 0.f;
 
 	auto glyphIndex = binary_search(firstGlyphIndex, lastGlyphIndex - firstGlyphIndex, [&](auto index) {
-		return charIndices[index] < cursor;
+		return m_charIndices[index] < cursor;
 	});
 
-	auto nextCharIndex = glyphIndex == lastGlyphIndex ? visualRuns[runIndex].charEndIndex
-			: charIndices[glyphIndex];
+	auto nextCharIndex = glyphIndex == lastGlyphIndex ? m_visualRuns[runIndex].charEndIndex
+			: m_charIndices[glyphIndex];
 	auto clusterDiff = nextCharIndex - cursor;
 
-	glyphOffset = glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex)];
+	glyphOffset = m_glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex)];
 
 	if (clusterDiff > 0 && glyphIndex > 0) {
-		auto clusterCodeUnitCount = nextCharIndex - charIndices[glyphIndex - 1];
-		auto prevGlyphOffset = glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex - 1)];
+		auto clusterCodeUnitCount = nextCharIndex - m_charIndices[glyphIndex - 1];
+		auto prevGlyphOffset = m_glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex - 1)];
 		auto scaleFactor = static_cast<float>(clusterCodeUnitCount - clusterDiff)
 				/ static_cast<float>(clusterCodeUnitCount);
 
@@ -317,24 +464,24 @@ float LayoutInfo::get_glyph_offset_ltr(size_t runIndex, uint32_t cursor) const {
 
 float LayoutInfo::get_glyph_offset_rtl(size_t runIndex, uint32_t cursor) const {
 	auto firstGlyphIndex = get_first_glyph_index(runIndex);
-	auto lastGlyphIndex = visualRuns[runIndex].glyphEndIndex;
+	auto lastGlyphIndex = m_visualRuns[runIndex].glyphEndIndex;
 	auto firstPosIndex = get_first_position_index(runIndex);
 
 	float glyphOffset = 0.f;
 
 	auto glyphIndex = binary_search(firstGlyphIndex, lastGlyphIndex - firstGlyphIndex, [&](auto index) {
-		return charIndices[index] >= cursor;
+		return m_charIndices[index] >= cursor;
 	});
 
-	auto nextCharIndex = glyphIndex == firstGlyphIndex ? visualRuns[runIndex].charEndIndex
-			: charIndices[glyphIndex - 1];
+	auto nextCharIndex = glyphIndex == firstGlyphIndex ? m_visualRuns[runIndex].charEndIndex
+			: m_charIndices[glyphIndex - 1];
 	auto clusterDiff = nextCharIndex - cursor;
 
-	glyphOffset = glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex)];
+	glyphOffset = m_glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex)];
 
 	if (clusterDiff > 0 && glyphIndex < lastGlyphIndex) {
-		auto clusterCodeUnitCount = nextCharIndex - charIndices[glyphIndex];
-		auto prevGlyphOffset = glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex + 1)];
+		auto clusterCodeUnitCount = nextCharIndex - m_charIndices[glyphIndex];
+		auto prevGlyphOffset = m_glyphPositions[firstPosIndex + 2 * (glyphIndex - firstGlyphIndex + 1)];
 		auto scaleFactor = static_cast<float>(clusterCodeUnitCount - clusterDiff)
 				/ static_cast<float>(clusterCodeUnitCount);
 

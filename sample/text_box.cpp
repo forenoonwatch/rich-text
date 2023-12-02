@@ -301,11 +301,9 @@ void TextBox::render(UIContainer& container) {
 				auto [minPos, maxPos] = m_layout.get_position_range_in_run(runIndex, selectionStart,
 						selectionEnd);
 				
-				container.emit_rect(get_position()[0] + lineX + minPos,
-						get_position()[1] + m_layout.textStartY + lineY
-						- m_layout.lines[lineIndex].ascent, maxPos - minPos,
-						m_layout.get_line_height(lineIndex), Color::from_rgb(0, 120, 215),
-						PipelineIndex::RECT);
+				container.emit_rect(get_position()[0] + lineX + minPos, get_position()[1] + lineY
+						- m_layout.get_line_ascent(lineIndex), maxPos - minPos,
+						m_layout.get_line_height(lineIndex), Color::from_rgb(0, 120, 215), PipelineIndex::RECT);
 			}
 		});
 	}
@@ -315,10 +313,10 @@ void TextBox::render(UIContainer& container) {
 	uint32_t glyphPosIndex{};
 	float strikethroughStartPos{};
 	float underlineStartPos{};
+	auto* glyphPositions = m_layout.get_glyph_position_data();
 	m_layout.for_each_run(get_size()[0], m_textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
 			auto lineY) {
-		auto& run = m_layout.visualRuns[runIndex];
-		auto& font = *run.pFont;
+		auto& font = *m_layout.get_run_font(runIndex);
 
 		bool runHasHighlighting = hasHighlighting && m_layout.run_contains_char_range(runIndex,
 				selectionStart, selectionEnd);
@@ -332,14 +330,16 @@ void TextBox::render(UIContainer& container) {
 			pClip = &highlightRange;
 		}
 
-		Text::FormattingIterator iter(m_formatting, run.rightToLeft ? run.charEndIndex : run.charStartIndex);
-		underlineStartPos = strikethroughStartPos = m_layout.glyphPositions[glyphPosIndex];	
+		Text::FormattingIterator iter(m_formatting, m_layout.is_run_rtl(runIndex)
+				? m_layout.get_run_char_end_index(runIndex) : m_layout.get_run_char_start_index(runIndex));
+		underlineStartPos = strikethroughStartPos = glyphPositions[glyphPosIndex];	
 
-		for (; glyphIndex < run.glyphEndIndex; ++glyphIndex, glyphPosIndex += 2) {
-			auto pX = m_layout.glyphPositions[glyphPosIndex];
-			auto pY = m_layout.glyphPositions[glyphPosIndex + 1];
-			auto glyphID = m_layout.glyphs[glyphIndex];
-			auto event = iter.advance_to(m_layout.charIndices[glyphIndex]);
+		for (auto glyphEndIndex = m_layout.get_run_glyph_end_index(runIndex); glyphIndex < glyphEndIndex; 
+				++glyphIndex, glyphPosIndex += 2) {
+			auto pX = glyphPositions[glyphPosIndex];
+			auto pY = glyphPositions[glyphPosIndex + 1];
+			auto glyphID = m_layout.get_glyph_id(glyphIndex);
+			auto event = iter.advance_to(m_layout.get_char_index(glyphIndex));
 			auto stroke = iter.get_stroke_state();
 
 			float offset[2]{};
@@ -360,7 +360,7 @@ void TextBox::render(UIContainer& container) {
 								texCoordExtents, glyphSize, offset, strokeHasColor);
 
 				container.emit_rect(get_position()[0] + lineX + pX + offset[0],
-						get_position()[1] + m_layout.textStartY + lineY + pY + offset[1],
+						get_position()[1] + lineY + pY + offset[1],
 						glyphSize[0], glyphSize[1], texCoordExtents, pGlyphImage, stroke.color,
 						CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT);
 			}
@@ -373,7 +373,7 @@ void TextBox::render(UIContainer& container) {
 			auto textColor = glyphHasColor ? Color{1.f, 1.f, 1.f, 1.f} : iter.get_color();
 
 			container.emit_rect(get_position()[0] + lineX + pX + offset[0],
-					get_position()[1] + m_layout.textStartY + lineY + pY + offset[1], glyphSize[0],
+					get_position()[1] + lineY + pY + offset[1], glyphSize[0],
 					glyphSize[1], texCoordExtents, pGlyphImage, textColor,
 					CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT, pClip);
 			
@@ -381,7 +381,7 @@ void TextBox::render(UIContainer& container) {
 			if ((event & Text::FormattingEvent::UNDERLINE_END) != Text::FormattingEvent::NONE) {
 				auto height = font.get_underline_thickness() + 0.5f;
 				container.emit_rect(get_position()[0] + lineX + underlineStartPos,
-						get_position()[1] + m_layout.textStartY + lineY + font.get_underline_position(),
+						get_position()[1] + lineY + font.get_underline_position(),
 						pX - underlineStartPos, height, iter.get_prev_color(), PipelineIndex::RECT, pClip);
 			}
 
@@ -391,9 +391,9 @@ void TextBox::render(UIContainer& container) {
 
 			// Strikethrough
 			if ((event & Text::FormattingEvent::STRIKETHROUGH_END) != Text::FormattingEvent::NONE) {
-				auto height = run.pFont->get_strikethrough_thickness() + 0.5f;
+				auto height = font.get_strikethrough_thickness() + 0.5f;
 				container.emit_rect(get_position()[0] + lineX + strikethroughStartPos,
-						get_position()[1] + m_layout.textStartY + lineY + font.get_strikethrough_position(),
+						get_position()[1] + lineY + font.get_strikethrough_position(),
 						pX - strikethroughStartPos, height, iter.get_prev_color(), PipelineIndex::RECT, pClip);
 			}
 
@@ -404,20 +404,20 @@ void TextBox::render(UIContainer& container) {
 
 		// Finalize last strikethrough
 		if (iter.has_strikethrough()) {
-			auto strikethroughEndPos = m_layout.glyphPositions[glyphPosIndex];
+			auto strikethroughEndPos = glyphPositions[glyphPosIndex];
 			auto height = font.get_strikethrough_thickness() + 0.5f;
 			container.emit_rect(get_position()[0] + lineX + strikethroughStartPos,
-					get_position()[1] + m_layout.textStartY + lineY + font.get_strikethrough_position(),
+					get_position()[1] + lineY + font.get_strikethrough_position(),
 					strikethroughEndPos - strikethroughStartPos, height, iter.get_color(), PipelineIndex::RECT,
 					pClip);
 		}
 
 		// Finalize last underline
 		if (iter.has_underline()) {
-			auto underlineEndPos = m_layout.glyphPositions[glyphPosIndex];
+			auto underlineEndPos = glyphPositions[glyphPosIndex];
 			auto height = font.get_underline_thickness() + 0.5f;
 			container.emit_rect(get_position()[0] + lineX + underlineStartPos,
-					get_position()[1] + m_layout.textStartY + lineY + font.get_underline_position(),
+					get_position()[1] + lineY + font.get_underline_position(),
 					underlineEndPos - underlineStartPos, height, iter.get_color(), PipelineIndex::RECT, pClip);
 		}
 
@@ -432,7 +432,7 @@ void TextBox::render(UIContainer& container) {
 			auto minBound = positions[0];
 			auto maxBound = positions[2 * m_layout.get_run_glyph_count(runIndex)]; 
 			container.emit_rect(get_position()[0] + lineX + minBound,
-					get_position()[1] + lineY - m_layout.lines[lineIndex].ascent, maxBound - minBound,
+					get_position()[1] + lineY - m_layout.get_line_ascent(lineIndex), maxBound - minBound,
 					m_layout.get_line_height(lineIndex), {0, 0.5f, 0, 1}, PipelineIndex::OUTLINE);
 		});
 	}
@@ -445,7 +445,7 @@ void TextBox::render(UIContainer& container) {
 
 			for (le_int32 i = 0; i <= m_layout.get_run_glyph_count(runIndex); ++i) {
 				container.emit_rect(get_position()[0] + lineX + positions[2 * i],
-						get_position()[1] + lineY - m_layout.lines[lineIndex].ascent, 0.5f,
+						get_position()[1] + lineY - m_layout.get_line_ascent(lineIndex), 0.5f,
 						m_layout.get_line_height(lineIndex), {0, 0.5f, 0, 1}, PipelineIndex::OUTLINE);
 			}
 		});
@@ -831,7 +831,7 @@ static CursorPosition apply_cursor_move(const Text::LayoutInfo& layout, float te
 							g_cursorPos.lineNumber - 1, g_cursorPos.x)
 					: cursor;
 		case PostLayoutCursorMoveType::LINE_BELOW:
-			return g_cursorPos.lineNumber < layout.lines.size() - 1
+			return g_cursorPos.lineNumber < layout.get_line_count() - 1
 					? layout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,
 							g_cursorPos.lineNumber + 1, g_cursorPos.x)
 					: cursor;
@@ -840,8 +840,8 @@ static CursorPosition apply_cursor_move(const Text::LayoutInfo& layout, float te
 			auto& mouseOp = static_cast<const CursorToMouse&>(op);
 			auto lineIndex = layout.get_closest_line_to_height(static_cast<float>(mouseOp.mouseY));
 
-			if (lineIndex == layout.lines.size()) {
-				lineIndex = layout.lines.size() - 1;
+			if (lineIndex == layout.get_line_count()) {
+				lineIndex = layout.get_line_count() - 1;
 			}
 
 			return layout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,

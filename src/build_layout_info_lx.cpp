@@ -66,7 +66,7 @@ void Text::build_layout_info_icu_lx(LayoutInfo& result, const char16_t* chars, i
 					paragraphLevel = pl.getParagraphLevel();
 				}
 
-				auto firstParagraphRun = result.visualRuns.size();
+				auto firstParagraphRun = result.get_run_count();
 
 				while (auto* pLine = pl.nextLine(textAreaWidth)) {
 					handle_line_icu_lx(result, *pLine, byteIndex, chars, lastHighestRun, highestRunCharEnd);
@@ -77,25 +77,10 @@ void Text::build_layout_info_icu_lx(LayoutInfo& result, const char16_t* chars, i
 				auto* pFont = fontRuns.get_value(byteIndex == count ? count - 1 : byteIndex);
 				auto height = static_cast<float>(pFont->getAscent() + pFont->getDescent());
 
-				lastHighestRun = result.visualRuns.size();
+				lastHighestRun = result.get_run_count();
 				highestRunCharEnd = byteIndex;
-
-				// All inserted runs need at least 2 glyph position entries
-				result.glyphPositions.emplace_back();
-				result.glyphPositions.emplace_back();
-
-				result.visualRuns.push_back({
-					.glyphEndIndex = result.visualRuns.empty() ? 0 : result.visualRuns.back().glyphEndIndex,
-					.charStartIndex = static_cast<uint32_t>(byteIndex),
-					.charEndIndex = static_cast<uint32_t>(byteIndex),
-				});
-
-				result.lines.push_back({
-					.visualRunsEndIndex = static_cast<uint32_t>(result.visualRuns.size()),
-					.width = 0.f,
-					.ascent = static_cast<float>(pFont->getAscent()),
-					.totalDescent = result.lines.empty() ? height : result.lines.back().totalDescent + height,
-				});
+				result.append_empty_line(static_cast<uint32_t>(byteIndex), height,
+						static_cast<float>(pFont->getAscent()));
 			}
 
 			if (c == U_SENTINEL) {
@@ -107,17 +92,17 @@ void Text::build_layout_info_icu_lx(LayoutInfo& result, const char16_t* chars, i
 
 			byteIndex = UTEXT_GETNATIVEINDEX(&iter);
 
-			result.visualRuns[lastHighestRun].charEndOffset = byteIndex - idx;
+			result.set_run_char_end_offset(lastHighestRun, byteIndex - idx);
 		}
 	}
 
-	auto totalHeight = result.lines.empty() ? 0.f : result.lines.back().totalDescent;
-	result.textStartY = static_cast<float>(textYAlignment) * (textAreaHeight - totalHeight) * 0.5f;
+	auto totalHeight = result.get_text_height();
+	result.set_text_start_y(static_cast<float>(textYAlignment) * (textAreaHeight - totalHeight) * 0.5f);
 }
 
 static void handle_line_icu_lx(LayoutInfo& result, icu::ParagraphLayout::Line& line,
 		int32_t charOffset, const char16_t* chars, size_t& highestRun, int32_t& highestRunCharEnd) {
-	result.visualRuns.reserve(result.visualRuns.size() + line.countRuns());
+	result.reserve_runs(result.get_run_count() + line.countRuns());
 
 	int32_t maxAscent = 0;
 	int32_t maxDescent = 0;
@@ -142,15 +127,13 @@ static void handle_line_icu_lx(LayoutInfo& result, icu::ParagraphLayout::Line& l
 
 		for (int32_t j = 0; j < glyphCount; ++j) {
 			if (pGlyphs[j] != 0xFFFF) {
-				result.glyphs.emplace_back(pGlyphs[j]);
-				result.charIndices.emplace_back(pCharMap[j] + charOffset);
-				result.glyphPositions.emplace_back(pGlyphPositions[2 * j]);
-				result.glyphPositions.emplace_back(pGlyphPositions[2 * j + 1]);
+				result.append_glyph(pGlyphs[j]);
+				result.append_char_index(pCharMap[j] + charOffset);
+				result.append_glyph_position(pGlyphPositions[2 * j], pGlyphPositions[2 * j + 1]);
 			}
 		}
 
-		result.glyphPositions.emplace_back(pGlyphPositions[2 * glyphCount]);
-		result.glyphPositions.emplace_back(pGlyphPositions[2 * glyphCount + 1]);
+		result.append_glyph_position(pGlyphPositions[2 * glyphCount], pGlyphPositions[2 * glyphCount + 1]);
 
 		auto firstChar = pCharMap[0] + charOffset;
 		auto lastChar = pCharMap[glyphCount - 1] + charOffset;
@@ -162,26 +145,14 @@ static void handle_line_icu_lx(LayoutInfo& result, icu::ParagraphLayout::Line& l
 		U16_FWD_1_UNSAFE(chars, lastChar);
 
 		if (lastChar > highestRunCharEnd) {
-			highestRun = result.visualRuns.size();
+			highestRun = result.get_run_count();
 			highestRunCharEnd = lastChar;
 		}
 
-		result.visualRuns.push_back({
-			.pFont = static_cast<const Font*>(pRun->getFont()),
-			.glyphEndIndex = static_cast<uint32_t>(result.glyphs.size()),
-			.charStartIndex = static_cast<uint32_t>(firstChar),
-			.charEndIndex = static_cast<uint32_t>(lastChar),
-			.rightToLeft = rightToLeft,
-		});
+		result.append_run(static_cast<const Font*>(pRun->getFont()), static_cast<uint32_t>(firstChar),
+				static_cast<uint32_t>(lastChar), rightToLeft);
 	}
 
-	auto height = static_cast<float>(maxAscent + maxDescent);
-
-	result.lines.push_back({
-		.visualRunsEndIndex = static_cast<uint32_t>(result.visualRuns.size()),
-		.width = static_cast<float>(line.getWidth()),
-		.ascent = static_cast<float>(maxAscent),
-		.totalDescent = result.lines.empty() ? height : result.lines.back().totalDescent + height,
-	});
+	result.append_line(static_cast<float>(maxAscent + maxDescent), static_cast<float>(maxAscent));
 }
 
