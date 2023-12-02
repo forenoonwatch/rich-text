@@ -5,6 +5,7 @@
 #include "pipeline.hpp"
 #include "cursor_position.hpp"
 #include "text_alignment.hpp"
+#include "ui_object.hpp"
 
 #include <string>
 #include <vector>
@@ -25,27 +26,27 @@ struct TextRect {
 	PipelineIndex pipeline;
 };
 
-class TextBox {
+class TextBox final : public UIObject {
 	public:
+		static std::shared_ptr<TextBox> create();
+
 		static TextBox* get_focused_text_box();
 
 		TextBox() = default;
 		~TextBox();
 
-		bool handle_mouse_button(int button, int action, int mods, double mouseX, double mouseY);
-		bool handle_key_press(int key, int action, int mods);
-		bool handle_mouse_move(double mouseX, double mouseY);
-		bool handle_text_input(unsigned codepoint);
+		bool handle_mouse_button(int button, int action, int mods, double mouseX, double mouseY) override;
+		bool handle_key_press(int key, int action, int mods) override;
+		bool handle_mouse_move(double mouseX, double mouseY) override;
+		bool handle_text_input(unsigned codepoint) override;
 
 		void capture_focus();
 		void release_focus();
 
-		void render(const float* invScreenSize);
+		void render(const float* invScreenSize) override;
 
 		void set_font(MultiScriptFont);
 		void set_text(std::string);
-		void set_position(float x, float y);
-		void set_size(float width, float height);
 		void set_text_x_alignment(TextXAlignment);
 		void set_text_y_alignment(TextYAlignment);
 		void set_text_wrapped(bool);
@@ -54,12 +55,9 @@ class TextBox {
 		void set_editable(bool);
 		void set_selectable(bool);
 
-		bool is_mouse_inside(double mouseX, double mouseY) const;
 		bool is_focused() const;
 	private:
 		MultiScriptFont m_font{};
-		float m_position[2]{};
-		float m_size[2]{};
 		std::string m_text{};
 		std::string m_contentText{};
 		Color m_textColor{0.f, 0.f, 0.f, 1.f};

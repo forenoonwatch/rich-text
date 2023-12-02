@@ -58,6 +58,10 @@ static CursorPosition apply_cursor_move(const Text::LayoutInfo& paragraphLayout,
 
 static bool is_line_break(UChar32 c);
 
+std::shared_ptr<TextBox> TextBox::create() {
+	return std::make_shared<TextBox>();
+}
+
 TextBox* TextBox::get_focused_text_box() {
 	return g_focusedTextBox;
 }
@@ -76,7 +80,8 @@ bool TextBox::handle_mouse_button(int button, int action, int mods, double mouse
 	if (action == GLFW_PRESS) {
 		if (g_focusedTextBox == this) {
 			if (mouseInside) {
-				cursor_move_to_mouse(mouseX - m_position[0], mouseY - m_position[1], mods & GLFW_MOD_SHIFT);
+				cursor_move_to_mouse(mouseX - get_position()[0], mouseY - get_position()[1],
+						mods & GLFW_MOD_SHIFT);
 
 				auto time = glfwGetTime();
 
@@ -116,7 +121,7 @@ bool TextBox::handle_mouse_button(int button, int action, int mods, double mouse
 		}
 		else {
 			capture_focus();
-			cursor_move_to_mouse(mouseX - m_position[0], mouseY - m_position[1], mods & GLFW_MOD_SHIFT);
+			cursor_move_to_mouse(mouseX - get_position()[0], mouseY - get_position()[1], mods & GLFW_MOD_SHIFT);
 		}
 
 		g_isMouseDown = true;
@@ -221,7 +226,7 @@ bool TextBox::handle_key_press(int key, int action, int mods) {
 
 bool TextBox::handle_mouse_move(double mouseX, double mouseY) {
 	if (g_focusedTextBox == this && g_isMouseDown) {
-		cursor_move_to_mouse(mouseX - m_position[0], mouseY - m_position[1], true);
+		cursor_move_to_mouse(mouseX - get_position()[0], mouseY - get_position()[1], true);
 	}
 
 	return false;
@@ -292,7 +297,7 @@ void TextBox::render(const float* invScreenSize) {
 		}
 
 		rect.texture->bind();
-		float extents[] = {m_position[0] + rect.x, m_position[1] + rect.y, rect.width, rect.height}; 
+		float extents[] = {get_position()[0] + rect.x, get_position()[1] + rect.y, rect.width, rect.height}; 
 		pPipeline->set_uniform_float4(1, extents);
 		pPipeline->set_uniform_float4(2, rect.texCoords);
 		pPipeline->set_uniform_float4(3, reinterpret_cast<const float*>(&rect.color));
@@ -316,7 +321,7 @@ void TextBox::render(const float* invScreenSize) {
 
 	// Draw Cursor
 	if (is_focused()) {
-		float cursorExtents[] = {m_position[0] + g_cursorPos.x, m_position[1] + g_cursorPos.y, 1,
+		float cursorExtents[] = {get_position()[0] + g_cursorPos.x, get_position()[1] + g_cursorPos.y, 1,
 				g_cursorPos.height};
 		Color cursorColor{0, 0, 0, 1};
 
@@ -328,11 +333,6 @@ void TextBox::render(const float* invScreenSize) {
 		g_textAtlas->get_default_texture()->bind();
 		pPipeline->draw();
 	}
-}
-
-bool TextBox::is_mouse_inside(double mouseX, double mouseY) const {
-	return mouseX >= m_position[0] && mouseY >= m_position[1] && mouseX - m_position[0] <= m_size[0]
-			&& mouseY - m_position[1] <= m_size[1];
 }
 
 bool TextBox::is_focused() const {
@@ -640,15 +640,15 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 		const void* postLayoutOp) {
 	Text::LayoutInfo paragraphLayout{};
 	Text::build_layout_info_utf8(paragraphLayout, text.data(), text.size(), textInfo.fontRuns,
-			m_textWrapped ? m_size[0] : 0.f, m_size[1], m_textYAlignment, Text::LayoutInfoFlags::NONE);
+			m_textWrapped ? get_size()[0] : 0.f, get_size()[1], m_textYAlignment, Text::LayoutInfoFlags::NONE);
 
 	if (postLayoutOp) {
-		set_cursor_position_internal(apply_cursor_move(paragraphLayout, m_size[0], m_textXAlignment,
+		set_cursor_position_internal(apply_cursor_move(paragraphLayout, get_size()[0], m_textXAlignment,
 				*reinterpret_cast<const PostLayoutCursorMove*>(postLayoutOp), m_cursorPosition),
 				reinterpret_cast<const PostLayoutCursorMove*>(postLayoutOp)->selectionMode);
 	}
 
-	g_cursorPos = paragraphLayout.calc_cursor_pixel_pos(m_size[0], m_textXAlignment, m_cursorPosition);
+	g_cursorPos = paragraphLayout.calc_cursor_pixel_pos(get_size()[0], m_textXAlignment, m_cursorPosition);
 
 	bool hasHighlighting = m_selectionStart.is_valid();
 	uint32_t selectionStart{};
@@ -663,8 +663,8 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 			std::swap(selectionStart, selectionEnd);
 		}
 
-		paragraphLayout.for_each_run(m_size[0], m_textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
-				auto lineY) {
+		paragraphLayout.for_each_run(get_size()[0], m_textXAlignment, [&](auto lineIndex, auto runIndex,
+				auto lineX, auto lineY) {
 			if (paragraphLayout.run_contains_char_range(runIndex, selectionStart, selectionEnd)) {
 				auto [minPos, maxPos] = paragraphLayout.get_position_range_in_run(runIndex, selectionStart,
 						selectionEnd);
@@ -681,7 +681,7 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 	uint32_t glyphPosIndex{};
 	float strikethroughStartPos{};
 	float underlineStartPos{};
-	paragraphLayout.for_each_run(m_size[0], m_textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
+	paragraphLayout.for_each_run(get_size()[0], m_textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
 			auto lineY) {
 		auto& run = paragraphLayout.visualRuns[runIndex];
 		auto& font = *run.pFont;
@@ -787,8 +787,8 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 
 	// Debug render run outlines
 	if (CVars::showRunOutlines) {
-		paragraphLayout.for_each_run(m_size[0], m_textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
-				auto lineY) {
+		paragraphLayout.for_each_run(get_size()[0], m_textXAlignment, [&](auto lineIndex, auto runIndex,
+				auto lineX, auto lineY) {
 			auto* positions = paragraphLayout.get_run_positions(runIndex);
 			auto minBound = positions[0];
 			auto maxBound = positions[2 * paragraphLayout.get_run_glyph_count(runIndex)]; 
@@ -799,8 +799,8 @@ void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::strin
 
 	// Debug render glyph boundaries
 	if (CVars::showGlyphBoundaries) {
-		paragraphLayout.for_each_run(m_size[0], m_textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
-				auto lineY) {
+		paragraphLayout.for_each_run(get_size()[0], m_textXAlignment, [&](auto lineIndex, auto runIndex,
+				auto lineX, auto lineY) {
 			auto* positions = paragraphLayout.get_run_positions(runIndex);
 
 			for (le_int32 i = 0; i <= paragraphLayout.get_run_glyph_count(runIndex); ++i) {
@@ -886,18 +886,6 @@ void TextBox::set_font(MultiScriptFont font) {
 
 void TextBox::set_text(std::string text) {
 	m_text = std::move(text);
-	recalc_text();
-}
-
-void TextBox::set_position(float x, float y) {
-	m_position[0] = x;
-	m_position[1] = y;
-	recalc_text();
-}
-
-void TextBox::set_size(float width, float height) {
-	m_size[0] = width;
-	m_size[1] = height;
 	recalc_text();
 }
 
