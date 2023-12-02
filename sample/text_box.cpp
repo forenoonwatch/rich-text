@@ -8,14 +8,12 @@
 #include "msdf_text_atlas.hpp"
 #include "formatting_iterator.hpp"
 #include "ui_container.hpp"
-#include "cursor_controller.hpp"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
 static constexpr const double DOUBLE_CLICK_TIME = 0.5;
 
-static Text::CursorController g_cursorCtrl;
 static TextBox* g_focusedTextBox = nullptr;
 static bool g_isMouseDown = false;
 static double g_lastClickTime = 0.0;
@@ -432,24 +430,24 @@ bool TextBox::should_focused_use_rich_text() const {
 }
 
 void TextBox::cursor_move_to_next_character(bool selectionMode) {
-	set_cursor_position_internal(g_cursorCtrl.next_character(m_cursorPosition), selectionMode);
+	set_cursor_position_internal(m_cursorCtrl.next_character(m_cursorPosition), selectionMode);
 }
 
 void TextBox::cursor_move_to_prev_character(bool selectionMode) {
-	set_cursor_position_internal(g_cursorCtrl.prev_character(m_cursorPosition), selectionMode);
+	set_cursor_position_internal(m_cursorCtrl.prev_character(m_cursorPosition), selectionMode);
 }
 
 void TextBox::cursor_move_to_next_word(bool selectionMode) {
-	set_cursor_position_internal(g_cursorCtrl.next_word(m_cursorPosition), selectionMode);
+	set_cursor_position_internal(m_cursorCtrl.next_word(m_cursorPosition), selectionMode);
 }
 
 void TextBox::cursor_move_to_prev_word(bool selectionMode) {
-	set_cursor_position_internal(g_cursorCtrl.prev_word(m_cursorPosition), selectionMode);
+	set_cursor_position_internal(m_cursorCtrl.prev_word(m_cursorPosition), selectionMode);
 }
 
 void TextBox::cursor_move_to_next_line(bool selectionMode) {
 	auto cursor = m_visualCursorInfo.lineNumber < m_layout.get_line_count() - 1
-			? g_cursorCtrl.closest_in_line(m_layout, get_size()[0], m_textXAlignment,
+			? m_cursorCtrl.closest_in_line(m_layout, get_size()[0], m_textXAlignment,
 					m_visualCursorInfo.lineNumber + 1, m_visualCursorInfo.x)
 			: m_cursorPosition;
 	set_cursor_position_internal(cursor, selectionMode);
@@ -457,7 +455,7 @@ void TextBox::cursor_move_to_next_line(bool selectionMode) {
 
 void TextBox::cursor_move_to_prev_line(bool selectionMode) {
 	auto cursor = m_visualCursorInfo.lineNumber > 0
-			? g_cursorCtrl.closest_in_line(m_layout, get_size()[0], m_textXAlignment,
+			? m_cursorCtrl.closest_in_line(m_layout, get_size()[0], m_textXAlignment,
 					m_visualCursorInfo.lineNumber - 1, m_visualCursorInfo.x)
 			: m_cursorPosition;
 	set_cursor_position_internal(cursor, selectionMode);
@@ -480,7 +478,7 @@ void TextBox::cursor_move_to_text_end(bool selectionMode) {
 }
 
 void TextBox::cursor_move_to_mouse(double mouseX, double mouseY, bool selectionMode) {
-	auto cursor = g_cursorCtrl.closest_to_position(m_layout, get_size()[0], m_textXAlignment,
+	auto cursor = m_cursorCtrl.closest_to_position(m_layout, get_size()[0], m_textXAlignment,
 			static_cast<float>(mouseX), static_cast<float>(mouseY));
 	set_cursor_position_internal(cursor, selectionMode);
 }
@@ -636,7 +634,7 @@ void TextBox::recalc_text() {
 			: Text::make_default_formatting_runs(m_text, m_contentText, m_font, m_textColor, strokeState);
 
 	auto& text = richText ? m_contentText : m_text;
-	g_cursorCtrl.set_text(text);
+	m_cursorCtrl.set_text(text);
 
 	if (text.empty()) {
 		m_visualCursorInfo.height = static_cast<float>(m_font.getAscent() + m_font.getDescent());
