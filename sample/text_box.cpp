@@ -327,6 +327,8 @@ void TextBox::render(UIContainer& container) {
 
 		if (runHasHighlighting) {
 			highlightRange = m_layout.get_position_range_in_run(runIndex, selectionStart, selectionEnd);
+			highlightRange.first += get_position()[0];
+			highlightRange.second += get_position()[0];
 			pClip = &highlightRange;
 		}
 
