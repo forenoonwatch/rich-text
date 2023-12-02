@@ -6,16 +6,12 @@
 #include "pipeline.hpp"
 #include "text_atlas.hpp"
 #include "msdf_text_atlas.hpp"
-#include "formatting.hpp"
 #include "formatting_iterator.hpp"
-#include "layout_info.hpp"
 #include "ui_container.hpp"
+#include "cursor_controller.hpp"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-
-#include <unicode/utext.h>
-#include <unicode/brkiter.h>
 
 namespace {
 
@@ -41,12 +37,7 @@ struct CursorToMouse : public PostLayoutCursorMove {
 
 static constexpr const double DOUBLE_CLICK_TIME = 0.5;
 
-static constexpr const UChar32 CH_LF = 0x000A;
-static constexpr const UChar32 CH_CR = 0x000D;
-static constexpr const UChar32 CH_LSEP = 0x2028;
-static constexpr const UChar32 CH_PSEP = 0x2029;
-
-static icu::BreakIterator* g_charBreakIter = nullptr;
+static Text::CursorController g_cursorCtrl;
 static TextBox* g_focusedTextBox = nullptr;
 static Text::CursorPositionResult g_cursorPos{};
 static bool g_isMouseDown = false;
@@ -56,8 +47,6 @@ static CursorPosition g_lastClickPos{CursorPosition::INVALID_VALUE};
 
 static CursorPosition apply_cursor_move(const Text::LayoutInfo& layout, float textWidth,
 		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor);
-
-static bool is_line_break(UChar32 c);
 
 std::shared_ptr<TextBox> TextBox::create() {
 	return std::make_shared<TextBox>();
@@ -258,9 +247,6 @@ void TextBox::capture_focus() {
 	}
 
 	g_focusedTextBox = this;
-
-	UErrorCode errc{};
-	g_charBreakIter = icu::BreakIterator::createCharacterInstance(icu::Locale::getDefault(), errc);
 	
 	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
@@ -270,7 +256,6 @@ void TextBox::release_focus() {
 		return;
 	}
 
-	delete g_charBreakIter;
 	g_focusedTextBox = nullptr;
 	g_isMouseDown = false;
 	g_clickCount = 0;
@@ -475,77 +460,22 @@ bool TextBox::should_focused_use_rich_text() const {
 }
 
 void TextBox::cursor_move_to_next_character(bool selectionMode) {
-	if (auto nextIndex = g_charBreakIter->following(m_cursorPosition.get_position());
-			nextIndex != icu::BreakIterator::DONE) {
-		set_cursor_position_internal({static_cast<uint32_t>(nextIndex)}, selectionMode);
-	}
-
+	set_cursor_position_internal(g_cursorCtrl.next_character(m_cursorPosition), selectionMode);
 	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
 void TextBox::cursor_move_to_prev_character(bool selectionMode) {
-	if (auto nextIndex = g_charBreakIter->preceding(m_cursorPosition.get_position());
-			nextIndex != icu::BreakIterator::DONE) {
-		set_cursor_position_internal({static_cast<uint32_t>(nextIndex)}, selectionMode);
-	}
-
+	set_cursor_position_internal(g_cursorCtrl.prev_character(m_cursorPosition), selectionMode);
 	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
 void TextBox::cursor_move_to_next_word(bool selectionMode) {
-	UChar32 c;
-	U8_GET((const uint8_t*)m_text.data(), 0, m_cursorPosition.get_position(), m_text.size(), c);
-	bool lastWhitespace = u_isWhitespace(c);
-
-	for (;;) {
-		auto nextIndex = g_charBreakIter->following(m_cursorPosition.get_position());
-
-		if (nextIndex == icu::BreakIterator::DONE) {
-			break;
-		}
-
-		set_cursor_position_internal({static_cast<uint32_t>(nextIndex)}, selectionMode);
-		U8_GET((const uint8_t*)m_text.data(), 0, nextIndex, m_text.size(), c);
-		bool whitespace = u_isWhitespace(c);
-
-		if (!whitespace && lastWhitespace || is_line_break(c)) {
-			break;
-		}
-
-		lastWhitespace = whitespace;
-	}
-
+	set_cursor_position_internal(g_cursorCtrl.next_word(m_cursorPosition), selectionMode);
 	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
 void TextBox::cursor_move_to_prev_word(bool selectionMode) {
-	UChar32 c;
-	bool lastWhitespace = true;
-
-	for (;;) {
-		auto nextIndex = g_charBreakIter->preceding(m_cursorPosition.get_position());
-
-		if (nextIndex == icu::BreakIterator::DONE) {
-			break;
-		}
-
-		U8_GET((const uint8_t*)m_text.data(), 0, nextIndex, m_text.size(), c);
-
-		bool whitespace = u_isWhitespace(c);
-
-		if (whitespace && !lastWhitespace) {
-			break;
-		}
-
-		if (is_line_break(c)) {
-			set_cursor_position_internal({static_cast<uint32_t>(nextIndex)}, selectionMode);
-			break;
-		}
-
-		set_cursor_position_internal({static_cast<uint32_t>(nextIndex)}, selectionMode);
-		lastWhitespace = whitespace;
-	}
-
+	set_cursor_position_internal(g_cursorCtrl.prev_word(m_cursorPosition), selectionMode);
 	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
@@ -748,15 +678,7 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 	}
 
 	if (g_focusedTextBox == this) {
-		UErrorCode errc{};
-		UText uText UTEXT_INITIALIZER;
-		if (should_focused_use_rich_text()) {
-			utext_openUTF8(&uText, m_contentText.data(), m_contentText.size(), &errc);
-		}
-		else {
-			utext_openUTF8(&uText, m_text.data(), m_text.size(), &errc);
-		}
-		g_charBreakIter->setText(&uText, errc);
+		g_cursorCtrl.set_text(should_focused_use_rich_text() ? m_contentText : m_text);
 	}
 
 	auto& text = richText ? m_contentText : m_text;
@@ -827,25 +749,19 @@ static CursorPosition apply_cursor_move(const Text::LayoutInfo& layout, float te
 			return layout.get_line_end_position(g_cursorPos.lineNumber);
 		case PostLayoutCursorMoveType::LINE_ABOVE:
 			return g_cursorPos.lineNumber > 0
-					? layout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,
-							g_cursorPos.lineNumber - 1, g_cursorPos.x)
+					? g_cursorCtrl.closest_in_line(layout, textWidth, textXAlignment, g_cursorPos.lineNumber - 1,
+							g_cursorPos.x)
 					: cursor;
 		case PostLayoutCursorMoveType::LINE_BELOW:
 			return g_cursorPos.lineNumber < layout.get_line_count() - 1
-					? layout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,
-							g_cursorPos.lineNumber + 1, g_cursorPos.x)
+					? g_cursorCtrl.closest_in_line(layout, textWidth, textXAlignment, g_cursorPos.lineNumber + 1,
+							g_cursorPos.x)
 					: cursor;
 		case PostLayoutCursorMoveType::MOUSE_POSITION:
 		{
 			auto& mouseOp = static_cast<const CursorToMouse&>(op);
-			auto lineIndex = layout.get_closest_line_to_height(static_cast<float>(mouseOp.mouseY));
-
-			if (lineIndex == layout.get_line_count()) {
-				lineIndex = layout.get_line_count() - 1;
-			}
-
-			return layout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,
-					lineIndex, static_cast<float>(mouseOp.mouseX));
+			return g_cursorCtrl.closest_to_position(layout, textWidth, textXAlignment,
+					static_cast<float>(mouseOp.mouseX), static_cast<float>(mouseOp.mouseY));
 		}
 			break;
 		default:
@@ -853,9 +769,5 @@ static CursorPosition apply_cursor_move(const Text::LayoutInfo& layout, float te
 	}
 
 	return cursor;
-}
-
-static bool is_line_break(UChar32 c) {
-	return c == CH_LF || c == CH_CR || c == CH_LSEP || c == CH_PSEP;
 }
 
