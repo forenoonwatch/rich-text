@@ -64,6 +64,11 @@ struct LayoutInfo {
 	float textStartY;
 
 	/**
+	 * @brief Clears all layout information contained within the object.
+	 */
+	void clear();
+
+	/**
 	 * Calculates the pixel position, height, and line number of the text cursor given the provided
 	 * `CursorPosition`.
 	 *

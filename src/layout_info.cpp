@@ -17,6 +17,14 @@ static constexpr CursorPosition make_cursor(uint32_t position, bool oppositeAffi
 
 // LayoutInfo
 
+void LayoutInfo::clear() {
+	visualRuns.clear();
+	lines.clear();
+	glyphs.clear();
+	charIndices.clear();
+	glyphPositions.clear();
+}
+
 CursorPositionResult LayoutInfo::calc_cursor_pixel_pos(float textWidth, TextXAlignment textXAlignment,
 		CursorPosition cursor) const {
 	size_t lineIndex;

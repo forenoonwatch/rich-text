@@ -80,6 +80,8 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 void Text::build_layout_info_utf8(LayoutInfo& result, const char* chars, int32_t count,
 		const ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, LayoutInfoFlags flags) {
+	result.clear();
+
 	LayoutBuildState state{};
 	SBCodepointSequence codepointSequence{SBStringEncodingUTF8, (void*)chars, (size_t)count};
 	SBAlgorithmRef sbAlgorithm = SBAlgorithmCreate(&codepointSequence);

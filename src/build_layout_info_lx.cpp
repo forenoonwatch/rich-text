@@ -22,6 +22,8 @@ static void handle_line_icu_lx(LayoutInfo& result, icu::ParagraphLayout::Line& l
 void Text::build_layout_info_icu_lx(LayoutInfo& result, const char16_t* chars, int32_t count,
 		const ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, LayoutInfoFlags flags) {
+	result.clear();
+
 	ValueRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_run_count());
 
 	auto* start = chars;
