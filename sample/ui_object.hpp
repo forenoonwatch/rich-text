@@ -25,7 +25,7 @@ class UIObject : public std::enable_shared_from_this<UIObject> {
 
 		void set_parent(UIObject*);
 		void set_position(float x, float y);
-		void set_size(float width, float height);
+		virtual void set_size(float width, float height);
 
 		const float* get_position() const;
 		const float* get_size() const;

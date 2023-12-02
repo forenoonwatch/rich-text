@@ -24,6 +24,8 @@ class TextBox final : public UIObject {
 
 		void render(UIContainer&) override;
 
+		void set_size(float width, float height) override;
+
 		void set_font(MultiScriptFont);
 		void set_text(std::string);
 		void set_text_x_alignment(TextXAlignment);
@@ -88,6 +90,5 @@ class TextBox final : public UIObject {
 		void remove_highlighted_text();
 
 		void recalc_text();
-		void recalc_text_internal(bool richText, const void* postLayoutOp);
 };
 

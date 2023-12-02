@@ -13,28 +13,6 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-namespace {
-
-enum class PostLayoutCursorMoveType {
-	LINE_START,
-	LINE_END,
-	LINE_ABOVE,
-	LINE_BELOW,
-	MOUSE_POSITION
-};
-
-struct PostLayoutCursorMove {
-	PostLayoutCursorMoveType type;
-	bool selectionMode;
-};
-
-struct CursorToMouse : public PostLayoutCursorMove {
-	double mouseX;
-	double mouseY;
-};
-
-}
-
 static constexpr const double DOUBLE_CLICK_TIME = 0.5;
 
 static Text::CursorController g_cursorCtrl;
@@ -43,10 +21,6 @@ static bool g_isMouseDown = false;
 static double g_lastClickTime = 0.0;
 static uint32_t g_clickCount = 0;
 static CursorPosition g_lastClickPos{CursorPosition::INVALID_VALUE};
-
-static CursorPosition apply_cursor_move(const Text::LayoutInfo& layout, float textWidth,
-		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor,
-		const Text::VisualCursorInfo& visualCursorInfo);
 
 std::shared_ptr<TextBox> TextBox::create() {
 	return std::make_shared<TextBox>();
@@ -65,6 +39,7 @@ bool TextBox::handle_mouse_button(int button, int action, int mods, double mouse
 		return false;
 	}
 
+	// FIXME: handle_mouse_button no longer gets fired when mouse is outside the bounds
 	bool mouseInside = is_mouse_inside(mouseX, mouseY);
 
 	if (action == GLFW_PRESS) {
@@ -247,8 +222,8 @@ void TextBox::capture_focus() {
 	}
 
 	g_focusedTextBox = this;
-	
-	recalc_text_internal(should_focused_use_rich_text(), nullptr);
+
+	recalc_text();
 }
 
 void TextBox::release_focus() {
@@ -458,62 +433,56 @@ bool TextBox::should_focused_use_rich_text() const {
 
 void TextBox::cursor_move_to_next_character(bool selectionMode) {
 	set_cursor_position_internal(g_cursorCtrl.next_character(m_cursorPosition), selectionMode);
-	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
 void TextBox::cursor_move_to_prev_character(bool selectionMode) {
 	set_cursor_position_internal(g_cursorCtrl.prev_character(m_cursorPosition), selectionMode);
-	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
 void TextBox::cursor_move_to_next_word(bool selectionMode) {
 	set_cursor_position_internal(g_cursorCtrl.next_word(m_cursorPosition), selectionMode);
-	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
 void TextBox::cursor_move_to_prev_word(bool selectionMode) {
 	set_cursor_position_internal(g_cursorCtrl.prev_word(m_cursorPosition), selectionMode);
-	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
 void TextBox::cursor_move_to_next_line(bool selectionMode) {
-	PostLayoutCursorMove op{PostLayoutCursorMoveType::LINE_BELOW, selectionMode};
-	recalc_text_internal(should_focused_use_rich_text(), &op);
+	auto cursor = m_visualCursorInfo.lineNumber < m_layout.get_line_count() - 1
+			? g_cursorCtrl.closest_in_line(m_layout, get_size()[0], m_textXAlignment,
+					m_visualCursorInfo.lineNumber + 1, m_visualCursorInfo.x)
+			: m_cursorPosition;
+	set_cursor_position_internal(cursor, selectionMode);
 }
 
 void TextBox::cursor_move_to_prev_line(bool selectionMode) {
-	PostLayoutCursorMove op{PostLayoutCursorMoveType::LINE_ABOVE, selectionMode};
-	recalc_text_internal(should_focused_use_rich_text(), &op);
+	auto cursor = m_visualCursorInfo.lineNumber > 0
+			? g_cursorCtrl.closest_in_line(m_layout, get_size()[0], m_textXAlignment,
+					m_visualCursorInfo.lineNumber - 1, m_visualCursorInfo.x)
+			: m_cursorPosition;
+	set_cursor_position_internal(cursor, selectionMode);
 }
 
 void TextBox::cursor_move_to_line_start(bool selectionMode) {
-	PostLayoutCursorMove op{PostLayoutCursorMoveType::LINE_START, selectionMode};
-	recalc_text_internal(should_focused_use_rich_text(), &op);
+	set_cursor_position_internal(m_layout.get_line_start_position(m_visualCursorInfo.lineNumber), selectionMode);
 }
 
 void TextBox::cursor_move_to_line_end(bool selectionMode) {
-	PostLayoutCursorMove op{PostLayoutCursorMoveType::LINE_END, selectionMode};
-	recalc_text_internal(should_focused_use_rich_text(), &op);
+	set_cursor_position_internal(m_layout.get_line_end_position(m_visualCursorInfo.lineNumber), selectionMode);
 }
 
 void TextBox::cursor_move_to_text_start(bool selectionMode) {
 	set_cursor_position_internal({}, selectionMode);
-	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
 void TextBox::cursor_move_to_text_end(bool selectionMode) {
 	set_cursor_position_internal({static_cast<uint32_t>(m_text.size())}, selectionMode);
-	recalc_text_internal(should_focused_use_rich_text(), nullptr);
 }
 
 void TextBox::cursor_move_to_mouse(double mouseX, double mouseY, bool selectionMode) {
-	CursorToMouse op{
-		.mouseX = mouseX,
-		.mouseY = mouseY,
-	};
-	op.type = PostLayoutCursorMoveType::MOUSE_POSITION;
-	op.selectionMode = selectionMode;
-	recalc_text_internal(should_focused_use_rich_text(), &op);
+	auto cursor = g_cursorCtrl.closest_to_position(m_layout, get_size()[0], m_textXAlignment,
+			static_cast<float>(mouseX), static_cast<float>(mouseY));
+	set_cursor_position_internal(cursor, selectionMode);
 }
 
 void TextBox::set_cursor_position_internal(CursorPosition pos, bool selectionMode) {
@@ -528,6 +497,8 @@ void TextBox::set_cursor_position_internal(CursorPosition pos, bool selectionMod
 		m_selectionStart = {CursorPosition::INVALID_VALUE};
 		m_cursorPosition = pos;
 	}
+
+	m_visualCursorInfo = m_layout.calc_cursor_pixel_pos(get_size()[0], m_textXAlignment, m_cursorPosition);
 }
 
 void TextBox::handle_key_backspace(bool ctrl) {
@@ -651,14 +622,9 @@ void TextBox::remove_highlighted_text() {
 }
 
 void TextBox::recalc_text() {
-	recalc_text_internal(is_focused() ? should_focused_use_rich_text() : m_richText, nullptr);
-}
+	bool richText = is_focused() ? should_focused_use_rich_text() : m_richText;
 
-void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
-	m_visualCursorInfo.x = 0.f;
-	m_visualCursorInfo.y = 0.f;
-	m_visualCursorInfo.height = 0.f;
-	m_visualCursorInfo.lineNumber = 0;
+	m_visualCursorInfo = {};
 
 	if (!m_font) {
 		return;
@@ -669,25 +635,16 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 			? Text::parse_inline_formatting(m_text, m_contentText, m_font, m_textColor, strokeState)
 			: Text::make_default_formatting_runs(m_text, m_contentText, m_font, m_textColor, strokeState);
 
-	if (m_contentText.empty()) {
+	auto& text = richText ? m_contentText : m_text;
+	g_cursorCtrl.set_text(text);
+
+	if (text.empty()) {
 		m_visualCursorInfo.height = static_cast<float>(m_font.getAscent() + m_font.getDescent());
 		return;
 	}
 
-	if (g_focusedTextBox == this) {
-		g_cursorCtrl.set_text(should_focused_use_rich_text() ? m_contentText : m_text);
-	}
-
-	auto& text = richText ? m_contentText : m_text;
 	Text::build_layout_info_utf8(m_layout, text.data(), text.size(), m_formatting.fontRuns,
 			m_textWrapped ? get_size()[0] : 0.f, get_size()[1], m_textYAlignment, Text::LayoutInfoFlags::NONE);
-
-	if (postLayoutOp) {
-		set_cursor_position_internal(apply_cursor_move(m_layout, get_size()[0], m_textXAlignment,
-				*reinterpret_cast<const PostLayoutCursorMove*>(postLayoutOp), m_cursorPosition,
-				m_visualCursorInfo),
-				reinterpret_cast<const PostLayoutCursorMove*>(postLayoutOp)->selectionMode);
-	}
 
 	m_visualCursorInfo = m_layout.calc_cursor_pixel_pos(get_size()[0], m_textXAlignment, m_cursorPosition);
 }
@@ -736,37 +693,8 @@ void TextBox::set_selectable(bool selectable) {
 	m_selectable = selectable;
 }
 
-// Static Functions
-
-static CursorPosition apply_cursor_move(const Text::LayoutInfo& layout, float textWidth,
-		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor,
-		const Text::VisualCursorInfo& visualCursorInfo) {
-	switch (op.type) {
-		case PostLayoutCursorMoveType::LINE_START:
-			return layout.get_line_start_position(visualCursorInfo.lineNumber);
-		case PostLayoutCursorMoveType::LINE_END:
-			return layout.get_line_end_position(visualCursorInfo.lineNumber);
-		case PostLayoutCursorMoveType::LINE_ABOVE:
-			return visualCursorInfo.lineNumber > 0
-					? g_cursorCtrl.closest_in_line(layout, textWidth, textXAlignment,
-							visualCursorInfo.lineNumber - 1, visualCursorInfo.x)
-					: cursor;
-		case PostLayoutCursorMoveType::LINE_BELOW:
-			return visualCursorInfo.lineNumber < layout.get_line_count() - 1
-					? g_cursorCtrl.closest_in_line(layout, textWidth, textXAlignment,
-							visualCursorInfo.lineNumber + 1, visualCursorInfo.x)
-					: cursor;
-		case PostLayoutCursorMoveType::MOUSE_POSITION:
-		{
-			auto& mouseOp = static_cast<const CursorToMouse&>(op);
-			return g_cursorCtrl.closest_to_position(layout, textWidth, textXAlignment,
-					static_cast<float>(mouseOp.mouseX), static_cast<float>(mouseOp.mouseY));
-		}
-			break;
-		default:
-			break;
-	}
-
-	return cursor;
+void TextBox::set_size(float width, float height) {
+	UIObject::set_size(width, height);
+	recalc_text();
 }
 
