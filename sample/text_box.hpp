@@ -1,30 +1,9 @@
 #pragma once
 
-#include "bitmap.hpp"
 #include "multi_script_font.hpp"
-#include "pipeline.hpp"
-#include "cursor_position.hpp"
-#include "text_alignment.hpp"
+#include "layout_info.hpp"
+#include "formatting.hpp"
 #include "ui_object.hpp"
-
-#include <string>
-#include <vector>
-
-namespace Text { struct FormattingRuns; }
-namespace Text { template <typename, typename> struct Pair; };
-
-class Image;
-
-struct TextRect {
-	float x;
-	float y;
-	float width;
-	float height;
-	float texCoords[4];
-	Image* texture;
-	Color color;
-	PipelineIndex pipeline;
-};
 
 class TextBox final : public UIObject {
 	public:
@@ -71,7 +50,8 @@ class TextBox final : public UIObject {
 		bool m_editable = true;
 		bool m_selectable = true;
 
-		std::vector<TextRect> m_textRects;
+		Text::LayoutInfo m_layout;
+		Text::FormattingRuns m_formatting;
 
 		bool should_focused_use_rich_text() const;
 
@@ -108,12 +88,5 @@ class TextBox final : public UIObject {
 
 		void recalc_text();
 		void recalc_text_internal(bool richText, const void* postLayoutOp);
-		void create_text_rects(Text::FormattingRuns&, const std::string& text, const void* postLayoutOp);
-
-		void emit_rect(float x, float y, float width, float height, const float* texCoords, Image* texture,
-				const Color& color, PipelineIndex pipeline,
-				const Text::Pair<float, float>* pClip = nullptr);
-		void emit_rect(float x, float y, float width, float height, const Color& color, PipelineIndex pipeline,
-				const Text::Pair<float, float>* pClip = nullptr);
 };
 

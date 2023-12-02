@@ -54,7 +54,7 @@ static double g_lastClickTime = 0.0;
 static uint32_t g_clickCount = 0;
 static CursorPosition g_lastClickPos{CursorPosition::INVALID_VALUE};
 
-static CursorPosition apply_cursor_move(const Text::LayoutInfo& paragraphLayout, float textWidth,
+static CursorPosition apply_cursor_move(const Text::LayoutInfo& layout, float textWidth,
 		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor);
 
 static bool is_line_break(UChar32 c);
@@ -282,9 +282,171 @@ void TextBox::release_focus() {
 }
 
 void TextBox::render(UIContainer& container) {
-	for (auto& rect : m_textRects) {
-		container.emit_rect(get_position()[0] + rect.x, get_position()[1] + rect.y, rect.width, rect.height,
-				rect.texCoords, rect.texture, rect.color, rect.pipeline);
+	bool hasHighlighting = m_selectionStart.is_valid();
+	uint32_t selectionStart{};
+	uint32_t selectionEnd{};
+
+	// Add highlight ranges in a separate pass to keep from accidental clipping across runs
+	if (hasHighlighting) {
+		selectionStart = m_selectionStart.get_position();
+		selectionEnd = m_cursorPosition.get_position();
+
+		if (selectionStart > selectionEnd) {
+			std::swap(selectionStart, selectionEnd);
+		}
+
+		m_layout.for_each_run(get_size()[0], m_textXAlignment, [&](auto lineIndex, auto runIndex,
+				auto lineX, auto lineY) {
+			if (m_layout.run_contains_char_range(runIndex, selectionStart, selectionEnd)) {
+				auto [minPos, maxPos] = m_layout.get_position_range_in_run(runIndex, selectionStart,
+						selectionEnd);
+				
+				container.emit_rect(get_position()[0] + lineX + minPos,
+						get_position()[1] + m_layout.textStartY + lineY
+						- m_layout.lines[lineIndex].ascent, maxPos - minPos,
+						m_layout.get_line_height(lineIndex), Color::from_rgb(0, 120, 215),
+						PipelineIndex::RECT);
+			}
+		});
+	}
+
+	// Draw main text elements
+	uint32_t glyphIndex{};
+	uint32_t glyphPosIndex{};
+	float strikethroughStartPos{};
+	float underlineStartPos{};
+	m_layout.for_each_run(get_size()[0], m_textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
+			auto lineY) {
+		auto& run = m_layout.visualRuns[runIndex];
+		auto& font = *run.pFont;
+
+		bool runHasHighlighting = hasHighlighting && m_layout.run_contains_char_range(runIndex,
+				selectionStart, selectionEnd);
+		Text::Pair<float, float> highlightRange{};
+		const Text::Pair<float, float>* pClip = nullptr;
+
+		if (runHasHighlighting) {
+			highlightRange = m_layout.get_position_range_in_run(runIndex, selectionStart, selectionEnd);
+			pClip = &highlightRange;
+		}
+
+		Text::FormattingIterator iter(m_formatting, run.rightToLeft ? run.charEndIndex : run.charStartIndex);
+		underlineStartPos = strikethroughStartPos = m_layout.glyphPositions[glyphPosIndex];	
+
+		for (; glyphIndex < run.glyphEndIndex; ++glyphIndex, glyphPosIndex += 2) {
+			auto pX = m_layout.glyphPositions[glyphPosIndex];
+			auto pY = m_layout.glyphPositions[glyphPosIndex + 1];
+			auto glyphID = m_layout.glyphs[glyphIndex];
+			auto event = iter.advance_to(m_layout.charIndices[glyphIndex]);
+			auto stroke = iter.get_stroke_state();
+
+			float offset[2]{};
+			float texCoordExtents[4]{};
+			float glyphSize[2]{};
+			bool glyphHasColor{};
+
+			// Stroke
+			if (stroke.color.a > 0.f) {
+				float offset[2]{};
+				float texCoordExtents[4]{};
+				float glyphSize[2]{};
+				bool strokeHasColor{};
+				auto* pGlyphImage = CVars::useMSDF ? g_msdfTextAtlas->get_stroke_info(font, glyphID,
+								stroke.thickness, stroke.joins, texCoordExtents, glyphSize, offset,
+								strokeHasColor)
+						: g_textAtlas->get_stroke_info(font, glyphID, stroke.thickness, stroke.joins,
+								texCoordExtents, glyphSize, offset, strokeHasColor);
+
+				container.emit_rect(get_position()[0] + lineX + pX + offset[0],
+						get_position()[1] + m_layout.textStartY + lineY + pY + offset[1],
+						glyphSize[0], glyphSize[1], texCoordExtents, pGlyphImage, stroke.color,
+						CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT);
+			}
+
+			// Main Glyph
+			auto* pGlyphImage = CVars::useMSDF ? g_msdfTextAtlas->get_glyph_info(font, glyphID, texCoordExtents,
+					glyphSize, offset, glyphHasColor)
+					: g_textAtlas->get_glyph_info(font, glyphID, texCoordExtents, glyphSize, offset,
+					glyphHasColor);
+			auto textColor = glyphHasColor ? Color{1.f, 1.f, 1.f, 1.f} : iter.get_color();
+
+			container.emit_rect(get_position()[0] + lineX + pX + offset[0],
+					get_position()[1] + m_layout.textStartY + lineY + pY + offset[1], glyphSize[0],
+					glyphSize[1], texCoordExtents, pGlyphImage, textColor,
+					CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT, pClip);
+			
+			// Underline
+			if ((event & Text::FormattingEvent::UNDERLINE_END) != Text::FormattingEvent::NONE) {
+				auto height = font.get_underline_thickness() + 0.5f;
+				container.emit_rect(get_position()[0] + lineX + underlineStartPos,
+						get_position()[1] + m_layout.textStartY + lineY + font.get_underline_position(),
+						pX - underlineStartPos, height, iter.get_prev_color(), PipelineIndex::RECT, pClip);
+			}
+
+			if ((event & Text::FormattingEvent::UNDERLINE_BEGIN) != Text::FormattingEvent::NONE) {
+				underlineStartPos = pX;
+			}
+
+			// Strikethrough
+			if ((event & Text::FormattingEvent::STRIKETHROUGH_END) != Text::FormattingEvent::NONE) {
+				auto height = run.pFont->get_strikethrough_thickness() + 0.5f;
+				container.emit_rect(get_position()[0] + lineX + strikethroughStartPos,
+						get_position()[1] + m_layout.textStartY + lineY + font.get_strikethrough_position(),
+						pX - strikethroughStartPos, height, iter.get_prev_color(), PipelineIndex::RECT, pClip);
+			}
+
+			if ((event & Text::FormattingEvent::STRIKETHROUGH_BEGIN) != Text::FormattingEvent::NONE) {
+				strikethroughStartPos = pX;
+			}
+		}
+
+		// Finalize last strikethrough
+		if (iter.has_strikethrough()) {
+			auto strikethroughEndPos = m_layout.glyphPositions[glyphPosIndex];
+			auto height = font.get_strikethrough_thickness() + 0.5f;
+			container.emit_rect(get_position()[0] + lineX + strikethroughStartPos,
+					get_position()[1] + m_layout.textStartY + lineY + font.get_strikethrough_position(),
+					strikethroughEndPos - strikethroughStartPos, height, iter.get_color(), PipelineIndex::RECT,
+					pClip);
+		}
+
+		// Finalize last underline
+		if (iter.has_underline()) {
+			auto underlineEndPos = m_layout.glyphPositions[glyphPosIndex];
+			auto height = font.get_underline_thickness() + 0.5f;
+			container.emit_rect(get_position()[0] + lineX + underlineStartPos,
+					get_position()[1] + m_layout.textStartY + lineY + font.get_underline_position(),
+					underlineEndPos - underlineStartPos, height, iter.get_color(), PipelineIndex::RECT, pClip);
+		}
+
+		glyphPosIndex += 2;
+	});
+
+	// Debug render run outlines
+	if (CVars::showRunOutlines) {
+		m_layout.for_each_run(get_size()[0], m_textXAlignment, [&](auto lineIndex, auto runIndex,
+				auto lineX, auto lineY) {
+			auto* positions = m_layout.get_run_positions(runIndex);
+			auto minBound = positions[0];
+			auto maxBound = positions[2 * m_layout.get_run_glyph_count(runIndex)]; 
+			container.emit_rect(get_position()[0] + lineX + minBound,
+					get_position()[1] + lineY - m_layout.lines[lineIndex].ascent, maxBound - minBound,
+					m_layout.get_line_height(lineIndex), {0, 0.5f, 0, 1}, PipelineIndex::OUTLINE);
+		});
+	}
+
+	// Debug render glyph boundaries
+	if (CVars::showGlyphBoundaries) {
+		m_layout.for_each_run(get_size()[0], m_textXAlignment, [&](auto lineIndex, auto runIndex,
+				auto lineX, auto lineY) {
+			auto* positions = m_layout.get_run_positions(runIndex);
+
+			for (le_int32 i = 0; i <= m_layout.get_run_glyph_count(runIndex); ++i) {
+				container.emit_rect(get_position()[0] + lineX + positions[2 * i],
+						get_position()[1] + lineY - m_layout.lines[lineIndex].ascent, 0.5f,
+						m_layout.get_line_height(lineIndex), {0, 0.5f, 0, 1}, PipelineIndex::OUTLINE);
+			}
+		});
 	}
 
 	// Draw Cursor
@@ -564,8 +726,6 @@ void TextBox::recalc_text() {
 }
 
 void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
-	m_textRects.clear();
-
 	g_cursorPos.x = 0.f;
 	g_cursorPos.y = 0.f;
 	g_cursorPos.height = 0.f;
@@ -576,7 +736,8 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 	}
 
 	Text::StrokeState strokeState{};
-	auto runs = richText ? Text::parse_inline_formatting(m_text, m_contentText, m_font, m_textColor, strokeState)
+	m_formatting = richText
+			? Text::parse_inline_formatting(m_text, m_contentText, m_font, m_textColor, strokeState)
 			: Text::make_default_formatting_runs(m_text, m_contentText, m_font, m_textColor, strokeState);
 
 	if (m_contentText.empty()) {
@@ -596,248 +757,17 @@ void TextBox::recalc_text_internal(bool richText, const void* postLayoutOp) {
 		g_charBreakIter->setText(&uText, errc);
 	}
 
-	create_text_rects(runs, richText ? m_contentText : m_text, postLayoutOp);
-}
-
-void TextBox::create_text_rects(Text::FormattingRuns& textInfo, const std::string& text,
-		const void* postLayoutOp) {
-	Text::LayoutInfo paragraphLayout{};
-	Text::build_layout_info_utf8(paragraphLayout, text.data(), text.size(), textInfo.fontRuns,
+	auto& text = richText ? m_contentText : m_text;
+	Text::build_layout_info_utf8(m_layout, text.data(), text.size(), m_formatting.fontRuns,
 			m_textWrapped ? get_size()[0] : 0.f, get_size()[1], m_textYAlignment, Text::LayoutInfoFlags::NONE);
 
 	if (postLayoutOp) {
-		set_cursor_position_internal(apply_cursor_move(paragraphLayout, get_size()[0], m_textXAlignment,
+		set_cursor_position_internal(apply_cursor_move(m_layout, get_size()[0], m_textXAlignment,
 				*reinterpret_cast<const PostLayoutCursorMove*>(postLayoutOp), m_cursorPosition),
 				reinterpret_cast<const PostLayoutCursorMove*>(postLayoutOp)->selectionMode);
 	}
 
-	g_cursorPos = paragraphLayout.calc_cursor_pixel_pos(get_size()[0], m_textXAlignment, m_cursorPosition);
-
-	bool hasHighlighting = m_selectionStart.is_valid();
-	uint32_t selectionStart{};
-	uint32_t selectionEnd{};
-
-	// Add highlight ranges in a separate pass to keep from accidental clipping across runs
-	if (hasHighlighting) {
-		selectionStart = m_selectionStart.get_position();
-		selectionEnd = m_cursorPosition.get_position();
-
-		if (selectionStart > selectionEnd) {
-			std::swap(selectionStart, selectionEnd);
-		}
-
-		paragraphLayout.for_each_run(get_size()[0], m_textXAlignment, [&](auto lineIndex, auto runIndex,
-				auto lineX, auto lineY) {
-			if (paragraphLayout.run_contains_char_range(runIndex, selectionStart, selectionEnd)) {
-				auto [minPos, maxPos] = paragraphLayout.get_position_range_in_run(runIndex, selectionStart,
-						selectionEnd);
-				
-				emit_rect(lineX + minPos, paragraphLayout.textStartY + lineY
-						- paragraphLayout.lines[lineIndex].ascent, maxPos - minPos,
-						paragraphLayout.get_line_height(lineIndex), Color::from_rgb(0, 120, 215),
-						PipelineIndex::RECT);
-			}
-		});
-	}
-
-	uint32_t glyphIndex{};
-	uint32_t glyphPosIndex{};
-	float strikethroughStartPos{};
-	float underlineStartPos{};
-	paragraphLayout.for_each_run(get_size()[0], m_textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
-			auto lineY) {
-		auto& run = paragraphLayout.visualRuns[runIndex];
-		auto& font = *run.pFont;
-
-		bool runHasHighlighting = hasHighlighting && paragraphLayout.run_contains_char_range(runIndex,
-				selectionStart, selectionEnd);
-		Text::Pair<float, float> highlightRange{};
-		const Text::Pair<float, float>* pClip = nullptr;
-
-		if (runHasHighlighting) {
-			highlightRange = paragraphLayout.get_position_range_in_run(runIndex, selectionStart, selectionEnd);
-			pClip = &highlightRange;
-		}
-
-		Text::FormattingIterator iter(textInfo, run.rightToLeft ? run.charEndIndex : run.charStartIndex);
-		underlineStartPos = strikethroughStartPos = paragraphLayout.glyphPositions[glyphPosIndex];	
-
-		for (; glyphIndex < run.glyphEndIndex; ++glyphIndex, glyphPosIndex += 2) {
-			auto pX = paragraphLayout.glyphPositions[glyphPosIndex];
-			auto pY = paragraphLayout.glyphPositions[glyphPosIndex + 1];
-			auto glyphID = paragraphLayout.glyphs[glyphIndex];
-			auto event = iter.advance_to(paragraphLayout.charIndices[glyphIndex]);
-			auto stroke = iter.get_stroke_state();
-
-			float offset[2]{};
-			float texCoordExtents[4]{};
-			float glyphSize[2]{};
-			bool glyphHasColor{};
-
-			// Stroke
-			if (stroke.color.a > 0.f) {
-				float offset[2]{};
-				float texCoordExtents[4]{};
-				float glyphSize[2]{};
-				bool strokeHasColor{};
-				auto* pGlyphImage = CVars::useMSDF ? g_msdfTextAtlas->get_stroke_info(font, glyphID,
-								stroke.thickness, stroke.joins, texCoordExtents, glyphSize, offset,
-								strokeHasColor)
-						: g_textAtlas->get_stroke_info(font, glyphID, stroke.thickness, stroke.joins,
-								texCoordExtents, glyphSize, offset, strokeHasColor);
-
-				emit_rect(lineX + pX + offset[0], paragraphLayout.textStartY + lineY + pY + offset[1],
-						glyphSize[0], glyphSize[1], texCoordExtents, pGlyphImage, stroke.color,
-						CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT);
-			}
-
-			// Main Glyph
-			auto* pGlyphImage = CVars::useMSDF ? g_msdfTextAtlas->get_glyph_info(font, glyphID, texCoordExtents,
-					glyphSize, offset, glyphHasColor)
-					: g_textAtlas->get_glyph_info(font, glyphID, texCoordExtents, glyphSize, offset,
-					glyphHasColor);
-			auto textColor = glyphHasColor ? Color{1.f, 1.f, 1.f, 1.f} : iter.get_color();
-
-			emit_rect(lineX + pX + offset[0], paragraphLayout.textStartY + lineY + pY + offset[1], glyphSize[0],
-					glyphSize[1], texCoordExtents, pGlyphImage, textColor,
-					CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT, pClip);
-			
-			// Underline
-			if ((event & Text::FormattingEvent::UNDERLINE_END) != Text::FormattingEvent::NONE) {
-				auto height = font.get_underline_thickness() + 0.5f;
-				emit_rect(lineX + underlineStartPos, paragraphLayout.textStartY + lineY
-						+ font.get_underline_position(), pX - underlineStartPos, height, iter.get_prev_color(),
-						PipelineIndex::RECT, pClip);
-			}
-
-			if ((event & Text::FormattingEvent::UNDERLINE_BEGIN) != Text::FormattingEvent::NONE) {
-				underlineStartPos = pX;
-			}
-
-			// Strikethrough
-			if ((event & Text::FormattingEvent::STRIKETHROUGH_END) != Text::FormattingEvent::NONE) {
-				auto height = run.pFont->get_strikethrough_thickness() + 0.5f;
-				emit_rect(lineX + strikethroughStartPos, paragraphLayout.textStartY + lineY
-						+ font.get_strikethrough_position(), pX - strikethroughStartPos, height,
-						iter.get_prev_color(), PipelineIndex::RECT, pClip);
-			}
-
-			if ((event & Text::FormattingEvent::STRIKETHROUGH_BEGIN) != Text::FormattingEvent::NONE) {
-				strikethroughStartPos = pX;
-			}
-		}
-
-		// Finalize last strikethrough
-		if (iter.has_strikethrough()) {
-			auto strikethroughEndPos = paragraphLayout.glyphPositions[glyphPosIndex];
-			auto height = font.get_strikethrough_thickness() + 0.5f;
-			emit_rect(lineX + strikethroughStartPos, paragraphLayout.textStartY + lineY
-					+ font.get_strikethrough_position(), strikethroughEndPos - strikethroughStartPos, height,
-					iter.get_color(), PipelineIndex::RECT, pClip);
-		}
-
-		// Finalize last underline
-		if (iter.has_underline()) {
-			auto underlineEndPos = paragraphLayout.glyphPositions[glyphPosIndex];
-			auto height = font.get_underline_thickness() + 0.5f;
-			emit_rect(lineX + underlineStartPos, paragraphLayout.textStartY + lineY
-					+ font.get_underline_position(), underlineEndPos - underlineStartPos, height,
-					iter.get_color(), PipelineIndex::RECT, pClip);
-		}
-
-		glyphPosIndex += 2;
-	});
-
-	// Debug render run outlines
-	if (CVars::showRunOutlines) {
-		paragraphLayout.for_each_run(get_size()[0], m_textXAlignment, [&](auto lineIndex, auto runIndex,
-				auto lineX, auto lineY) {
-			auto* positions = paragraphLayout.get_run_positions(runIndex);
-			auto minBound = positions[0];
-			auto maxBound = positions[2 * paragraphLayout.get_run_glyph_count(runIndex)]; 
-			emit_rect(lineX + minBound, lineY - paragraphLayout.lines[lineIndex].ascent, maxBound - minBound,
-					paragraphLayout.get_line_height(lineIndex), {0, 0.5f, 0, 1}, PipelineIndex::OUTLINE);
-		});
-	}
-
-	// Debug render glyph boundaries
-	if (CVars::showGlyphBoundaries) {
-		paragraphLayout.for_each_run(get_size()[0], m_textXAlignment, [&](auto lineIndex, auto runIndex,
-				auto lineX, auto lineY) {
-			auto* positions = paragraphLayout.get_run_positions(runIndex);
-
-			for (le_int32 i = 0; i <= paragraphLayout.get_run_glyph_count(runIndex); ++i) {
-				emit_rect(lineX + positions[2 * i], lineY - paragraphLayout.lines[lineIndex].ascent, 0.5f,
-						paragraphLayout.get_line_height(lineIndex), {0, 0.5f, 0, 1}, PipelineIndex::OUTLINE);
-			}
-		});
-	}
-}
-
-void TextBox::emit_rect(float x, float y, float width, float height, const float* texCoords, Image* texture,
-		const Color& color, PipelineIndex pipeline, const Text::Pair<float, float>* pClip) {
-	if (pClip) {
-		// Rect is completely uncovered by clip range, just emit this rect with no clip
-		if (x >= pClip->second || x + width <= pClip->first) {
-			emit_rect(x, y, width, height, texCoords, texture, color, pipeline);
-		}
-		// Rect is partially clipped
-		else {
-			auto newX = x;
-			auto newWidth = width;
-			auto newUVX = texCoords[0];
-			auto newUVWidth = texCoords[2];
-
-			// The left side of the rect is partially unclipped by at least 1px, emit left as normal
-			if (pClip->first >= x + 1.f && pClip->first < x + width) {
-				auto diff = pClip->first - x;
-				newX += diff;
-				newWidth -= diff;
-
-				auto tcDiff = texCoords[2] * diff / width;
-				newUVX += tcDiff;
-				newUVWidth -= tcDiff;
-
-				float texCoordsOut[4] = {texCoords[0], texCoords[1], tcDiff, texCoords[3]};
-				emit_rect(x, y, diff, height, texCoordsOut, texture, color, pipeline);
-			}
-
-			// The right side of the rect is partially unclipped by at least 1px, emit right as normal
-			if (pClip->second > x && pClip->second + 1.f <= x + width) {
-				auto diff = x + width - pClip->second;
-				newWidth -= diff;
-
-				auto tcDiff = texCoords[2] * diff / width; 
-				newUVWidth -= tcDiff;
-
-				float texCoordsOut[4] = {texCoords[0] + texCoords[2] - tcDiff, texCoords[1], tcDiff,
-					texCoords[3]};
-				emit_rect(x + width - diff, y, diff, height, texCoordsOut, texture, color, pipeline);
-			}
-
-			// Result of the intersection is the clipped rect
-			float texCoordsOut[4] = {newUVX, texCoords[1], newUVWidth, texCoords[3]};
-			emit_rect(newX, y, newWidth, height, texCoordsOut, texture, {1.f, 1.f, 1.f, 1.f}, pipeline);
-		}
-	}
-	else {
-		m_textRects.push_back({
-			.x = x,
-			.y = y,
-			.width = width,
-			.height = height,
-			.texCoords = {texCoords[0], texCoords[1], texCoords[2], texCoords[3]},
-			.texture = texture,
-			.color = color,
-			.pipeline = pipeline,
-		});
-	}
-}
-
-void TextBox::emit_rect(float x, float y, float width, float height, const Color& color,
-		PipelineIndex pipeline, const Text::Pair<float, float>* pClip) {
-	float texCoords[4] = {0.f, 0.f, 1.f, 1.f};
-	emit_rect(x, y, width, height, texCoords, g_textAtlas->get_default_texture(), color, pipeline, pClip);
+	g_cursorPos = m_layout.calc_cursor_pixel_pos(get_size()[0], m_textXAlignment, m_cursorPosition);
 }
 
 // Setters
@@ -886,33 +816,33 @@ void TextBox::set_selectable(bool selectable) {
 
 // Static Functions
 
-static CursorPosition apply_cursor_move(const Text::LayoutInfo& paragraphLayout, float textWidth,
+static CursorPosition apply_cursor_move(const Text::LayoutInfo& layout, float textWidth,
 		TextXAlignment textXAlignment, const PostLayoutCursorMove& op, CursorPosition cursor) {
 	switch (op.type) {
 		case PostLayoutCursorMoveType::LINE_START:
-			return paragraphLayout.get_line_start_position(g_cursorPos.lineNumber);
+			return layout.get_line_start_position(g_cursorPos.lineNumber);
 		case PostLayoutCursorMoveType::LINE_END:
-			return paragraphLayout.get_line_end_position(g_cursorPos.lineNumber);
+			return layout.get_line_end_position(g_cursorPos.lineNumber);
 		case PostLayoutCursorMoveType::LINE_ABOVE:
 			return g_cursorPos.lineNumber > 0
-					? paragraphLayout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,
+					? layout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,
 							g_cursorPos.lineNumber - 1, g_cursorPos.x)
 					: cursor;
 		case PostLayoutCursorMoveType::LINE_BELOW:
-			return g_cursorPos.lineNumber < paragraphLayout.lines.size() - 1
-					? paragraphLayout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,
+			return g_cursorPos.lineNumber < layout.lines.size() - 1
+					? layout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,
 							g_cursorPos.lineNumber + 1, g_cursorPos.x)
 					: cursor;
 		case PostLayoutCursorMoveType::MOUSE_POSITION:
 		{
 			auto& mouseOp = static_cast<const CursorToMouse&>(op);
-			auto lineIndex = paragraphLayout.get_closest_line_to_height(static_cast<float>(mouseOp.mouseY));
+			auto lineIndex = layout.get_closest_line_to_height(static_cast<float>(mouseOp.mouseY));
 
-			if (lineIndex == paragraphLayout.lines.size()) {
-				lineIndex = paragraphLayout.lines.size() - 1;
+			if (lineIndex == layout.lines.size()) {
+				lineIndex = layout.lines.size() - 1;
 			}
 
-			return paragraphLayout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,
+			return layout.find_closest_cursor_position(textWidth, textXAlignment, *g_charBreakIter,
 					lineIndex, static_cast<float>(mouseOp.mouseX));
 		}
 			break;
