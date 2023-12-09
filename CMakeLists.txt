@@ -18,6 +18,7 @@ set_target_properties(LibRichText PROPERTIES
 	CXX_STANDARD 20
 	CXX_STANDARD_REQUIRED ON
 	CXX_EXTENSIONS OFF
+	INTERPROCEDURAL_OPTIMIZATION_RELEASE ON
 )
 
 add_custom_command(TARGET LibRichText POST_BUILD
@@ -36,6 +37,7 @@ set_target_properties(RichText PROPERTIES
 	CXX_STANDARD 20
 	CXX_STANDARD_REQUIRED ON
 	CXX_EXTENSIONS OFF
+	INTERPROCEDURAL_OPTIMIZATION_RELEASE ON
 )
 
 # RichText Tester ##################################################################################
@@ -49,6 +51,7 @@ set_target_properties(TestRichText PROPERTIES
 	CXX_STANDARD 20
 	CXX_STANDARD_REQUIRED ON
 	CXX_EXTENSIONS OFF
+	INTERPROCEDURAL_OPTIMIZATION_RELEASE ON
 )
 
 add_custom_command(TARGET TestRichText POST_BUILD
@@ -60,12 +63,14 @@ add_custom_command(TARGET TestRichText POST_BUILD
 
 add_executable(BenchRichText "")
 target_link_libraries(BenchRichText PRIVATE ICU::common)
+target_link_libraries(BenchRichText PRIVATE LibRichText)
 target_link_libraries(BenchRichText PRIVATE benchmark::benchmark)
 target_link_libraries(BenchRichText PRIVATE SheenBidi)
 set_target_properties(BenchRichText PROPERTIES
 	CXX_STANDARD 20
 	CXX_STANDARD_REQUIRED ON
 	CXX_EXTENSIONS OFF
+	INTERPROCEDURAL_OPTIMIZATION_RELEASE ON
 )
 
 add_custom_command(TARGET BenchRichText POST_BUILD
