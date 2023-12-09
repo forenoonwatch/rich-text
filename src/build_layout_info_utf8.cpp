@@ -225,8 +225,12 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 
 		// If this break is at or before the last one, find a glyph that produces a break after the last one,
 		// starting at the one which didn't fit
-		while (lineEnd <= lineStart) {
+		while (lineEnd <= lineStart && glyphIndex < state.glyphs.size()) {
 			lineEnd = state.charIndices[glyphIndex++];
+		}
+
+		if (lineEnd <= lineStart && glyphIndex == state.glyphs.size()) {
+			lineEnd = stringOffset + count;
 		}
 
 		compute_line_visual_runs(state, result, logicalRuns, sbParagraph, chars, count, lineStart, lineEnd,
@@ -481,12 +485,14 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 	uint32_t visualLastPosIndex;
 
 	if (rightToLeft) {
-		for (uint32_t i = visualLastGlyph - 1; ; --i) {
-			result.append_glyph(state.glyphs[i]);
-			result.append_char_index(state.charIndices[i]);
+		if (visualLastGlyph > visualFirstGlyph) {
+			for (uint32_t i = visualLastGlyph - 1; ; --i) {
+				result.append_glyph(state.glyphs[i]);
+				result.append_char_index(state.charIndices[i]);
 
-			if (i == visualFirstGlyph) {
-				break;
+				if (i == visualFirstGlyph) {
+					break;
+				}
 			}
 		}
 
