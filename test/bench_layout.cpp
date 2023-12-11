@@ -85,20 +85,24 @@ static constexpr const uint32_t g_paragraphSeparators[] = {
 	0x2029u, // PSEP
 };
 
-static std::unique_ptr<char[]> g_testString;
-static size_t g_testStringSize{};
-static Text::ValueRuns<uint32_t> g_fontStyles;
+using Lang = std::span<const Text::Pair<uint32_t, uint32_t>>;
 
-static void init_test_string();
-static void dump_test_data();
+static std::string g_testStringMultiLang;
+static std::string g_testStringLatn;
+static std::string g_testStringCJK;
+static Text::ValueRuns<uint32_t> g_fontStyles;
+static bool g_initialized = false;
+
+static void init_test_strings();
+static std::string gen_test_string_single_lang(size_t capacity, Lang lang);
+static std::string gen_test_string_multi_lang(size_t capacity);
+static void dump_test_data(const std::string& str);
 
 // Benchmarks
 
-static void BM_Layout_SingleFont_LineBreak(benchmark::State& state) {
-	init_test_string();
+static void BM_Layout_SingleFont_MultiLang_LineBreak(benchmark::State& state) {
+	auto str = gen_test_string_multi_lang(state.range(0));
 	FontCache fontCache("fonts/families");
-
-	std::string_view str(g_testString.get(), g_testStringSize);
 
 	auto famIdx = fontCache.get_font_family("Noto Sans"); 
 	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
@@ -112,11 +116,105 @@ static void BM_Layout_SingleFont_LineBreak(benchmark::State& state) {
 	}
 }
 
-static void BM_Layout_SingleFont_NoLineBreak(benchmark::State& state) {
-	init_test_string();
+static void BM_Layout_SingleFont_MultiLang_NoLineBreak(benchmark::State& state) {
+	auto str = gen_test_string_multi_lang(state.range(0));
 	FontCache fontCache("fonts/families");
 
-	std::string_view str(g_testString.get(), g_testStringSize);
+	auto famIdx = fontCache.get_font_family("Noto Sans"); 
+	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
+	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, str.size());
+
+	for (auto _ : state) {
+		Text::LayoutInfo layoutInfo;
+		Text::build_layout_info_utf8(layoutInfo, str.data(), str.size(), fontRuns, 0.f, 100.f,
+				TextYAlignment::TOP, Text::LayoutInfoFlags::NONE);
+		benchmark::DoNotOptimize(layoutInfo);
+	}
+}
+
+static void BM_Layout_SingleFont_Latin_LineBreak(benchmark::State& state) {
+	auto str = gen_test_string_single_lang(state.range(0), g_unicodeLatin);
+	FontCache fontCache("fonts/families");
+
+	auto famIdx = fontCache.get_font_family("Noto Sans"); 
+	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
+	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, str.size());
+
+	for (auto _ : state) {
+		Text::LayoutInfo layoutInfo;
+		Text::build_layout_info_utf8(layoutInfo, str.data(), str.size(), fontRuns, 100.f, 100.f,
+				TextYAlignment::TOP, Text::LayoutInfoFlags::NONE);
+		benchmark::DoNotOptimize(layoutInfo);
+	}
+}
+
+static void BM_Layout_SingleFont_Latin_NoLineBreak(benchmark::State& state) {
+	auto str = gen_test_string_single_lang(state.range(0), g_unicodeLatin);
+	FontCache fontCache("fonts/families");
+
+	auto famIdx = fontCache.get_font_family("Noto Sans"); 
+	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
+	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, str.size());
+
+	for (auto _ : state) {
+		Text::LayoutInfo layoutInfo;
+		Text::build_layout_info_utf8(layoutInfo, str.data(), str.size(), fontRuns, 0.f, 100.f,
+				TextYAlignment::TOP, Text::LayoutInfoFlags::NONE);
+		benchmark::DoNotOptimize(layoutInfo);
+	}
+}
+
+static void BM_Layout_SingleFont_CJK_LineBreak(benchmark::State& state) {
+	auto str = gen_test_string_single_lang(state.range(0), g_unicodeCJK);
+	FontCache fontCache("fonts/families");
+
+	auto famIdx = fontCache.get_font_family("Noto Sans"); 
+	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
+	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, str.size());
+
+	for (auto _ : state) {
+		Text::LayoutInfo layoutInfo;
+		Text::build_layout_info_utf8(layoutInfo, str.data(), str.size(), fontRuns, 100.f, 100.f,
+				TextYAlignment::TOP, Text::LayoutInfoFlags::NONE);
+		benchmark::DoNotOptimize(layoutInfo);
+	}
+}
+
+static void BM_Layout_SingleFont_CJK_NoLineBreak(benchmark::State& state) {
+	auto str = gen_test_string_single_lang(state.range(0), g_unicodeCJK);
+	FontCache fontCache("fonts/families");
+
+	auto famIdx = fontCache.get_font_family("Noto Sans"); 
+	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
+	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, str.size());
+
+	for (auto _ : state) {
+		Text::LayoutInfo layoutInfo;
+		Text::build_layout_info_utf8(layoutInfo, str.data(), str.size(), fontRuns, 0.f, 100.f,
+				TextYAlignment::TOP, Text::LayoutInfoFlags::NONE);
+		benchmark::DoNotOptimize(layoutInfo);
+	}
+}
+
+static void BM_Layout_SingleFont_Deva_LineBreak(benchmark::State& state) {
+	auto str = gen_test_string_single_lang(state.range(0), g_unicodeDevanagari);
+	FontCache fontCache("fonts/families");
+
+	auto famIdx = fontCache.get_font_family("Noto Sans"); 
+	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
+	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, str.size());
+
+	for (auto _ : state) {
+		Text::LayoutInfo layoutInfo;
+		Text::build_layout_info_utf8(layoutInfo, str.data(), str.size(), fontRuns, 100.f, 100.f,
+				TextYAlignment::TOP, Text::LayoutInfoFlags::NONE);
+		benchmark::DoNotOptimize(layoutInfo);
+	}
+}
+
+static void BM_Layout_SingleFont_Deva_NoLineBreak(benchmark::State& state) {
+	auto str = gen_test_string_single_lang(state.range(0), g_unicodeDevanagari);
+	FontCache fontCache("fonts/families");
 
 	auto famIdx = fontCache.get_font_family("Noto Sans"); 
 	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
@@ -131,10 +229,10 @@ static void BM_Layout_SingleFont_NoLineBreak(benchmark::State& state) {
 }
 
 /*static void BM_Layout_MultiFont_LineBreak(benchmark::State& state) {
-	init_test_string();
+	init_test_strings();
 	FontCache fontCache("fonts/families");
 
-	std::string_view str(g_testString.get(), g_testStringSize);
+	std::string_view str(g_testStringMultiLang.get(), g_testStringMultiLangSize);
 
 	auto famIdx = fontCache.get_font_family("Noto Sans"); 
 	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
@@ -164,8 +262,30 @@ static void BM_Layout_SingleFont_NoLineBreak(benchmark::State& state) {
 	}
 }*/
 
-BENCHMARK(BM_Layout_SingleFont_LineBreak);
-BENCHMARK(BM_Layout_SingleFont_NoLineBreak);
+BENCHMARK(BM_Layout_SingleFont_MultiLang_LineBreak)
+	->RangeMultiplier(4)
+	->Range(64, 1024 * 1024);
+BENCHMARK(BM_Layout_SingleFont_MultiLang_NoLineBreak)
+	->RangeMultiplier(4)
+	->Range(64, 1024 * 1024);
+BENCHMARK(BM_Layout_SingleFont_Latin_LineBreak)
+	->RangeMultiplier(4)
+	->Range(64, 1024 * 1024);
+BENCHMARK(BM_Layout_SingleFont_Latin_NoLineBreak)
+	->RangeMultiplier(4)
+	->Range(64, 1024 * 1024);
+BENCHMARK(BM_Layout_SingleFont_CJK_LineBreak)
+	->RangeMultiplier(4)
+	->Range(64, 1024 * 1024);
+BENCHMARK(BM_Layout_SingleFont_CJK_NoLineBreak)
+	->RangeMultiplier(4)
+	->Range(64, 1024 * 1024);
+BENCHMARK(BM_Layout_SingleFont_Deva_LineBreak)
+	->RangeMultiplier(4)
+	->Range(64, 1024 * 1024);
+BENCHMARK(BM_Layout_SingleFont_Deva_NoLineBreak)
+	->RangeMultiplier(4)
+	->Range(64, 1024 * 1024);
 //BENCHMARK(BM_Layout_MultiFont_LineBreak);
 
 // Static Functions
@@ -188,35 +308,42 @@ static size_t apply_lang(std::default_random_engine& rng,
 	return offset;
 }
 
-static void init_test_string() {
-	if (g_testString) {
+static void init_test_strings() {
+	if (g_initialized) {
 		return;
 	}
 
-	g_testString = std::make_unique_for_overwrite<char[]>(TEST_STRING_SIZE);
-	g_testStringSize = 0;
+	g_initialized = true;
+
+	g_testStringLatn = gen_test_string_single_lang(TEST_STRING_SIZE, g_unicodeLatin);
+	g_testStringCJK = gen_test_string_single_lang(TEST_STRING_SIZE, g_unicodeCJK);
+	g_testStringMultiLang = gen_test_string_multi_lang(TEST_STRING_SIZE);
+}
+
+static std::string gen_test_string_single_lang(size_t capacity,
+		std::span<const Text::Pair<uint32_t, uint32_t>> lang) {
+	auto buffer = std::make_unique_for_overwrite<char[]>(capacity);
+	size_t stringSize = 0;
 
 	std::default_random_engine rng;
 	std::normal_distribution distWordSize(WORD_SIZE_AVERAGE, WORD_SIZE_STDDEV);
 	std::normal_distribution distParaSize(PARA_SIZE_AVERAGE, PARA_SIZE_STDDEV);
-	std::uniform_int_distribution<size_t> distLangSelect(0, std::ssize(g_unicodeLangs) - 1);
 
 	auto nextParaEnd = static_cast<size_t>(std::max(distParaSize(rng), 1.0));
 
-	while (g_testStringSize < TEST_STRING_SIZE) {
+	while (stringSize < capacity) {
 		auto wordSize = static_cast<size_t>(std::min(std::max(distWordSize(rng), 1.0), 100.0));
-		wordSize = std::min(wordSize, TEST_STRING_SIZE - g_testStringSize);
-		auto& lang = g_unicodeLangs[distLangSelect(rng)];
+		wordSize = std::min(wordSize, capacity - stringSize);
 
-		wordSize = apply_lang(rng, lang, g_testString.get() + g_testStringSize, wordSize);
+		wordSize = apply_lang(rng, lang, buffer.get() + stringSize, wordSize);
 
-		g_testStringSize += wordSize;
+		stringSize += wordSize;
 
-		if (g_testStringSize < TEST_STRING_SIZE) {
+		if (stringSize < capacity) {
 			uint32_t chr;
 			bool error = false;
 
-			if (g_testStringSize >= nextParaEnd) {
+			if (stringSize >= nextParaEnd) {
 				std::uniform_int_distribution<size_t> distBreak(0, std::ssize(g_paragraphSeparators) - 1);
 				chr = g_paragraphSeparators[distBreak(rng)];
 			}
@@ -225,14 +352,62 @@ static void init_test_string() {
 				chr = g_whitespace[distWhitespace(rng)];
 			}
 
-			U8_APPEND((uint8_t*)g_testString.get(), g_testStringSize, TEST_STRING_SIZE, chr, error);
+			U8_APPEND((uint8_t*)buffer.get(), stringSize, TEST_STRING_SIZE, chr, error);
 
 			if (error) {
 				break;
 			}
 
-			if (g_testStringSize >= nextParaEnd) {
-				nextParaEnd = g_testStringSize + static_cast<size_t>(std::max(distParaSize(rng), 1.0));
+			if (stringSize >= nextParaEnd) {
+				nextParaEnd = stringSize + static_cast<size_t>(std::max(distParaSize(rng), 1.0));
+			}
+		}
+	}
+
+	return std::string(buffer.get(), stringSize);
+}
+
+static std::string gen_test_string_multi_lang(size_t capacity) {
+	auto buffer = std::make_unique_for_overwrite<char[]>(capacity);
+	size_t stringSize = 0;
+
+	std::default_random_engine rng;
+	std::normal_distribution distWordSize(WORD_SIZE_AVERAGE, WORD_SIZE_STDDEV);
+	std::normal_distribution distParaSize(PARA_SIZE_AVERAGE, PARA_SIZE_STDDEV);
+	std::uniform_int_distribution<size_t> distLangSelect(0, std::ssize(g_unicodeLangs) - 1);
+
+	auto nextParaEnd = static_cast<size_t>(std::max(distParaSize(rng), 1.0));
+
+	while (stringSize < capacity) {
+		auto wordSize = static_cast<size_t>(std::min(std::max(distWordSize(rng), 1.0), 100.0));
+		wordSize = std::min(wordSize, capacity - stringSize);
+		auto& lang = g_unicodeLangs[distLangSelect(rng)];
+
+		wordSize = apply_lang(rng, lang, buffer.get() + stringSize, wordSize);
+
+		stringSize += wordSize;
+
+		if (stringSize < capacity) {
+			uint32_t chr;
+			bool error = false;
+
+			if (stringSize >= nextParaEnd) {
+				std::uniform_int_distribution<size_t> distBreak(0, std::ssize(g_paragraphSeparators) - 1);
+				chr = g_paragraphSeparators[distBreak(rng)];
+			}
+			else {
+				std::uniform_int_distribution<size_t> distWhitespace(0, std::ssize(g_whitespace) - 1);
+				chr = g_whitespace[distWhitespace(rng)];
+			}
+
+			U8_APPEND((uint8_t*)buffer.get(), stringSize, TEST_STRING_SIZE, chr, error);
+
+			if (error) {
+				break;
+			}
+
+			if (stringSize >= nextParaEnd) {
+				nextParaEnd = stringSize + static_cast<size_t>(std::max(distParaSize(rng), 1.0));
 			}
 		}
 	}
@@ -243,9 +418,9 @@ static void init_test_string() {
 	std::uniform_int_distribution<uint32_t> distStyle(0, 1);
 	std::uniform_int_distribution<uint32_t> distSize(9, 32);
 
-	while (weightStyleIndex < g_testStringSize) {
+	while (weightStyleIndex < stringSize) {
 		weightStyleIndex += distWeightStyleLength(rng);
-		weightStyleIndex = std::min(g_testStringSize, weightStyleIndex);
+		weightStyleIndex = std::min(stringSize, weightStyleIndex);
 
 		auto weight = distWeight(rng);
 		auto style = distStyle(rng);
@@ -255,9 +430,11 @@ static void init_test_string() {
 
 		g_fontStyles.add(weightStyleIndex, fontInfo);
 	}
+
+	return std::string(buffer.get(), stringSize);
 }
 
-static void dump_test_data() {
+static void dump_test_data(const std::string& str) {
 	// HTML
 	{
 		FILE* file = fopen("out_testdata.html", "wb");
@@ -277,7 +454,7 @@ static void dump_test_data() {
 					italic ? "italic" : "normal", size);
 
 			for (;;) {
-				U8_NEXT((const uint8_t*)g_testString.get(), start, limit, chr);
+				U8_NEXT((const uint8_t*)str.data(), start, limit, chr);
 
 				if (chr < 0) {
 					break;
@@ -300,7 +477,7 @@ static void dump_test_data() {
 	// Plaintext
 	{
 		FILE* file = fopen("out_testdata.txt", "wb");
-		fwrite(g_testString.get(), 1, g_testStringSize, file);
+		fwrite(str.data(), 1, str.size(), file);
 		fclose(file);
 	}
 }
