@@ -1,7 +1,6 @@
 #include <cstdio>
 
 #include "file_read_bytes.hpp"
-#include "font_cache.hpp"
 #include "text_box.hpp"
 
 #include <glad/glad.h>
@@ -12,6 +11,8 @@
 #include "text_atlas.hpp"
 #include "msdf_text_atlas.hpp"
 #include "ui_container.hpp"
+
+#include "font_registry.hpp"
 
 static int g_width = 640;
 static int g_height = 480;
@@ -36,9 +37,13 @@ static void GLAPIENTRY gl_message_callback(GLenum source, GLenum type, GLuint id
 }
 
 int main() {
-	FontCache fontCache("fonts/families");
-	auto famIdx = fontCache.get_font_family("Noto Sans"); 
-	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
+	if (auto res = Text::FontRegistry::register_families_from_path("fonts/families");
+			res != Text::FontRegistryError::NONE) {
+		printf("Failed to initialize font registry: %d\n", res);
+	}
+
+	auto family = Text::FontRegistry::get_family("Noto Sans");
+	Text::Font font(family, Text::FontWeight::REGULAR, Text::FontStyle::NORMAL, 48);
 
 	auto container = UIContainer::create();
 

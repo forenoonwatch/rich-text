@@ -1,119 +1,69 @@
 {
 	"name": "Noto Sans",
+	"scripts": ["Latn"],
+	"linked_families": [
+		"Noto Naskh Arabic",
+		"Noto Serif Devanagari",
+		"Noto Sans CJK",
+		"Noto Sans Egyptian Hieroglyphs"
+	],
+	"fallback_families": [
+		"Twemoji"
+	],
 	"faces": [
 		{
-			"name": "Thin",
+			"name": "Noto Sans Thin",
+			"uri": "fonts/NotoSans/NotoSans-Thin.ttf",
 			"weight": 100,
-			"style": "normal",
-			"scripts": [
-				{
-					"uri": "fonts/NotoSans/NotoSans-Thin.ttf"
-				}
-			]
+			"style": "normal"
 		},
 		{
-			"name": "Extra Light",
+			"name": "Noto Sans Extra Light",
+			"uri": "fonts/NotoSans/NotoSans-ExtraLight.ttf",
 			"weight": 200,
-			"style": "normal",
-			"scripts": [
-				{
-					"uri": "fonts/NotoSans/NotoSans-ExtraLight.ttf"
-				}
-			]
+			"style": "normal"
 		},
 		{
-			"name": "Light",
+			"name": "Noto Sans Light",
+			"uri": "fonts/NotoSans/NotoSans-Light.ttf",
 			"weight": 300,
-			"style": "normal",
-			"scripts": [
-				{
-					"uri": "fonts/NotoSans/NotoSans-Light.ttf"
-				}
-			]
+			"style": "normal"
 		},
 		{
-			"name": "Regular",
+			"name": "Noto Sans Regular",
+			"uri": "fonts/NotoSans/NotoSans-Regular.ttf",
 			"weight": 400,
-			"style": "normal",
-			"scripts": [
-				{
-					"uri": "fonts/NotoSans/NotoSans-Regular.ttf"
-				},
-				{
-					"uri": "fonts/NotoSans/NotoSansCJKjp-Regular.otf",
-					"scripts": [20, 105, 119, 17]
-				},
-				{
-					"uri": "fonts/NotoSans/NotoSerifDevanagari-Regular.ttf",
-					"scripts": [10]
-				},
-				{
-					"uri": "fonts/NotoSans/NotoNaskhArabic-Regular.ttf",
-					"scripts": [2]
-				},
-				{
-					"uri": "fonts/NotoSans/NotoSansEgyptianHieroglyphs-Regular.ttf",
-					"scripts": [71]
-				}
-			]
+			"style": "normal"
 		},
 		{
-			"name": "Medium",
+			"name": "Noto Sans Medium",
+			"uri": "fonts/NotoSans/NotoSans-Medium.ttf",
 			"weight": 500,
-			"style": "normal",
-			"scripts": [
-				{
-					"uri": "fonts/NotoSans/NotoSans-Medium.ttf"
-				}
-			]
+			"style": "normal"
 		},
 		{
-			"name": "Semi Bold",
+			"name": "Noto Sans Semi Bold",
+			"uri": "fonts/NotoSans/NotoSans-SemiBold.ttf",
 			"weight": 600,
-			"style": "normal",
-			"scripts": [
-				{
-					"uri": "fonts/NotoSans/NotoSans-SemiBold.ttf"
-				}
-			]
+			"style": "normal"
 		},
 		{
-			"name": "Bold",
+			"name": "Noto Sans Bold",
+			"uri": "fonts/NotoSans/NotoSans-Bold.ttf",
 			"weight": 700,
-			"style": "normal",
-			"scripts": [
-				{
-					"uri": "fonts/NotoSans/NotoSans-Bold.ttf"
-				}
-			]
+			"style": "normal"
 		},
 		{
-			"name": "Extra Bold",
+			"name": "Noto Sans Extra Bold",
+			"uri": "fonts/NotoSans/NotoSans-ExtraBold.ttf",
 			"weight": 800,
-			"style": "normal",
-			"scripts": [
-				{
-					"uri": "fonts/NotoSans/NotoSans-ExtraBold.ttf"
-				}
-			]
+			"style": "normal"
 		},
 		{
-			"name": "Black",
+			"name": "Noto Sans Black",
+			"uri": "fonts/NotoSans/NotoSans-Black.ttf",
 			"weight": 900,
-			"style": "normal",
-			"scripts": [
-				{
-					"uri": "fonts/NotoSans/NotoSans-Black.ttf"
-				}
-			]
-		}
-	],
-	"fallback_faces": [
-		{
-			"name": "Twemoji",
-			"weight": 400,
-			"style": "normal",
-			"uri": "fonts/Twemoji/Twemoji.Mozilla.ttf"
+			"style": "normal"
 		}
 	]
 }

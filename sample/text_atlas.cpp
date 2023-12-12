@@ -1,6 +1,6 @@
 #include "text_atlas.hpp"
 
-#include "font.hpp"
+#include "font_registry.hpp"
 
 #include <glad/glad.h>
 
@@ -20,9 +20,9 @@ TextAtlas::TextAtlas() {
 	m_defaultImage = Image(GL_RGBA8, GL_RGBA, 8, 8, GL_UNSIGNED_BYTE, imageData);
 }
 
-Image* TextAtlas::get_glyph_info(const Font& font, uint32_t glyphIndex, float* texCoordExtentsOut,
+Image* TextAtlas::get_glyph_info(Text::SingleScriptFont font, uint32_t glyphIndex, float* texCoordExtentsOut,
 		float* sizeOut, float* offsetOut, bool& hasColorOut) {
-	GlyphKey key{font.get_size(), glyphIndex, font.get_face()};
+	GlyphKey key{font.size, glyphIndex, font.face.handle};
 
 	if (auto it = m_glyphs.find(key); it != m_glyphs.end()) {
 		std::memcpy(texCoordExtentsOut, it->second.texCoordExtents, 4 * sizeof(float));
@@ -33,7 +33,8 @@ Image* TextAtlas::get_glyph_info(const Font& font, uint32_t glyphIndex, float* t
 	}
 
 	GlyphInfo info{};
-	auto [bitmap, hasColor] = font.get_glyph(glyphIndex, info.offset);
+	auto fontData = Text::FontRegistry::get_font_data(font);
+	auto [bitmap, hasColor] = fontData.rasterize_glyph(glyphIndex, info.offset);
 	info.bitmapSize[0] = static_cast<float>(bitmap.get_width());
 	info.bitmapSize[1] = static_cast<float>(bitmap.get_height());
 
@@ -52,9 +53,9 @@ Image* TextAtlas::get_glyph_info(const Font& font, uint32_t glyphIndex, float* t
 	return result;
 }
 
-Image* TextAtlas::get_stroke_info(const Font& font, uint32_t glyphIndex, uint8_t thickness, StrokeType type,
-		float* texCoordExtentsOut, float* sizeOut, float* offsetOut, bool& hasColorOut) {
-	StrokeKey key{font.get_size(), glyphIndex, font.get_face(), thickness, type};
+Image* TextAtlas::get_stroke_info(Text::SingleScriptFont font, uint32_t glyphIndex, uint8_t thickness,
+		StrokeType type, float* texCoordExtentsOut, float* sizeOut, float* offsetOut, bool& hasColorOut) {
+	StrokeKey key{font.size, glyphIndex, font.face.handle, thickness, type};
 
 	if (auto it = m_strokes.find(key); it != m_strokes.end()) {
 		std::memcpy(texCoordExtentsOut, it->second.texCoordExtents, 4 * sizeof(float));
@@ -65,7 +66,8 @@ Image* TextAtlas::get_stroke_info(const Font& font, uint32_t glyphIndex, uint8_t
 	}
 
 	GlyphInfo info{};
-	auto [bitmap, hasColor] = font.get_outline_glyph(glyphIndex, thickness, type, info.offset);
+	auto fontData = Text::FontRegistry::get_font_data(font);
+	auto [bitmap, hasColor] = fontData.rasterize_glyph_outline(glyphIndex, thickness, type, info.offset);
 	info.bitmapSize[0] = static_cast<float>(bitmap.get_width());
 	info.bitmapSize[1] = static_cast<float>(bitmap.get_height());
 

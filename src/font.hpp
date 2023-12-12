@@ -1,86 +1,62 @@
 #pragma once
 
-#include "bitmap.hpp"
 #include "font_common.hpp"
-#include "stroke_type.hpp"
 
-#include <layout/LEFontInstance.h>
+namespace Text {
 
-struct FT_FaceRec_;
-struct hb_font_t;
-
-class FontCache;
-
-struct FontGlyphResult {
-	Bitmap bitmap;
-	bool hasColor;
-};
-
-class Font final : public icu::LEFontInstance {
-	public:
-		explicit Font(FontCache&, FT_FaceRec_*, hb_font_t*, FaceIndex_T, FamilyIndex_T, FontWeightIndex,
-				FontFaceStyle, uint32_t size);
-		~Font();
-
-		FontGlyphResult get_glyph(uint32_t glyphIndex, float* offsetOut) const;
-		FontGlyphResult get_outline_glyph(uint32_t glyphIndex, uint8_t thickness, StrokeType,
-				float* offsetOut) const;
-
-		Bitmap get_msdf_glyph(uint32_t glyphIndex, float* offsetOut) const;
-		Bitmap get_msdf_outline_glyph(uint32_t glyphIndex, uint8_t thickness, StrokeType,
-				float* offsetOut) const;
-
-		float get_underline_position() const;
-		float get_underline_thickness() const;
-
-		float get_strikethrough_position() const;
-		float get_strikethrough_thickness() const;
-
-		float get_scale_x() const;
-		float get_scale_y() const;
-
-		const void* getFontTable(LETag tableTag, size_t &length) const override;
-		le_int32 getUnitsPerEM() const override;
-		LEGlyphID mapCharToGlyph(LEUnicode32 ch) const override;
-		void getGlyphAdvance(LEGlyphID glyph, LEPoint &advance) const override;
-		le_bool getGlyphPoint(LEGlyphID glyph, le_int32 pointNumber, LEPoint &point) const override;
-		float getXPixelsPerEm() const override;
-		float getYPixelsPerEm() const override;
-		float getScaleFactorX() const override;
-		float getScaleFactorY() const override;
-		le_int32 getAscent() const override;
-		le_int32 getDescent() const override;
-		le_int32 getLeading() const override;
-
-		FontCache* get_font_cache() const;
-		hb_font_t* get_hb_font() const;
-
-		FaceIndex_T get_face() const;
-		FamilyIndex_T get_family() const;
-		FontWeightIndex get_weight() const;
-		FontFaceStyle get_style() const;
-		uint32_t get_size() const;
+class Font final {
 	private:
-		FT_FaceRec_* m_ftFace;
-		hb_font_t* m_hbFont;
-		FontCache* m_fontCache;
-		uint64_t m_fontKey;
-		uint32_t m_size;
-		/**
-		 * https://learn.microsoft.com/en-us/typography/opentype/otspec182/os2#ystrikeoutposition
-		 * The position of the top of the strikeout stroke relative to the baseline in font design units.
-		 * Positive values represent distances above the baseline, while negative values represent distances
-		 * below the baseline... For a Roman font with a 2048 em square, 460 is suggested.
-		 */
-		int16_t m_strikethroughPosition;
-		/**
-		 * https://learn.microsoft.com/en-us/typography/opentype/otspec182/os2#ystrikeoutsize
-		 * Width of the strikeout stroke in font design units.
-		 * This field should normally be the width of the em dash for the current font. If the size is one, the
-		 * strikeout line will be the line represented by the strikeout position field. If the value is two, the 
-		 * strikeout line will be the line represented by the strikeout position and the line immediately above 
-		 * the strikeout position. For a Roman font with a 2048 em square, 102 is suggested.
-		 */
-		int16_t m_strikethroughThickness;
+		static constexpr const uint32_t INVALID_FONT = static_cast<uint32_t>(~0u);
+	public:
+		constexpr Font() = default;
+		constexpr explicit Font(FontFamily family, FontWeight weight, FontStyle style,
+					uint32_t size)
+				: m_handle((family.handle << 16) | (static_cast<uint32_t>(weight) << 1)
+						| static_cast<uint32_t>(style))
+				, m_size(size) {}
+
+		constexpr Font(Font&&) noexcept = default;
+		constexpr Font& operator=(Font&&) noexcept = default;
+
+		constexpr Font(const Font&) noexcept = default;
+		constexpr Font& operator=(const Font&) noexcept = default;
+
+		constexpr FontFamily get_family() const {
+			return {static_cast<FamilyIndex_T>(m_handle >> 16)};
+		}
+
+		constexpr FontWeight get_weight() const {
+			return static_cast<FontWeight>((m_handle >> 1) & 0xF);
+		}
+
+		constexpr FontStyle get_style() const {
+			return static_cast<FontStyle>(m_handle & 1);
+		}
+
+		constexpr uint32_t get_size() const {
+			return m_size;
+		}
+
+		constexpr bool valid() const {
+			return m_handle != INVALID_FONT;
+		}
+
+		constexpr operator bool() const {
+			return valid();
+		}
+	private:
+		uint32_t m_handle{INVALID_FONT};
+		uint32_t m_size{};
 };
+
+struct SingleScriptFont {
+	FontFace face;
+	uint32_t size;
+
+	constexpr bool operator==(const SingleScriptFont& other) const {
+		return face == other.face && size == other.size;
+	}
+};
+
+}
 

@@ -1,8 +1,6 @@
 #include "formatting.hpp"
 
-#include "font.hpp"
-#include "font_cache.hpp"
-#include "multi_script_font.hpp"
+#include "font_registry.hpp"
 #include "value_run_builder.hpp"
 #include "utf_conversion_util.hpp"
 
@@ -22,7 +20,7 @@ static constexpr bool is_space(char c) {
 namespace {
 
 struct FontAttributes {
-	FamilyIndex_T family{FontCache::INVALID_FAMILY}; 
+	FontFamily family{}; 
 	uint32_t size{};
 	Color color;
 	bool colorChange{false};
@@ -31,7 +29,7 @@ struct FontAttributes {
 
 class FormattingParser {
 	public:
-		explicit FormattingParser(const std::string& text, const MultiScriptFont& baseFont, Color&& baseColor,
+		explicit FormattingParser(const std::string& text, Font baseFont, Color&& baseColor,
 				const StrokeState& baseStroke);
 
 		void parse();
@@ -46,12 +44,11 @@ class FormattingParser {
 
 		const std::string& m_text;
 		
-		ValueRunBuilder<uint32_t> m_fontRuns;
+		ValueRunBuilder<Font> m_fontRuns;
 		ValueRunBuilder<Color> m_colorRuns;
 		ValueRunBuilder<StrokeState> m_strokeRuns;
 		ValueRunBuilder<bool> m_strikethroughRuns;
 		ValueRunBuilder<bool> m_underlineRuns;
-		std::vector<MultiScriptFont> m_ownedFonts;
 
 		void parse_content(std::string_view expectedClose);
 		bool parse_open_bracket(std::string_view expectedClose);
@@ -100,23 +97,21 @@ class FormattingParser {
 // RichText API
 
 FormattingRuns Text::make_default_formatting_runs(const std::string& text, std::string& contentText,
-		const MultiScriptFont& baseFont, Color baseColor, const StrokeState& baseStroke) {
+		Font baseFont, Color baseColor, const StrokeState& baseStroke) {
 	contentText = text;
 	auto length = static_cast<int32_t>(text.size());
-	std::vector<MultiScriptFont> ownedFonts{baseFont};
 
 	return {
-		.fontRuns{&ownedFonts.front(), length},
+		.fontRuns{baseFont, length},
 		.colorRuns{std::move(baseColor), length},
 		.strokeRuns{baseStroke, length},
 		.strikethroughRuns{false, length},
 		.underlineRuns{false, length},
-		.ownedFonts = std::move(ownedFonts),
 	};
 }
 
 FormattingRuns Text::parse_inline_formatting(const std::string& text, std::string& contentText,
-		const MultiScriptFont& baseFont, Color baseColor, const StrokeState& baseStroke) {
+		Font baseFont, Color baseColor, const StrokeState& baseStroke) {
 	FormattingParser parser(text, baseFont, std::move(baseColor), baseStroke);
 	parser.parse();
 	return parser.get_result(contentText);
@@ -146,40 +141,32 @@ void Text::convert_formatting_runs_to_utf16(FormattingRuns& runs, const std::str
 
 // FormattingParser
 
-FormattingParser::FormattingParser(const std::string& text, const MultiScriptFont& baseFont, Color&& baseColor,
+FormattingParser::FormattingParser(const std::string& text, Font baseFont, Color&& baseColor,
 			const StrokeState& baseStroke)
 		: m_iter(text.data())
 		, m_end(text.data() + text.size())
 		, m_text(text)
-		, m_fontRuns{0u}
+		, m_fontRuns{baseFont}
 		, m_colorRuns{std::move(baseColor)}
 		, m_strokeRuns{baseStroke}
 		, m_strikethroughRuns{false}
-		, m_underlineRuns{false}
-		, m_ownedFonts{baseFont} {}
+		, m_underlineRuns{false} {}
 
 FormattingRuns FormattingParser::get_result(std::string& contentText) {
 	if (m_error) {
-		return make_default_formatting_runs(m_text, contentText, m_ownedFonts.front(), m_colorRuns.get_base_value(),
-				m_strokeRuns.get_base_value());
+		return make_default_formatting_runs(m_text, contentText, m_fontRuns.get_base_value(),
+				m_colorRuns.get_base_value(), m_strokeRuns.get_base_value());
 	}
 	else {
 		contentText = m_output.str();
-		auto fontIndexRuns = m_fontRuns.get();
 
 		FormattingRuns result{
-			.fontRuns{fontIndexRuns.get_run_count()},
+			.fontRuns = m_fontRuns.get(),
 			.colorRuns = m_colorRuns.get(),
 			.strokeRuns = m_strokeRuns.get(),
 			.strikethroughRuns = m_strikethroughRuns.get(),
 			.underlineRuns = m_underlineRuns.get(),
-			.ownedFonts = std::move(m_ownedFonts),
 		};
-
-		for (uint32_t i = 0; i < fontIndexRuns.get_run_count(); ++i) {
-			result.fontRuns.add(fontIndexRuns.get_limits()[i],
-					&result.ownedFonts[fontIndexRuns.get_values()[i]]);
-		}
 
 		return result;
 	}
@@ -337,20 +324,16 @@ void FormattingParser::parse_font() {
 
 	auto fontAttribs = parse_font_attributes();
 
-	auto& currFont = m_ownedFonts[m_fontRuns.get_current_value()];
-	bool hasFontChange = (fontAttribs.family != FontCache::INVALID_FAMILY
-			&& fontAttribs.family != currFont.get_family())
+	auto currFont = m_fontRuns.get_current_value();
+	bool hasFontChange = (fontAttribs.family && fontAttribs.family != currFont.get_family())
 			|| (fontAttribs.sizeChange && fontAttribs.size != currFont.get_size());
 
 	if (hasFontChange) {
-		auto family = fontAttribs.family != FontCache::INVALID_FAMILY ? fontAttribs.family
-				: currFont.get_family();
+		auto family = fontAttribs.family ? fontAttribs.family : currFont.get_family();
 		auto size = fontAttribs.sizeChange ? fontAttribs.size : currFont.get_size();
-		auto newFontIndex = static_cast<uint32_t>(m_ownedFonts.size());
-		m_ownedFonts.emplace_back(currFont.get_font_cache()->get_font(family, currFont.get_weight(),
-				currFont.get_style(), size));
+		Font newFont(family, currFont.get_weight(), currFont.get_style(), size);
 
-		m_fontRuns.push(m_output.view().size(), newFontIndex);
+		m_fontRuns.push(m_output.view().size(), newFont);
 	}
 
 	if (fontAttribs.colorChange) {
@@ -404,10 +387,9 @@ void FormattingParser::parse_font_face(FontAttributes& attribs) {
 		return;
 	}
 
-	auto& cache = *m_ownedFonts[m_fontRuns.get_current_value()].get_font_cache();
-	attribs.family = cache.get_font_family(faceName);
+	attribs.family = FontRegistry::get_family(faceName);
 
-	if (attribs.family == FontCache::INVALID_FAMILY) {
+	if (!attribs.family) {
 		raise_error();
 	}
 }

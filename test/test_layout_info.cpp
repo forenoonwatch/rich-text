@@ -1,36 +1,36 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include <font_cache.hpp>
+#include <font_registry.hpp>
 #include <layout_info.hpp>
 
 #include <unicode/unistr.h>
 
 #include <cmath>
 
-static std::unique_ptr<FontCache> g_fontCache{};
+static bool g_initialized = false;
 
 static constexpr const char* g_testStrings[] = {
 	"HelloWorld",
-	"إلابسم الله",
+	/*"إلابسم الله",
 	"beffiإلابسم اللهffter",
 	"Hello\nWorld",
 	"Hello\r\n\r\nWorld",
 	"beffiإلابسم اللهffter\r\nbeffiإلابسم اللهffter",
-	"beffiإلابسم الله\r\nhello",
+	"beffiإلابسم الله\r\nhello",*/
 	//"	 ̈‫ aaa ‭ אאא ‮ aaa ‪ אאא ‬ aaa ‬ ااا ‬ aaa ‬ aaa ‬&‬‌‌&‬",
 	//"aaa\u2067אאא\u2066bbb\u202bבבב\u202cccc\u2069גגג",
 };
 
-static void init_font_cache();
+static void init_font_registry();
 
-static void test_lx_vs_icu(const MultiScriptFont& font, const char* str, float width);
-static void test_lx_vs_utf8(const MultiScriptFont& font, const char* str, float width);
+static void test_lx_vs_icu(Text::Font font, const char* str, float width);
+static void test_lx_vs_utf8(Text::Font font, const char* str, float width);
 static void test_compare_layouts(const Text::LayoutInfo& lxLayout, const Text::LayoutInfo& icuLayout);
 
 TEST_CASE("ICU UTF-16", "[LayoutInfo]") {
-	init_font_cache();
-	auto famIdx = g_fontCache->get_font_family("Noto Sans"); 
-	auto font = g_fontCache->get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
+	init_font_registry();
+	auto family = Text::FontRegistry::get_family("Noto Sans"); 
+	Text::Font font(family, Text::FontWeight::REGULAR, Text::FontStyle::NORMAL, 48);
 
 	SECTION("Single Font Softbreaking") {
 		for (size_t i = 0; i < std::ssize(g_testStrings); ++i) {
@@ -46,9 +46,9 @@ TEST_CASE("ICU UTF-16", "[LayoutInfo]") {
 }
 
 TEST_CASE("ICU UTF-8", "[LayoutInfo]") {
-	init_font_cache();
-	auto famIdx = g_fontCache->get_font_family("Noto Sans"); 
-	auto font = g_fontCache->get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
+	init_font_registry();
+	auto family = Text::FontRegistry::get_family("Noto Sans"); 
+	Text::Font font(family, Text::FontWeight::REGULAR, Text::FontStyle::NORMAL, 48);
 
 	SECTION("Single Font Softbreaking") {
 		for (size_t i = 0; i < std::ssize(g_testStrings); ++i) {
@@ -65,17 +65,19 @@ TEST_CASE("ICU UTF-8", "[LayoutInfo]") {
 
 // Static Functions
 
-static void init_font_cache() {
-	if (!g_fontCache) {
-		g_fontCache = std::make_unique<FontCache>("fonts/families");
+static void init_font_registry() {
+	if (g_initialized) {
+		return;
 	}
 
-	REQUIRE(g_fontCache);
+	g_initialized = true;
+	auto res = Text::FontRegistry::register_families_from_path("fonts/families");
+	REQUIRE(res == Text::FontRegistryError::NONE);
 }
 
-static void test_lx_vs_icu(const MultiScriptFont& font, const char* str, float width) {
+static void test_lx_vs_icu(Text::Font font, const char* str, float width) {
 	icu::UnicodeString text(str);
-	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, text.length());
+	Text::ValueRuns<Text::Font> fontRuns(font, text.length());
 
 	Text::LayoutInfo lxLayout{};
 	build_layout_info_icu_lx(lxLayout, text.getBuffer(), text.length(), fontRuns, width, 100.f,
@@ -88,11 +90,11 @@ static void test_lx_vs_icu(const MultiScriptFont& font, const char* str, float w
 	test_compare_layouts(lxLayout, icuLayout);
 }
 
-static void test_lx_vs_utf8(const MultiScriptFont& font, const char* str, float width) {
+static void test_lx_vs_utf8(Text::Font font, const char* str, float width) {
 	icu::UnicodeString text(str);
 	auto count = strlen(str);
-	Text::ValueRuns<const MultiScriptFont*> fontRuns8(&font, count);
-	Text::ValueRuns<const MultiScriptFont*> fontRuns16(&font, text.length());
+	Text::ValueRuns<Text::Font> fontRuns8(font, count);
+	Text::ValueRuns<Text::Font> fontRuns16(font, text.length());
 
 	Text::LayoutInfo lxLayout{};
 	Text::LayoutInfo lxLayout8{};

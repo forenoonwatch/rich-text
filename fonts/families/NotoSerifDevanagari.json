@@ -1,0 +1,21 @@
+{
+	"name": "Noto Serif Devanagari",
+	"scripts": ["Deva"],
+	"linked_families": [
+		"Noto Sans",
+		"Noto Naskh Arabic",
+		"Noto Sans CJK",
+		"Noto Sans Egyptian Hieroglyphs"
+	],
+	"fallback_families": [
+		"Twemoji"
+	],
+	"faces": [
+		{
+			"name": "Noto Serif Devanagari Regular",
+			"uri": "fonts/NotoSans/NotoSerifDevanagari-Regular.ttf",
+			"weight": 400,
+			"style": "normal"
+		}
+	]
+}

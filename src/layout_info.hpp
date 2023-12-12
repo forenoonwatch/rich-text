@@ -17,8 +17,6 @@ class BreakIterator;
 
 U_NAMESPACE_END
 
-class MultiScriptFont;
-
 namespace Text {
 
 enum class LayoutInfoFlags : uint8_t {
@@ -48,7 +46,8 @@ class LayoutInfo {
 		void append_glyph(uint32_t glyphID);
 		void append_char_index(uint32_t charIndex);
 		void append_glyph_position(float x, float y);
-		void append_run(const Font* pFont, uint32_t charStartIndex, uint32_t charEndIndex, bool rightToLeft);
+		void append_run(const SingleScriptFont& font, uint32_t charStartIndex, uint32_t charEndIndex,
+				bool rightToLeft);
 		void append_line(float height, float ascent);
 		void append_empty_line(uint32_t charIndex, float height, float ascent);
 		void set_run_char_end_offset(size_t runIndex, uint8_t charEndOffset);
@@ -128,7 +127,7 @@ class LayoutInfo {
 		float get_line_ascent(size_t lineIndex) const;
 		float get_line_total_descent(size_t lineIndex) const;
 
-		const Font* get_run_font(size_t runIndex) const;
+		const SingleScriptFont& get_run_font(size_t runIndex) const;
 		uint32_t get_run_glyph_end_index(size_t runIndex) const;
 		uint32_t get_run_char_start_index(size_t runIndex) const;
 		uint32_t get_run_char_end_index(size_t runIndex) const;
@@ -154,7 +153,7 @@ class LayoutInfo {
 		void for_each_glyph(float textWidth, TextXAlignment textXAlignment, Functor&& func) const;
 	private:
 		struct VisualRun {
-			const Font* pFont;
+			SingleScriptFont font;
 			uint32_t glyphEndIndex;
 			uint32_t charStartIndex; // First (lowest) logical code unit index of the run
 			uint32_t charEndIndex; // First logical code unit index not in the run
@@ -186,21 +185,21 @@ class LayoutInfo {
  * @brief Builds the paragraph layout using LayoutEx
  */
 void build_layout_info_icu_lx(LayoutInfo& result, const char16_t* chars, int32_t count,
-		const ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
+		const ValueRuns<Font>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, LayoutInfoFlags flags);
 
 /**
  * @brief Builds the paragraph layout using direct calls to ubidi.h and usc_impl.h run calculation functions
  */
 void build_layout_info_icu(LayoutInfo& result, const char16_t* chars, int32_t count,
-		const ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
+		const ValueRuns<Font>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, LayoutInfoFlags flags);
 
 /**
  * @brief Builds the paragraph layout using UTF-8 APIs
  */
 void build_layout_info_utf8(LayoutInfo& result, const char* chars, int32_t count,
-		const ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
+		const ValueRuns<Font>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, LayoutInfoFlags flags);
 
 /**

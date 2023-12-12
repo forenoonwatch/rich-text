@@ -42,10 +42,10 @@ void LayoutInfo::append_glyph_position(float x, float y) {
 	m_glyphPositions.emplace_back(y);
 }
 
-void LayoutInfo::append_run(const Font* pFont, uint32_t charStartIndex, uint32_t charEndIndex,
+void LayoutInfo::append_run(const SingleScriptFont& font, uint32_t charStartIndex, uint32_t charEndIndex,
 		bool rightToLeft) {
 	m_visualRuns.push_back({
-		.pFont = pFont,
+		.font = font,
 		.glyphEndIndex = static_cast<uint32_t>(m_glyphs.size()),
 		.charStartIndex = charStartIndex,
 		.charEndIndex = charEndIndex,
@@ -361,8 +361,8 @@ float LayoutInfo::get_line_total_descent(size_t lineIndex) const {
 	return m_lines[lineIndex].totalDescent;
 }
 
-const Font* LayoutInfo::get_run_font(size_t runIndex) const {
-	return m_visualRuns[runIndex].pFont;
+const SingleScriptFont& LayoutInfo::get_run_font(size_t runIndex) const {
+	return m_visualRuns[runIndex].font;
 }
 
 uint32_t LayoutInfo::get_run_glyph_end_index(size_t runIndex) const {

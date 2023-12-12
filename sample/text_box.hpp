@@ -1,6 +1,5 @@
 #pragma once
 
-#include "multi_script_font.hpp"
 #include "cursor_controller.hpp"
 #include "layout_info.hpp"
 #include "formatting.hpp"
@@ -23,7 +22,7 @@ class TextBox final : public UIObject {
 
 		void set_size(float width, float height) override;
 
-		void set_font(MultiScriptFont);
+		void set_font(Text::Font);
 		void set_text(std::string);
 		void set_text_x_alignment(TextXAlignment);
 		void set_text_y_alignment(TextYAlignment);
@@ -35,7 +34,7 @@ class TextBox final : public UIObject {
 
 		bool is_focused() const;
 	private:
-		MultiScriptFont m_font{};
+		Text::Font m_font{};
 		std::string m_text{};
 		std::string m_contentText{};
 		Color m_textColor{0.f, 0.f, 0.f, 1.f};

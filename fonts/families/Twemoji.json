@@ -1,0 +1,11 @@
+{
+	"name": "Twemoji",
+	"faces": [
+		{
+			"name": "Twemoji",
+			"uri": "fonts/Twemoji/Twemoji.Mozilla.ttf",
+			"weight": 400,
+			"style": "normal"
+		}
+	]
+}

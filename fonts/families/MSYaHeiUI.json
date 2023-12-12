@@ -1,9 +1,9 @@
 {
-	"name": "Segoe UI",
-	"scripts": ["Latn", "Arab"],
+	"name": "Microsoft YaHei UI",
+	"scripts": ["Hani"],
 	"linked_families": [
+		"Segoe UI",
 		"Nirmala UI",
-		"Microsoft YaHei UI",
 		"Meiryo UI"
 	],
 	"fallback_families": [
@@ -13,8 +13,8 @@
 	],
 	"faces": [
 		{
-			"name": "Segoe UI Regular",
-			"uri": "C:/Windows/Fonts/segoeui.ttf",
+			"name": "Microsoft YaHei UI Regular",
+			"uri": "C:/Windows/Fonts/msyh.ttc",
 			"weight": 400,
 			"style": "normal"
 		}

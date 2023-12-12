@@ -1,7 +1,7 @@
 #include "text_box.hpp"
 
 #include "config_vars.hpp"
-#include "font_cache.hpp"
+#include "font_registry.hpp"
 #include "image.hpp"
 #include "pipeline.hpp"
 #include "text_atlas.hpp"
@@ -245,7 +245,8 @@ void TextBox::render(UIContainer& container) {
 	auto* glyphPositions = m_layout.get_glyph_position_data();
 	m_layout.for_each_run(get_size()[0], m_textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
 			auto lineY) {
-		auto& font = *m_layout.get_run_font(runIndex);
+		auto font = m_layout.get_run_font(runIndex);
+		auto fontData = Text::FontRegistry::get_font_data(font);
 
 		bool runHasHighlighting = hasHighlighting && m_layout.run_contains_char_range(runIndex,
 				selectionStart, selectionEnd);
@@ -308,9 +309,9 @@ void TextBox::render(UIContainer& container) {
 			
 			// Underline
 			if ((event & Text::FormattingEvent::UNDERLINE_END) != Text::FormattingEvent::NONE) {
-				auto height = font.get_underline_thickness() + 0.5f;
+				auto height = fontData.get_underline_thickness() + 0.5f;
 				container.emit_rect(get_position()[0] + lineX + underlineStartPos,
-						get_position()[1] + lineY + font.get_underline_position(),
+						get_position()[1] + lineY + fontData.get_underline_position(),
 						pX - underlineStartPos, height, iter.get_prev_color(), PipelineIndex::RECT, pClip);
 			}
 
@@ -320,9 +321,9 @@ void TextBox::render(UIContainer& container) {
 
 			// Strikethrough
 			if ((event & Text::FormattingEvent::STRIKETHROUGH_END) != Text::FormattingEvent::NONE) {
-				auto height = font.get_strikethrough_thickness() + 0.5f;
+				auto height = fontData.get_strikethrough_thickness() + 0.5f;
 				container.emit_rect(get_position()[0] + lineX + strikethroughStartPos,
-						get_position()[1] + lineY + font.get_strikethrough_position(),
+						get_position()[1] + lineY + fontData.get_strikethrough_position(),
 						pX - strikethroughStartPos, height, iter.get_prev_color(), PipelineIndex::RECT, pClip);
 			}
 
@@ -334,9 +335,9 @@ void TextBox::render(UIContainer& container) {
 		// Finalize last strikethrough
 		if (iter.has_strikethrough()) {
 			auto strikethroughEndPos = glyphPositions[glyphPosIndex];
-			auto height = font.get_strikethrough_thickness() + 0.5f;
+			auto height = fontData.get_strikethrough_thickness() + 0.5f;
 			container.emit_rect(get_position()[0] + lineX + strikethroughStartPos,
-					get_position()[1] + lineY + font.get_strikethrough_position(),
+					get_position()[1] + lineY + fontData.get_strikethrough_position(),
 					strikethroughEndPos - strikethroughStartPos, height, iter.get_color(), PipelineIndex::RECT,
 					pClip);
 		}
@@ -344,9 +345,9 @@ void TextBox::render(UIContainer& container) {
 		// Finalize last underline
 		if (iter.has_underline()) {
 			auto underlineEndPos = glyphPositions[glyphPosIndex];
-			auto height = font.get_underline_thickness() + 0.5f;
+			auto height = fontData.get_underline_thickness() + 0.5f;
 			container.emit_rect(get_position()[0] + lineX + underlineStartPos,
-					get_position()[1] + lineY + font.get_underline_position(),
+					get_position()[1] + lineY + fontData.get_underline_position(),
 					underlineEndPos - underlineStartPos, height, iter.get_color(), PipelineIndex::RECT, pClip);
 		}
 
@@ -372,7 +373,7 @@ void TextBox::render(UIContainer& container) {
 				auto lineX, auto lineY) {
 			auto* positions = m_layout.get_run_positions(runIndex);
 
-			for (le_int32 i = 0; i <= m_layout.get_run_glyph_count(runIndex); ++i) {
+			for (int32_t i = 0; i <= m_layout.get_run_glyph_count(runIndex); ++i) {
 				container.emit_rect(get_position()[0] + lineX + positions[2 * i],
 						get_position()[1] + lineY - m_layout.get_line_ascent(lineIndex), 0.5f,
 						m_layout.get_line_height(lineIndex), {0, 0.5f, 0, 1}, PipelineIndex::OUTLINE);
@@ -608,7 +609,8 @@ void TextBox::recalc_text() {
 	m_cursorCtrl.set_text(text);
 
 	if (text.empty()) {
-		m_visualCursorInfo.height = static_cast<float>(m_font.getAscent() + m_font.getDescent());
+		auto fontData = Text::FontRegistry::get_font_data(m_font);
+		m_visualCursorInfo.height = fontData.get_ascent() - fontData.get_descent();
 		return;
 	}
 
@@ -620,7 +622,7 @@ void TextBox::recalc_text() {
 
 // Setters
 
-void TextBox::set_font(MultiScriptFont font) {
+void TextBox::set_font(Text::Font font) {
 	m_font = std::move(font);
 	recalc_text();
 }

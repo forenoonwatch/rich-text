@@ -1,0 +1,21 @@
+{
+	"name": "Noto Naskh Arabic",
+	"scripts": ["Arab"],
+	"linked_families": [
+		"Noto Sans",
+		"Noto Serif Devanagari",
+		"Noto Sans CJK",
+		"Noto Sans Egyptian Hieroglyphs"
+	],
+	"fallback_families": [
+		"Twemoji"
+	],
+	"faces": [
+		{
+			"name": "Noto Naskh Arabic Regular",
+			"uri": "fonts/NotoSans/NotoNaskhArabic-Regular.ttf",
+			"weight": 400,
+			"style": "normal"
+		}
+	]
+}

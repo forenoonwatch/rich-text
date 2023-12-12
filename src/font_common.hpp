@@ -2,25 +2,15 @@
 
 #include <cstdint>
 
-enum class FontFaceStyle : uint8_t {
+namespace Text {
+
+enum class FontStyle : uint8_t {
 	NORMAL = 0,
 	ITALIC = 1,
 	COUNT
 };
 
-enum class FontWeight : uint16_t {
-	THIN = 100,
-	EXTRA_LIGHT = 200,
-	LIGHT = 300,
-	REGULAR = 400,
-	MEDIUM = 500,
-	SEMI_BOLD = 600,
-	BOLD = 700,
-	EXTRA_BOLD = 800,
-	BLACK = 900,
-};
-
-enum class FontWeightIndex : uint8_t {
+enum class FontWeight : uint8_t {
 	THIN,
 	EXTRA_LIGHT,
 	LIGHT,
@@ -35,4 +25,50 @@ enum class FontWeightIndex : uint8_t {
 
 using FamilyIndex_T = uint16_t;
 using FaceIndex_T = uint16_t;
+
+struct FontFamily {
+	static constexpr const FamilyIndex_T INVALID_FAMILY = static_cast<FamilyIndex_T>(~0u);
+
+	FamilyIndex_T handle{INVALID_FAMILY};
+
+	constexpr bool operator==(const FontFamily& other) const {
+		return handle == other.handle;
+	}
+
+	constexpr bool operator!=(const FontFamily& other) const {
+		return !(*this == other);
+	}
+
+	constexpr bool valid() const {
+		return handle != INVALID_FAMILY;
+	}
+
+	constexpr explicit operator bool() const {
+		return valid();
+	}
+};
+
+struct FontFace {
+	static constexpr const FaceIndex_T INVALID_FACE = static_cast<FaceIndex_T>(~0u);
+
+	FaceIndex_T handle{INVALID_FACE};
+
+	constexpr bool operator==(const FontFace& other) const {
+		return handle == other.handle;
+	}
+
+	constexpr bool operator!=(const FontFace& other) const {
+		return !(*this == other);
+	}
+
+	constexpr bool valid() const {
+		return handle != INVALID_FACE;
+	}
+
+	constexpr explicit operator bool() const {
+		return valid();
+	}
+};
+
+}
 

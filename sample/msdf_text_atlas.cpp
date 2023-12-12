@@ -1,6 +1,6 @@
 #include "msdf_text_atlas.hpp"
 
-#include "font.hpp"
+#include "font_registry.hpp"
 
 #include <glad/glad.h>
 
@@ -14,9 +14,9 @@ static constexpr uint32_t TEXTURE_PADDING = 1u;
 
 // MSDFTextAtlas
 
-Image* MSDFTextAtlas::get_glyph_info(const Font& font, uint32_t glyphIndex, float* texCoordExtentsOut,
+Image* MSDFTextAtlas::get_glyph_info(Text::SingleScriptFont font, uint32_t glyphIndex, float* texCoordExtentsOut,
 		float* sizeOut, float* offsetOut, bool& hasColorOut) {
-	GlyphKey key{glyphIndex, font.get_face()};
+	GlyphKey key{glyphIndex, font.face.handle};
 
 	if (auto it = m_glyphs.find(key); it != m_glyphs.end()) {
 		std::memcpy(texCoordExtentsOut, it->second.texCoordExtents, 4 * sizeof(float));
@@ -27,7 +27,8 @@ Image* MSDFTextAtlas::get_glyph_info(const Font& font, uint32_t glyphIndex, floa
 	}
 
 	GlyphInfo info{};
-	auto bitmap = font.get_msdf_glyph(glyphIndex, info.offset);
+	auto fontData = Text::FontRegistry::get_font_data(font);
+	auto bitmap = fontData.get_msdf_glyph(glyphIndex, info.offset);
 	bool hasColor = false;
 	info.bitmapSize[0] = static_cast<float>(bitmap.get_width());
 	info.bitmapSize[1] = static_cast<float>(bitmap.get_height());
@@ -47,9 +48,9 @@ Image* MSDFTextAtlas::get_glyph_info(const Font& font, uint32_t glyphIndex, floa
 	return result;
 }
 
-Image* MSDFTextAtlas::get_stroke_info(const Font& font, uint32_t glyphIndex, uint8_t thickness, StrokeType type,
-		float* texCoordExtentsOut, float* sizeOut, float* offsetOut, bool& hasColorOut) {
-	StrokeKey key{font.get_size(), glyphIndex, font.get_face(), thickness, type};
+Image* MSDFTextAtlas::get_stroke_info(Text::SingleScriptFont font, uint32_t glyphIndex, uint8_t thickness,
+		StrokeType type, float* texCoordExtentsOut, float* sizeOut, float* offsetOut, bool& hasColorOut) {
+	StrokeKey key{font.size, glyphIndex, font.face.handle, thickness, type};
 
 	if (auto it = m_strokes.find(key); it != m_strokes.end()) {
 		std::memcpy(texCoordExtentsOut, it->second.texCoordExtents, 4 * sizeof(float));
@@ -60,7 +61,8 @@ Image* MSDFTextAtlas::get_stroke_info(const Font& font, uint32_t glyphIndex, uin
 	}
 
 	GlyphInfo info{};
-	auto bitmap = font.get_msdf_outline_glyph(glyphIndex, thickness, type, info.offset);
+	auto fontData = Text::FontRegistry::get_font_data(font);
+	auto bitmap = fontData.get_msdf_outline_glyph(glyphIndex, thickness, type, info.offset);
 	bool hasColor = false;
 	info.bitmapSize[0] = static_cast<float>(bitmap.get_width());
 	info.bitmapSize[1] = static_cast<float>(bitmap.get_height());
@@ -80,7 +82,8 @@ Image* MSDFTextAtlas::get_stroke_info(const Font& font, uint32_t glyphIndex, uin
 	return result;
 }
 
-MSDFTextAtlas::Page* MSDFTextAtlas::upload_glyph(const Bitmap& bitmap, float* texCoordExtentsOut, bool hasColor) {
+MSDFTextAtlas::Page* MSDFTextAtlas::upload_glyph(const Bitmap& bitmap, float* texCoordExtentsOut,
+		bool hasColor) {
 	auto padWidth = bitmap.get_width() + TEXTURE_PADDING;
 	auto padHeight = bitmap.get_height() + TEXTURE_PADDING;
 	auto* pPage = get_or_create_target_page(padWidth, padHeight, hasColor);

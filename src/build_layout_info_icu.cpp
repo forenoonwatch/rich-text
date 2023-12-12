@@ -2,8 +2,7 @@
 
 #include "binary_search.hpp"
 #include "value_run_utils.hpp"
-#include "font.hpp"
-#include "multi_script_font.hpp"
+#include "font_registry.hpp"
 
 #include <unicode/ubidi.h>
 #include <unicode/brkiter.h>
@@ -46,7 +45,7 @@ struct LayoutBuildState {
 };
 
 struct LogicalRun {
-	const Font* pFont;
+	SingleScriptFont font;
 	const icu::Locale* pLocale;
 	UBiDiLevel level;
 	UScriptCode script;
@@ -63,14 +62,14 @@ static constexpr const UChar32 CH_PSEP = 0x2029;
 
 // FIXME: Using `stringOffset` is a bit cumbersome, refactor this logic to have full view of the string
 static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, const char16_t* chars,
-		int32_t count, int32_t stringOffset, const ValueRuns<const MultiScriptFont*>& fontRuns,
-		UBiDiLevel paragraphLevel, int32_t fixedWidth);
+		int32_t count, int32_t stringOffset, const ValueRuns<Font>& fontRuns, UBiDiLevel paragraphLevel,
+		int32_t fixedWidth);
 
 static ValueRuns<UBiDiLevel> compute_levels(UBiDi* pBiDi, UBiDiLevel paragraphLevel, const char16_t* chars,
 		int32_t count);
 static ValueRuns<UScriptCode> compute_scripts(const char16_t* chars, int32_t count);
-static ValueRuns<const Font*> compute_sub_fonts(const char16_t* chars,
-		const ValueRuns<const MultiScriptFont*>& fontRuns, const ValueRuns<UScriptCode>& scriptRuns);
+static ValueRuns<SingleScriptFont> compute_sub_fonts(const char16_t* chars, const ValueRuns<Font>& fontRuns,
+		const ValueRuns<UScriptCode>& scriptRuns);
 
 static void shape_logical_run(LayoutBuildState& state, hb_font_t* pFont, const char16_t* chars, int32_t offset,
 		int32_t count, int32_t max, UScriptCode script, const icu::Locale& locale, bool rightToLeft,
@@ -87,7 +86,7 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 // Public Functions
 
 void Text::build_layout_info_icu(LayoutInfo& result, const char16_t* chars, int32_t count,
-		const ValueRuns<const MultiScriptFont*>& fontRuns, float textAreaWidth, float textAreaHeight,
+		const ValueRuns<Font>& fontRuns, float textAreaWidth, float textAreaHeight,
 		TextYAlignment textYAlignment, LayoutInfoFlags flags) {
 	result.clear();
 
@@ -98,7 +97,7 @@ void Text::build_layout_info_icu(LayoutInfo& result, const char16_t* chars, int3
 	utext_openUChars(&iter, chars, count, &err);
 
 	// FIXME: Give the sub-paragraphs a full view of font runs
-	ValueRuns<const MultiScriptFont*> subsetFontRuns(fontRuns.get_run_count());
+	ValueRuns<Font> subsetFontRuns(fontRuns.get_run_count());
 	int32_t byteIndex = 0;
 	size_t lastHighestRun = 0;
 
@@ -126,12 +125,12 @@ void Text::build_layout_info_icu(LayoutInfo& result, const char16_t* chars, int3
 						subsetFontRuns, paragraphLevel, fixedTextAreaWidth);
 			}
 			else {
-				auto* pFont = fontRuns.get_value(byteIndex == count ? count - 1 : byteIndex);
-				auto height = static_cast<float>(pFont->getAscent() + pFont->getDescent());
+				auto font = fontRuns.get_value(byteIndex == count ? count - 1 : byteIndex);
+				auto fontData = FontRegistry::get_font_data(font);
+				auto height = fontData.get_ascent() - fontData.get_descent();
 
 				lastHighestRun = result.get_run_count();
-				result.append_empty_line(static_cast<uint32_t>(byteIndex), height,
-						static_cast<float>(pFont->getAscent()));
+				result.append_empty_line(static_cast<uint32_t>(byteIndex), height, fontData.get_ascent());
 			}
 
 			if (c == U_SENTINEL) {
@@ -154,8 +153,8 @@ void Text::build_layout_info_icu(LayoutInfo& result, const char16_t* chars, int3
 // Static Functions
 
 static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, const char16_t* chars,
-		int32_t count, int32_t stringOffset, const ValueRuns<const MultiScriptFont*>& fontRuns,
-		UBiDiLevel paragraphLevel, int32_t textAreaWidth) {
+		int32_t count, int32_t stringOffset, const ValueRuns<Font>& fontRuns, UBiDiLevel paragraphLevel,
+		int32_t textAreaWidth) {
 	auto levelRuns = compute_levels(state.pParaBiDi, paragraphLevel, chars, count);
 	auto scriptRuns = compute_scripts(chars, count);
 	ValueRuns<const icu::Locale*> localeRuns(&icu::Locale::getDefault(), count);
@@ -164,9 +163,9 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, c
 
 	std::vector<LogicalRun> logicalRuns;
 
-	iterate_run_intersections([&](auto limit, auto* pFont, auto level, auto script, auto* pLocale) {
+	iterate_run_intersections([&](auto limit, auto font, auto level, auto script, auto* pLocale) {
 		logicalRuns.push_back({
-			.pFont = pFont,
+			.font = font,
 			.pLocale = pLocale,
 			.level = level,
 			.script = script,
@@ -188,8 +187,9 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, c
 
 	for (auto& run : logicalRuns) {
 		bool rightToLeft = run.level & 1;
-		shape_logical_run(state, run.pFont->get_hb_font(), chars, runStart, run.charEndIndex - runStart,
-				count, run.script, *run.pLocale, rightToLeft, stringOffset);
+		auto fontData = FontRegistry::get_font_data(run.font);
+		shape_logical_run(state, fontData.hbFont, chars, runStart, run.charEndIndex - runStart, count,
+				run.script, *run.pLocale, rightToLeft, stringOffset);
 		run.glyphEndIndex = static_cast<uint32_t>(state.glyphs.size());
 		runStart = run.charEndIndex;
 	}
@@ -292,16 +292,14 @@ static ValueRuns<UScriptCode> compute_scripts(const char16_t* chars, int32_t cou
 	return scriptRuns;
 }
 
-static ValueRuns<const Font*> compute_sub_fonts(const char16_t* chars,
-		const ValueRuns<const MultiScriptFont*>& fontRuns, const ValueRuns<UScriptCode>& scriptRuns) {
-	ValueRuns<const Font*> result(fontRuns.get_run_count());
+static ValueRuns<SingleScriptFont> compute_sub_fonts(const char16_t* chars, const ValueRuns<Font>& fontRuns,
+		const ValueRuns<UScriptCode>& scriptRuns) {
+	ValueRuns<SingleScriptFont> result(fontRuns.get_run_count());
 	int32_t offset{};
-	LEErrorCode status{};
 
-	iterate_run_intersections([&](auto limit, auto* pBaseFont, auto script) {
+	iterate_run_intersections([&](auto limit, auto baseFont, auto script) {
 		while (offset < limit) {
-			auto* subFont = static_cast<const Font*>(pBaseFont->getSubFont(chars, &offset, limit, script, 
-					status));
+			auto subFont = FontRegistry::get_sub_font(baseFont, chars, offset, limit, script);
 			result.add(offset, subFont);
 		}
 	}, fontRuns, scriptRuns);
@@ -398,8 +396,8 @@ static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result
 	UErrorCode err{};
 	ubidi_setLine(state.pParaBiDi, lineStart - stringOffset, lineEnd - stringOffset, state.pLineBiDi, &err);
 	auto runCount = ubidi_countRuns(state.pLineBiDi, &err);
-	int32_t maxAscent{};
-	int32_t maxDescent{};
+	float maxAscent{};
+	float maxDescent{};
 	float visualRunLastX{};
 
 	for (int32_t i = 0; i < runCount; ++i) {
@@ -416,12 +414,13 @@ static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result
 
 			for (;;) {
 				auto logicalRunEnd = logicalRuns[run].charEndIndex;
+				auto fontData = FontRegistry::get_font_data(logicalRuns[run].font);
 
-				if (auto ascent = logicalRuns[run].pFont->getAscent(); ascent > maxAscent) {
+				if (auto ascent = fontData.get_ascent(); ascent > maxAscent) {
 					maxAscent = ascent;
 				}
 
-				if (auto descent = logicalRuns[run].pFont->getDescent(); descent > maxDescent) {
+				if (auto descent = fontData.get_descent(); descent < maxDescent) {
 					maxDescent = descent;
 				}
 
@@ -446,12 +445,13 @@ static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result
 
 			for (;;) {
 				auto logicalRunStart = run == 0 ? 0 : logicalRuns[run - 1].charEndIndex;
+				auto fontData = FontRegistry::get_font_data(logicalRuns[run].font);
 
-				if (auto ascent = logicalRuns[run].pFont->getAscent(); ascent > maxAscent) {
+				if (auto ascent = fontData.get_ascent(); ascent > maxAscent) {
 					maxAscent = ascent;
 				}
 
-				if (auto descent = logicalRuns[run].pFont->getDescent(); descent > maxDescent) {
+				if (auto descent = fontData.get_descent(); descent < maxDescent) {
 					maxDescent = descent;
 				}
 
@@ -470,7 +470,7 @@ static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result
 		}
 	}
 
-	result.append_line(static_cast<float>(maxAscent + maxDescent), static_cast<float>(maxAscent));
+	result.append_line(maxAscent - maxDescent, maxAscent);
 }
 
 static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const LogicalRun* logicalRuns,
@@ -538,7 +538,7 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 
 	visualRunLastX += state.glyphPositions[logicalLastPos];
 
-	result.append_run(logicalRuns[run].pFont, static_cast<uint32_t>(charStartIndex),
+	result.append_run(logicalRuns[run].font, static_cast<uint32_t>(charStartIndex),
 			static_cast<uint32_t>(charEndIndex + 1), rightToLeft);
 }
 

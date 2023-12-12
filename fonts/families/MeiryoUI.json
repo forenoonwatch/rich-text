@@ -1,10 +1,10 @@
 {
-	"name": "Segoe UI",
-	"scripts": ["Latn", "Arab"],
+	"name": "Meiryo UI",
+	"scripts": ["Hira"],
 	"linked_families": [
+		"Segoe UI",
 		"Nirmala UI",
-		"Microsoft YaHei UI",
-		"Meiryo UI"
+		"Microsoft YaHei UI"
 	],
 	"fallback_families": [
 		"Segoe UI Emoji",
@@ -13,8 +13,8 @@
 	],
 	"faces": [
 		{
-			"name": "Segoe UI Regular",
-			"uri": "C:/Windows/Fonts/segoeui.ttf",
+			"name": "Meiryo UI Regular",
+			"uri": "C:/Windows/Fonts/meiryo.ttc",
 			"weight": 400,
 			"style": "normal"
 		}

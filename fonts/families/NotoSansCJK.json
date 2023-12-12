@@ -1,0 +1,21 @@
+{
+	"name": "Noto Sans CJK",
+	"scripts": [20, 105, 119, 17],
+	"linked_families": [
+		"Noto Sans",
+		"Noto Naskh Arabic",
+		"Noto Serif Devanagari",
+		"Noto Sans Egyptian Hieroglyphs"
+	],
+	"fallback_families": [
+		"Twemoji"
+	],
+	"faces": [
+		{
+			"name": "Noto Sans CJK Regular",
+			"uri": "fonts/NotoSans/NotoSansCJKjp-Regular.otf",
+			"weight": 400,
+			"style": "normal"
+		}
+	]
+}

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "font_common.hpp"
+#include "font.hpp"
 #include "image.hpp"
 #include "stroke_type.hpp"
 
@@ -9,16 +9,16 @@
 #include <unordered_map>
 
 class Bitmap;
-class Font;
 
 class TextAtlas final {
 	public:
 		explicit TextAtlas();
 
-		Image* get_glyph_info(const Font&, uint32_t glyphIndex, float* texCoordExtentsOut, float* sizeOut,
-				float* offsetOut, bool& hasColorOut);
-		Image* get_stroke_info(const Font&, uint32_t glyphIndex, uint8_t thickness, StrokeType strokeType,
-				float* texCoordExtentsOut, float* sizeOut, float* offsetOut, bool& hasColorOut);
+		Image* get_glyph_info(Text::SingleScriptFont, uint32_t glyphIndex, float* texCoordExtentsOut,
+				float* sizeOut, float* offsetOut, bool& hasColorOut);
+		Image* get_stroke_info(Text::SingleScriptFont, uint32_t glyphIndex, uint8_t thickness,
+				StrokeType strokeType, float* texCoordExtentsOut, float* sizeOut, float* offsetOut,
+				bool& hasColorOut);
 
 		Image* get_default_texture();
 	private:
@@ -41,7 +41,7 @@ class TextAtlas final {
 		struct GlyphKey {
 			uint32_t size;
 			uint32_t glyphIndex;
-			FaceIndex_T face;
+			Text::FaceIndex_T face;
 
 			bool operator==(const GlyphKey&) const;
 		};
@@ -53,7 +53,7 @@ class TextAtlas final {
 		struct StrokeKey {
 			uint32_t glyphSize;
 			uint32_t glyphIndex;
-			FaceIndex_T face;
+			Text::FaceIndex_T face;
 			uint8_t strokeSize;
 			StrokeType type;
 

@@ -1,0 +1,11 @@
+{
+	"name": "Segoe UI Emoji",
+	"faces": [
+		{
+			"name": "Segoe UI Emoji",
+			"uri": "C:/Windows/Fonts/seguiemj.ttf",
+			"weight": 400,
+			"style": "normal"
+		}
+	]
+}

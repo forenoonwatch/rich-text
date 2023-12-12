@@ -1,7 +1,6 @@
 #include <benchmark/benchmark.h>
 
-#include <font_cache.hpp>
-#include <pair.hpp>
+#include <font_registry.hpp>
 #include <layout_info.hpp>
 
 #include <memory>
@@ -102,11 +101,11 @@ static void dump_test_data(const std::string& str);
 
 static void BM_Layout_SingleFont_MultiLang_LineBreak(benchmark::State& state) {
 	auto str = gen_test_string_multi_lang(state.range(0));
-	FontCache fontCache("fonts/families");
+	(void)Text::FontRegistry::register_families_from_path("fonts/families");
 
-	auto famIdx = fontCache.get_font_family("Noto Sans"); 
-	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
-	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, str.size());
+	auto family = Text::FontRegistry::get_family("Noto Sans"); 
+	Text::Font font(family, Text::FontWeight::REGULAR, Text::FontStyle::NORMAL, 48);
+	Text::ValueRuns<Text::Font> fontRuns(font, str.size());
 
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
@@ -118,11 +117,11 @@ static void BM_Layout_SingleFont_MultiLang_LineBreak(benchmark::State& state) {
 
 static void BM_Layout_SingleFont_MultiLang_NoLineBreak(benchmark::State& state) {
 	auto str = gen_test_string_multi_lang(state.range(0));
-	FontCache fontCache("fonts/families");
+	(void)Text::FontRegistry::register_families_from_path("fonts/families");
 
-	auto famIdx = fontCache.get_font_family("Noto Sans"); 
-	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
-	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, str.size());
+	auto family = Text::FontRegistry::get_family("Noto Sans"); 
+	Text::Font font(family, Text::FontWeight::REGULAR, Text::FontStyle::NORMAL, 48);
+	Text::ValueRuns<Text::Font> fontRuns(font, str.size());
 
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
@@ -134,11 +133,11 @@ static void BM_Layout_SingleFont_MultiLang_NoLineBreak(benchmark::State& state) 
 
 static void BM_Layout_SingleFont_Latin_LineBreak(benchmark::State& state) {
 	auto str = gen_test_string_single_lang(state.range(0), g_unicodeLatin);
-	FontCache fontCache("fonts/families");
+	(void)Text::FontRegistry::register_families_from_path("fonts/families");
 
-	auto famIdx = fontCache.get_font_family("Noto Sans"); 
-	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
-	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, str.size());
+	auto family = Text::FontRegistry::get_family("Noto Sans"); 
+	Text::Font font(family, Text::FontWeight::REGULAR, Text::FontStyle::NORMAL, 48);
+	Text::ValueRuns<Text::Font> fontRuns(font, str.size());
 
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
@@ -150,11 +149,11 @@ static void BM_Layout_SingleFont_Latin_LineBreak(benchmark::State& state) {
 
 static void BM_Layout_SingleFont_Latin_NoLineBreak(benchmark::State& state) {
 	auto str = gen_test_string_single_lang(state.range(0), g_unicodeLatin);
-	FontCache fontCache("fonts/families");
+	//FontCache fontCache("fonts/families");
 
-	auto famIdx = fontCache.get_font_family("Noto Sans"); 
-	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
-	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, str.size());
+	auto family = Text::FontRegistry::get_family("Noto Sans"); 
+	Text::Font font(family, Text::FontWeight::REGULAR, Text::FontStyle::NORMAL, 48);
+	Text::ValueRuns<Text::Font> fontRuns(font, str.size());
 
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
@@ -166,11 +165,11 @@ static void BM_Layout_SingleFont_Latin_NoLineBreak(benchmark::State& state) {
 
 static void BM_Layout_SingleFont_CJK_LineBreak(benchmark::State& state) {
 	auto str = gen_test_string_single_lang(state.range(0), g_unicodeCJK);
-	FontCache fontCache("fonts/families");
+	(void)Text::FontRegistry::register_families_from_path("fonts/families");
 
-	auto famIdx = fontCache.get_font_family("Noto Sans"); 
-	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
-	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, str.size());
+	auto family = Text::FontRegistry::get_family("Noto Sans"); 
+	Text::Font font(family, Text::FontWeight::REGULAR, Text::FontStyle::NORMAL, 48);
+	Text::ValueRuns<Text::Font> fontRuns(font, str.size());
 
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
@@ -182,11 +181,11 @@ static void BM_Layout_SingleFont_CJK_LineBreak(benchmark::State& state) {
 
 static void BM_Layout_SingleFont_CJK_NoLineBreak(benchmark::State& state) {
 	auto str = gen_test_string_single_lang(state.range(0), g_unicodeCJK);
-	FontCache fontCache("fonts/families");
+	//FontCache fontCache("fonts/families");
 
-	auto famIdx = fontCache.get_font_family("Noto Sans"); 
-	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
-	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, str.size());
+	auto family = Text::FontRegistry::get_family("Noto Sans"); 
+	Text::Font font(family, Text::FontWeight::REGULAR, Text::FontStyle::NORMAL, 48);
+	Text::ValueRuns<Text::Font> fontRuns(font, str.size());
 
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
@@ -198,11 +197,11 @@ static void BM_Layout_SingleFont_CJK_NoLineBreak(benchmark::State& state) {
 
 static void BM_Layout_SingleFont_Deva_LineBreak(benchmark::State& state) {
 	auto str = gen_test_string_single_lang(state.range(0), g_unicodeDevanagari);
-	FontCache fontCache("fonts/families");
+	(void)Text::FontRegistry::register_families_from_path("fonts/families");
 
-	auto famIdx = fontCache.get_font_family("Noto Sans"); 
-	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
-	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, str.size());
+	auto family = Text::FontRegistry::get_family("Noto Sans"); 
+	Text::Font font(family, Text::FontWeight::REGULAR, Text::FontStyle::NORMAL, 48);
+	Text::ValueRuns<Text::Font> fontRuns(font, str.size());
 
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
@@ -214,11 +213,11 @@ static void BM_Layout_SingleFont_Deva_LineBreak(benchmark::State& state) {
 
 static void BM_Layout_SingleFont_Deva_NoLineBreak(benchmark::State& state) {
 	auto str = gen_test_string_single_lang(state.range(0), g_unicodeDevanagari);
-	FontCache fontCache("fonts/families");
+	(void)Text::FontRegistry::register_families_from_path("fonts/families");
 
-	auto famIdx = fontCache.get_font_family("Noto Sans"); 
-	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
-	Text::ValueRuns<const MultiScriptFont*> fontRuns(&font, str.size());
+	auto family = Text::FontRegistry::get_family("Noto Sans"); 
+	Text::Font font(family, Text::FontWeight::REGULAR, Text::FontStyle::NORMAL, 48);
+	Text::ValueRuns<Text::Font> fontRuns(font, str.size());
 
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
@@ -230,28 +229,28 @@ static void BM_Layout_SingleFont_Deva_NoLineBreak(benchmark::State& state) {
 
 /*static void BM_Layout_MultiFont_LineBreak(benchmark::State& state) {
 	init_test_strings();
-	FontCache fontCache("fonts/families");
+	(void)Text::FontRegistry::register_families_from_path("fonts/families");
 
 	std::string_view str(g_testStringMultiLang.get(), g_testStringMultiLangSize);
 
-	auto famIdx = fontCache.get_font_family("Noto Sans"); 
-	auto font = fontCache.get_font(famIdx, FontWeightIndex::REGULAR, FontFaceStyle::NORMAL, 48);
+	auto family = Text::FontRegistry::get_family("Noto Sans"); 
+	Text::Font font(family, Text::FontWeight::REGULAR, Text::FontStyle::NORMAL, 48);
 	std::vector<MultiScriptFont> fonts;
 	fonts.reserve(g_fontStyles.get_run_count());
-	Text::ValueRuns<const MultiScriptFont*> fontRuns;
+	Text::ValueRuns<Text::Font> fontRuns;
 
 	for (size_t i = 0; i < g_fontStyles.get_run_count(); ++i) {
 		auto value = g_fontStyles.get_run_value(i);
 		auto size = value >> 16;
-		auto weight = static_cast<FontWeightIndex>((value >> 1) & 0xF);
-		auto style = (value & 1) == 0 ? FontFaceStyle::NORMAL : FontFaceStyle::ITALIC;
+		auto weight = static_cast<FontWeight>((value >> 1) & 0xF);
+		auto style = (value & 1) == 0 ? Text::FontStyle::NORMAL : Text::FontStyle::ITALIC;
 
-		fonts.emplace_back(fontCache.get_font(famIdx, weight, style, size));
+		fonts.emplace_back(fontCache.get_font(family, weight, style, size));
 	}
 
 	for (size_t i = 0; i < g_fontStyles.get_run_count(); ++i) {
 		auto limit = g_fontStyles.get_run_limit(i);
-		fontRuns.add(limit, &fonts[i]);
+		fontRuns.add(limit, fonts[i]);
 	}
 
 	for (auto _ : state) {
@@ -414,7 +413,7 @@ static std::string gen_test_string_multi_lang(size_t capacity) {
 
 	size_t weightStyleIndex = 0;
 	std::uniform_int_distribution<size_t> distWeightStyleLength(5, 150);
-	std::uniform_int_distribution<uint32_t> distWeight(0, (uint32_t)FontWeightIndex::COUNT - 1);
+	std::uniform_int_distribution<uint32_t> distWeight(0, (uint32_t)Text::FontWeight::COUNT - 1);
 	std::uniform_int_distribution<uint32_t> distStyle(0, 1);
 	std::uniform_int_distribution<uint32_t> distSize(9, 32);
 

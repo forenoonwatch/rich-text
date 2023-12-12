@@ -1,19 +1,23 @@
 {
 	"name": "Times New Roman",
+	"scripts": ["Latn"],
+	"linked_families": [
+		"Segoe UI",
+		"Nirmala UI",
+		"Microsoft YaHei UI",
+		"Meiryo UI"
+	],
+	"fallback_families": [
+		"Segoe UI Emoji",
+		"Cambria Math",
+		"Segoe UI Historic"
+	],
 	"faces": [
 		{
-			"name": "Regular",
+			"name": "Times New Roman Regular",
+			"uri": "C:/Windows/Fonts/times.ttf",
 			"weight": 400,
-			"style": "normal",
-			"scripts": [
-				{
-					"uri": "C:/Windows/Fonts/times.ttf"
-				},
-				{
-					"uri": "C:/Windows/Fonts/Nirmala.ttf",
-					"scripts": [10]
-				}
-			]
+			"style": "normal"
 		}
 	]
 }

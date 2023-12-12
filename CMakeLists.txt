@@ -10,7 +10,8 @@ add_subdirectory(third_party)
 # LibRichText ######################################################################################
 
 add_library(LibRichText STATIC "")
-target_link_libraries(LibRichText PUBLIC ICU::common ICU::layoutex)
+target_link_libraries(LibRichText PUBLIC ICU::common)
+target_link_libraries(LibRichText PRIVATE ICU::layoutex)
 target_link_libraries(LibRichText PRIVATE msdfgen::msdfgen)
 target_link_libraries(LibRichText PRIVATE SheenBidi)
 target_link_libraries(LibRichText PRIVATE simdjson)
@@ -44,7 +45,6 @@ set_target_properties(RichText PROPERTIES
 
 add_executable(TestRichText "")
 target_link_libraries(TestRichText PRIVATE LibRichText)
-target_link_libraries(TestRichText PRIVATE ICU::common ICU::layoutex)
 target_link_libraries(TestRichText PRIVATE Catch2::Catch2WithMain)
 target_link_libraries(TestRichText PRIVATE SheenBidi)
 set_target_properties(TestRichText PROPERTIES
@@ -62,7 +62,6 @@ add_custom_command(TARGET TestRichText POST_BUILD
 # RichText Benchmark ################################################################################
 
 add_executable(BenchRichText "")
-target_link_libraries(BenchRichText PRIVATE ICU::common)
 target_link_libraries(BenchRichText PRIVATE LibRichText)
 target_link_libraries(BenchRichText PRIVATE benchmark::benchmark)
 target_link_libraries(BenchRichText PRIVATE SheenBidi)
