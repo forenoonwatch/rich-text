@@ -76,6 +76,7 @@ void Text::unmap_file_default(const FileMapping& mapping) {
 #include <sys/mman.h>
 
 #include <string>
+#include <cstring>
 
 FileMapping Text::map_file_default(std::string_view fileName) {
 	int fd = open(std::string(fileName).c_str(), O_RDONLY);
@@ -101,7 +102,7 @@ FileMapping Text::map_file_default(std::string_view fileName) {
 }
 
 void Text::unmap_file_default(const FileMapping& mapping) {
-	munmap(mapping.mapping, mapping.size);
+	munmap(const_cast<void*>(mapping.mapping), mapping.size);
 
 	int fd;
 	std::memcpy(&fd, &mapping.handle, sizeof(int));
