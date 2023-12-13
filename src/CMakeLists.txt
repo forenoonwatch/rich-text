@@ -1,5 +1,6 @@
 target_sources(LibRichText PRIVATE
 	"${CMAKE_CURRENT_SOURCE_DIR}/bitmap.cpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/file_mapping.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/font_registry.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/font_registry_json.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/font_data.cpp"

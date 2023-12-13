@@ -29,7 +29,27 @@ namespace {
 
 struct FaceData {
 	std::string name;
-	std::vector<char> fileData;
+	FileMapping mapping{};
+
+	FaceData() = default;
+	FaceData(std::string&& nameIn, FileMapping&& mappingIn)
+			: name(nameIn)
+			, mapping(mappingIn) {}
+
+	FaceData(FaceData&& other) noexcept {
+		*this = std::move(other);
+	}
+
+	FaceData& operator=(FaceData&& other) noexcept {
+		std::swap(name, other.name);
+		std::swap(mapping, other.mapping);
+		return *this;
+	}
+
+	FaceData(const FaceData&) = delete;
+	void operator=(const FaceData&) = delete;
+
+	~FaceData();
 };
 
 struct FamilyData {
@@ -141,6 +161,11 @@ static std::unordered_map<std::string, FontFace, StringHash, std::equal_to<>> g_
 static std::vector<FamilyData> g_familyData;
 static std::unordered_map<std::string, FontFamily, StringHash, std::equal_to<>> g_familiesByName;
 
+static FileMappingFunctions g_fileFuncs {
+	.pfnMapFile = map_file_default,
+	.pfnUnmapFile = unmap_file_default,
+};
+
 static bool family_is_initialized(FontFamily family);
 static std::bitset<USCRIPT_CODE_LIMIT>& family_get_scripts(FontFamily family);
 static std::vector<FontFamily>& family_get_linked(FontFamily family);
@@ -193,16 +218,25 @@ FontData FontRegistry::get_font_data(FontFace face, uint32_t size) {
 		return it->second;
 	}
 
-	std::shared_lock lock(g_mutex);
-
 	assert(face.valid() && "get_font_data(): Must pass valid face");
 	assert(size > 0 && "get_font_data(): Must pass valid size");
 
 	FontData fontData{};
-	auto& faceData = g_faces[face.handle];
 
-	if (FT_New_Memory_Face(t_fontContext.lib, reinterpret_cast<const FT_Byte*>(faceData.fileData.data()),
-			faceData.fileData.size(), 0, &fontData.ftFace) != 0) {
+	g_mutex.lock_shared();
+
+	auto& faceData = g_faces[face.handle];
+	auto* fileData = faceData.mapping.mapping;
+	auto fileSize = faceData.mapping.size;
+
+	g_mutex.unlock_shared();
+
+	if (!fileData) {
+		return {};
+	}
+
+	if (FT_New_Memory_Face(t_fontContext.lib, reinterpret_cast<const FT_Byte*>(fileData), fileSize, 0,
+			&fontData.ftFace) != 0) {
 		return {};
 	}
 
@@ -417,10 +451,7 @@ static FontFace get_or_add_face(const FontFaceCreateInfo& faceInfo) {
 	FontFace result{static_cast<FaceIndex_T>(g_faces.size())};
 	g_facesByName.emplace(std::make_pair(std::string(faceInfo.name), result));
 
-	g_faces.push_back({
-		.name = std::string(faceInfo.name),
-		.fileData = file_read_bytes(std::string(faceInfo.uri).c_str()),
-	});
+	g_faces.emplace_back(std::string(faceInfo.name), g_fileFuncs.pfnMapFile(faceInfo.uri));
 
 	return result;
 }
@@ -476,5 +507,11 @@ static FontFace find_compatible_font(Text::Font font, uint32_t codepoint, FontFa
 	}
 
 	return {};
+}
+
+FaceData::~FaceData() {
+	if (mapping.mapping) {
+		g_fileFuncs.pfnUnmapFile(mapping);
+	}
 }
 

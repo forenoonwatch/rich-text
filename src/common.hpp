@@ -1,5 +1,15 @@
 #pragma once
 
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(_WIN64) || defined(WIN64)
+	#define RICHTEXT_OPERATING_SYSTEM_WINDOWS
+#elif defined(__linux__)
+	#define RICHTEXT_OPERATING_SYSTEM_LINUX
+#elif defined(__APPLE__)
+	#define RICHTEXT_OPERATING_SYSTEM_MACOS
+#else
+	#define RICHTEXT_OPERATING_SYSTEM_OTHER
+#endif
+
 #define RICHTEXT_DEFINE_UNARY_ENUM_OPERATOR(T, op)													\
 	constexpr T operator op(const T& a) noexcept {													\
 		static_assert(std::is_enum_v<T>);															\

@@ -2,10 +2,9 @@
 
 #include "font.hpp"
 #include "font_data.hpp"
+#include "file_mapping.hpp"
 
 #include <unicode/uscript.h>
-
-#include <string_view>
 
 namespace Text {
 
@@ -110,6 +109,17 @@ namespace Text::FontRegistry {
 		UScriptCode script);
 [[nodiscard]] SingleScriptFont get_sub_font(Font font, const char16_t* text, int32_t& offset, int32_t limit, 
 		UScriptCode script);
+
+/**
+ * Sets the file mapping functions used to load font files internally. This function can only be called before
+ * the `FontRegistry` has begun to be used to load fonts. Changing the mapping functions once files have already
+ * been loaded will result in undefined behavior.
+ *
+ *
+ * @thread_safety This function must be externally synchronized.
+ * @see FileMapping
+ */
+void set_file_mapping_functions(const FileMappingFunctions& funcs);
 
 }
 
