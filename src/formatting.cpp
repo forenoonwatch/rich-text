@@ -124,7 +124,7 @@ static void convert_runs(ValueRuns<T>& runs, const std::string& srcText, const c
 	uint32_t dstCounter{};
 
 	for (size_t i = 0; i < runs.get_run_count(); ++i) {
-		auto& limit = const_cast<int32_t&>(runs.get_limits()[i]);
+		auto limit = runs.get_run_limit(i);
 		limit = static_cast<int32_t>(utf8_index_to_utf16(srcText.data(), srcText.size(), dstText, dstTextLength,
 				limit, srcCounter, dstCounter));
 	}

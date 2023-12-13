@@ -8,10 +8,10 @@ static uint32_t advance_run(const ValueRuns<T>& runs, uint32_t runIndex, uint32_
 
 FormattingIterator::FormattingIterator(const FormattingRuns& fmt, uint32_t charIndex)
 		: m_formatting(&fmt)
-		, m_colorRunIndex(fmt.colorRuns.get_run_index(charIndex))
-		, m_strokeRunIndex(fmt.strokeRuns.get_run_index(charIndex))
-		, m_strikethroughRunIndex(fmt.strikethroughRuns.get_run_index(charIndex))
-		, m_underlineRunIndex(fmt.underlineRuns.get_run_index(charIndex))
+		, m_colorRunIndex(fmt.colorRuns.get_run_containing_index(charIndex))
+		, m_strokeRunIndex(fmt.strokeRuns.get_run_containing_index(charIndex))
+		, m_strikethroughRunIndex(fmt.strikethroughRuns.get_run_containing_index(charIndex))
+		, m_underlineRunIndex(fmt.underlineRuns.get_run_containing_index(charIndex))
 		, m_color{fmt.colorRuns.get_run_value(m_colorRunIndex)}
 		, m_strikethrough{false}
 		, m_underline{false} {}
@@ -67,11 +67,11 @@ bool FormattingIterator::has_underline() const {
 
 template <typename T>
 static uint32_t advance_run(const ValueRuns<T>& runs, uint32_t runIndex, uint32_t charIndex) {
-	while (runIndex +  1 < runs.get_run_count() && charIndex >= runs.get_limits()[runIndex]) {
+	while (runIndex +  1 < runs.get_run_count() && charIndex >= runs.get_run_limit(runIndex)) {
 		++runIndex;
 	}
 
-	while (runIndex > 0 && charIndex < runs.get_limits()[runIndex - 1]) {
+	while (runIndex > 0 && charIndex < runs.get_run_limit(runIndex - 1)) {
 		--runIndex;
 	}
 

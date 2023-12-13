@@ -15,16 +15,16 @@ namespace Internal {
 template <typename Head, typename... Tail>
 constexpr int32_t find_next_min_limit(int32_t minLimit, const size_t* indices, Head&& head, Tail&&... tail) {
 	if constexpr (sizeof...(Tail) > 0) {
-		return std::min(head.get_limits()[*indices], find_next_min_limit(minLimit, indices + 1, tail...));
+		return std::min(head.get_run_limit(*indices), find_next_min_limit(minLimit, indices + 1, tail...));
 	}
 	else {
-		return head.get_limits()[*indices];
+		return head.get_run_limit(*indices);
 	}
 }
 
 template <typename Head, typename... Tail>
 constexpr void advance_intersect_indices(int32_t minLimit, size_t* indices, Head&& head, Tail&&... tail) {
-	*indices += head.get_limits()[*indices] <= minLimit;
+	*indices += head.get_run_limit(*indices) <= minLimit;
 
 	if constexpr (sizeof...(Tail) > 0) {
 		advance_intersect_indices(minLimit, indices + 1, tail...);
@@ -33,7 +33,7 @@ constexpr void advance_intersect_indices(int32_t minLimit, size_t* indices, Head
 
 template <size_t N, typename Tuple>
 constexpr decltype(auto) get_run_value(Tuple&& t, const size_t* indices) {
-	return std::get<N>(t)->get_values()[indices[N]];
+	return std::get<N>(t)->get_run_value(indices[N]);
 }
 
 template <typename Functor, typename Tuple, size_t... Indices>
