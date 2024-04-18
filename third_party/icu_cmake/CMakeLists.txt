@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 
 option(ICU_BUILD_TESTS "Build ICU tests" OFF)
+option(ICU_BUILD_LX "Build ICU LayoutEx" OFF)
 
 option(ICU_CHARSET_IS_UTF8 "Whether the default charset is UTF8, otherwise it is UTF16" OFF)
 
@@ -53,9 +54,30 @@ add_subdirectory(i18n)
 add_subdirectory(stubdata)
 add_subdirectory(tools)
 add_subdirectory(data)
-add_subdirectory(layoutex)
 add_subdirectory(samples)
 
-if (ICU_BUILD_TESTS)
+if (ICU_BUILD_LX)
+	if (NOT TARGET icu-le-hb)
+		FetchContent_Declare(
+			icu-le-hb
+			GIT_REPOSITORY https://github.com/harfbuzz/icu-le-hb
+		)
+
+		FetchContent_MakeAvailable(icu-le-hb)
+
+		add_library(icu-le-hb STATIC "")
+		target_compile_definitions(icu-le-hb PRIVATE U_LAYOUT_IMPLEMENTATION)
+		file(GLOB_RECURSE ICU_LE_HB_FILES "${icu-le-hb_SOURCE_DIR}/src/*.cpp")
+		target_sources(icu-le-hb PRIVATE ${ICU_LE_HB_FILES})
+		target_link_libraries(icu-le-hb PUBLIC ICU::common ICU::data harfbuzz)
+
+		file(CREATE_LINK "${icu-le-hb_SOURCE_DIR}/src" "${icu-le-hb_BINARY_DIR}/layout" SYMBOLIC)
+		target_include_directories(icu-le-hb PUBLIC "${icu-le-hb_BINARY_DIR}")
+	endif()
+
+	add_subdirectory(layoutex)
+endif()
+
+if (ICU_BUILD_TESTS)	
 	add_subdirectory(test)
 endif()

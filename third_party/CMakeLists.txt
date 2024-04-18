@@ -1,7 +1,4 @@
-set(GLFW_BUILD_DOCS OFF CACHE BOOL "")
-set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "")
-set(GLFW_BUILD_TESTS OFF CACHE BOOL "")
-set(GLFW_INSTALL OFF CACHE BOOL "")
+include(FetchContent)
 
 set(ICU_CHARSET_IS_UTF8 ON CACHE BOOL "")
 
@@ -14,34 +11,66 @@ set(MSDFGEN_USE_OPENMP OFF CACHE BOOL "")
 set(MSDFGEN_USE_SKIA OFF CACHE BOOL "")
 set(MSDFGEN_USE_VCPKG OFF CACHE BOOL "")
 
-set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "")
-
-add_subdirectory(benchmark)
-add_subdirectory(Catch2)
 add_subdirectory(freetype)
-add_subdirectory(glfw)
 add_subdirectory(harfbuzz)
 add_subdirectory(icu_cmake)
 add_subdirectory(msdfgen)
-add_subdirectory(simdjson)
-
-add_library(glad STATIC "")
-target_sources(glad PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/glad/src/glad.c")
-target_include_directories(glad PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/glad/include")
 
 if (MINGW)
 	target_compile_options(harfbuzz PRIVATE -Wa,-mbig-obj)
 	target_compile_options(harfbuzz-subset PRIVATE -Wa,-mbig-obj)
 endif()
 
-add_library(icu-le-hb STATIC "")
-target_compile_definitions(icu-le-hb PRIVATE U_LAYOUT_IMPLEMENTATION)
-file(GLOB_RECURSE ICU_LE_HB_FILES "${CMAKE_CURRENT_SOURCE_DIR}/icu-le-hb/src/*.cpp")
-target_sources(icu-le-hb PRIVATE ${ICU_LE_HB_FILES})
-target_link_libraries(icu-le-hb PUBLIC ICU::common ICU::data harfbuzz)
+if (NOT TARGET simdjson)
+	FetchContent_Declare(
+		simdjson
+		GIT_REPOSITORY https://github.com/simdjson/simdjson.git
+	)
 
-file(CREATE_LINK "${CMAKE_CURRENT_SOURCE_DIR}/icu-le-hb/src" "${CMAKE_CURRENT_BINARY_DIR}/layout" SYMBOLIC)
-target_include_directories(icu-le-hb PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+	FetchContent_MakeAvailable(simdjson)
+endif()
+
+if (RICHTEXT_BUILD_TESTS)
+	add_library(richtext_glad STATIC "")
+	target_sources(richtext_glad PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/glad/src/glad.c")
+	target_include_directories(richtext_glad PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/glad/include")
+
+	if (NOT TARGET glfw)
+		set(GLFW_BUILD_DOCS OFF CACHE BOOL "")
+		set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "")
+		set(GLFW_BUILD_TESTS OFF CACHE BOOL "")
+		set(GLFW_INSTALL OFF CACHE BOOL "")
+
+		FetchContent_Declare(
+			glfw
+			GIT_REPOSITORY https://github.com/glfw/glfw.git
+		)
+
+		FetchContent_MakeAvailable(glfw)
+	endif()
+
+	if (NOT TARGET Catch2::Catch2WithMain)
+		FetchContent_Declare(
+			Catch2
+			GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+			GIT_TAG v3.5.4
+		)
+
+		FetchContent_MakeAvailable(Catch2)
+	endif()
+
+	if (NOT TARGET benchmark::benchmark)
+		set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "")
+
+		FetchContent_Declare(
+			benchmark
+			GIT_REPOSITORY https://github.com/google/benchmark.git
+			GIT_TAG v1.8.3
+		)
+
+		FetchContent_MakeAvailable(benchmark)
+	endif()
+endif()
 
 add_library(SheenBidi STATIC)
 target_sources(SheenBidi PRIVATE

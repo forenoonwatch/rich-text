@@ -20,6 +20,8 @@ function(fetch_font FONT_NAME DOWNLOAD_URL PATH_FILTER)
 	file(MAKE_DIRECTORY ${FONT_DIRECTORY})
 
 	if (NOT EXISTS ${ARCHIVE_FULL_FILE_PATH})
+		message(STATUS "Downloading font ${FONT_NAME}")
+
 		if (ARCHIVE_FILE_NAME MATCHES "(ttf|otf)$")
 			file(DOWNLOAD ${DOWNLOAD_URL} "${FONT_DIRECTORY}/${ARCHIVE_FILE_NAME}")
 		else()
