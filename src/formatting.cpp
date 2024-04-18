@@ -9,6 +9,8 @@
 #include <string_view>
 #include <type_traits>
 
+#include <cstring>
+
 using namespace Text;
 
 static constexpr const char SENTINEL = static_cast<char>(UINT8_MAX);
@@ -23,8 +25,10 @@ struct FontAttributes {
 	FontFamily family{}; 
 	uint32_t size{};
 	Color color;
+	FontWeight weight{FontWeight::REGULAR};
 	bool colorChange{false};
 	bool sizeChange{false};
+	bool weightChange{false};
 };
 
 class FormattingParser {
@@ -76,6 +80,7 @@ class FormattingParser {
 		template <typename T> requires std::is_arithmetic_v<T>
 		void parse_attribute(std::string_view name, T& value);
 		void parse_attribute(std::string_view name, Color& value);
+		void parse_attribute(std::string_view name, FontWeight& value);
 
 		void parse_line_break();
 
@@ -326,12 +331,14 @@ void FormattingParser::parse_font() {
 
 	auto currFont = m_fontRuns.get_current_value();
 	bool hasFontChange = (fontAttribs.family && fontAttribs.family != currFont.get_family())
-			|| (fontAttribs.sizeChange && fontAttribs.size != currFont.get_size());
+			|| (fontAttribs.sizeChange && fontAttribs.size != currFont.get_size())
+			|| (fontAttribs.weightChange &&  fontAttribs.weight != currFont.get_weight());
 
 	if (hasFontChange) {
 		auto family = fontAttribs.family ? fontAttribs.family : currFont.get_family();
 		auto size = fontAttribs.sizeChange ? fontAttribs.size : currFont.get_size();
-		Font newFont(family, currFont.get_weight(), currFont.get_style(), size);
+		auto weight = fontAttribs.weightChange ? fontAttribs.weight : currFont.get_weight();
+		Font newFont(family, weight, currFont.get_style(), size);
 
 		m_fontRuns.push(m_output.view().size(), newFont);
 	}
@@ -366,6 +373,10 @@ FontAttributes FormattingParser::parse_font_attributes() {
 			case 's':
 				parse_attribute("ize=\"", result.size);
 				result.sizeChange = true;
+				break;
+			case 'w':
+				parse_attribute("eight=\"", result.weight);
+				result.weightChange = true;
 				break;
 			case ' ':
 				break;
@@ -549,6 +560,69 @@ void FormattingParser::parse_attribute(std::string_view name, Color& value) {
 
 	value = Color::from_abgr_uint(color);
 	value.a = 1.f;
+}
+
+void FormattingParser::parse_attribute(std::string_view name, FontWeight& value) {
+	auto attrib = parse_attribute(name);
+	uint32_t numericValue{};
+	char lowercaseAttrib[16]{};
+
+	if (attrib.size() >= 16) {
+		raise_error();
+	}
+
+	// Naive ASCII-only lower, insufficient for actual language applications, but since all formatting
+	// controls are basic ASCII, this suffices
+	for (size_t i = 0; i < attrib.size(); ++i) {
+		if (auto c = attrib[i]; c >= 'A' && c <= 'Z') {
+			lowercaseAttrib[i] = 'a' + (c - 'A');
+		}
+		else {
+			lowercaseAttrib[i] = c;
+		}
+	}
+
+	// Numeric weight, multiples of 100 in [100, 900] valid
+	if (auto [ptr, ec] = std::from_chars(attrib.data(), attrib.data() + attrib.size(), numericValue);
+			ec == std::errc{}) {
+		if (numericValue >= 100 && numericValue <= 900 && numericValue % 100 == 0) {
+			value = static_cast<FontWeight>(numericValue / 100 - 1);
+		}
+		else {
+			raise_error();
+		}
+	}
+	// Named weights
+	else if (std::strcmp(lowercaseAttrib, "thin") == 0) {
+		value = FontWeight::THIN;
+	}
+	else if (std::strcmp(lowercaseAttrib, "extra light") == 0) {
+		value = FontWeight::EXTRA_LIGHT;
+	}
+	else if (std::strcmp(lowercaseAttrib, "light") == 0) {
+		value = FontWeight::LIGHT;
+	}
+	else if (std::strcmp(lowercaseAttrib, "regular") == 0) {
+		value = FontWeight::REGULAR;
+	}
+	else if (std::strcmp(lowercaseAttrib, "medium") == 0) {
+		value = FontWeight::MEDIUM;
+	}
+	else if (std::strcmp(lowercaseAttrib, "semi bold") == 0) {
+		value = FontWeight::SEMI_BOLD;
+	}
+	else if (std::strcmp(lowercaseAttrib, "bold") == 0) {
+		value = FontWeight::BOLD;
+	}
+	else if (std::strcmp(lowercaseAttrib, "extra bold") == 0) {
+		value = FontWeight::EXTRA_BOLD;
+	}
+	else if (std::strcmp(lowercaseAttrib, "black") == 0) {
+		value = FontWeight::BLACK;
+	}
+	else {
+		raise_error();
+	}
 }
 
 bool FormattingParser::parse_color(uint32_t& color) {
