@@ -230,6 +230,9 @@ bool FormattingParser::parse_open_bracket(std::string_view expectedClose) {
 		case 'f':
 			parse_font();
 			break;
+		case 'i':
+			parse_italic();
+			break;
 		case 's':
 			parse_s_tag();
 			break;
@@ -415,6 +418,26 @@ void FormattingParser::parse_underline() {
 	m_underlineRuns.push(m_output.view().size(), true);
 	parse_content("u>");
 	m_underlineRuns.pop(m_output.view().size());
+}
+
+void FormattingParser::parse_italic() {
+	if (!consume_char('>')) {
+		return;
+	}
+
+	auto currFont = m_fontRuns.get_current_value();
+	bool hasFontChange = currFont.get_style() != FontStyle::ITALIC;
+
+	if (hasFontChange) {
+		Font newFont(currFont.get_family(), currFont.get_weight(), FontStyle::ITALIC, currFont.get_size());
+		m_fontRuns.push(m_output.view().size(), newFont);
+	}
+
+	parse_content("i>");
+
+	if (hasFontChange) {
+		m_fontRuns.pop(m_output.view().size());
+	}
 }
 
 void FormattingParser::parse_stroke() {

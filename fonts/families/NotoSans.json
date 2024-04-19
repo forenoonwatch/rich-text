@@ -64,6 +64,60 @@
 			"uri": "fonts/NotoSans/NotoSans-Black.ttf",
 			"weight": 900,
 			"style": "normal"
+		},
+		{
+			"name": "Noto Sans Thin Italic",
+			"uri": "fonts/NotoSans/NotoSans-ThinItalic.ttf",
+			"weight": 100,
+			"style": "italic"
+		},
+		{
+			"name": "Noto Sans Extra Light Italic",
+			"uri": "fonts/NotoSans/NotoSans-ExtraLightItalic.ttf",
+			"weight": 200,
+			"style": "italic"
+		},
+		{
+			"name": "Noto Sans Light Italic",
+			"uri": "fonts/NotoSans/NotoSans-LightItalic.ttf",
+			"weight": 300,
+			"style": "italic"
+		},
+		{
+			"name": "Noto Sans Regular Italic",
+			"uri": "fonts/NotoSans/NotoSans-Italic.ttf",
+			"weight": 400,
+			"style": "italic"
+		},
+		{
+			"name": "Noto Sans Medium Italic",
+			"uri": "fonts/NotoSans/NotoSans-MediumItalic.ttf",
+			"weight": 500,
+			"style": "italic"
+		},
+		{
+			"name": "Noto Sans Semi Bold Italic",
+			"uri": "fonts/NotoSans/NotoSans-SemiBoldItalic.ttf",
+			"weight": 600,
+			"style": "italic"
+		},
+		{
+			"name": "Noto Sans Bold Italic",
+			"uri": "fonts/NotoSans/NotoSans-BoldItalic.ttf",
+			"weight": 700,
+			"style": "italic"
+		},
+		{
+			"name": "Noto Sans Extra Bold Italic",
+			"uri": "fonts/NotoSans/NotoSans-ExtraBoldItalic.ttf",
+			"weight": 800,
+			"style": "italic"
+		},
+		{
+			"name": "Noto Sans Black Italic",
+			"uri": "fonts/NotoSans/NotoSans-BlackItalic.ttf",
+			"weight": 900,
+			"style": "italic"
 		}
 	]
 }
