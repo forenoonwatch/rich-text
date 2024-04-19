@@ -52,6 +52,10 @@ struct FontFace {
 	static constexpr const FaceIndex_T INVALID_FACE = static_cast<FaceIndex_T>(~0u);
 
 	FaceIndex_T handle{INVALID_FACE};
+	// The source weight and style as this face expects its underlying font data to be, for use in calculating
+	// the expected synthetic bold/italic transformations
+	FontWeight sourceWeight{FontWeight::REGULAR};
+	FontStyle sourceStyle{FontStyle::NORMAL};
 
 	constexpr bool operator==(const FontFace& other) const {
 		return handle == other.handle;

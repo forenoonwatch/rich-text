@@ -52,6 +52,8 @@ class Font final {
 struct SingleScriptFont {
 	FontFace face;
 	uint32_t size;
+	FontWeight weight;
+	FontStyle style;
 
 	constexpr bool operator==(const SingleScriptFont& other) const {
 		return face == other.face && size == other.size;

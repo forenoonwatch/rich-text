@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bitmap.hpp"
+#include "font_common.hpp"
 #include "stroke_type.hpp"
 
 struct FT_FaceRec_;
@@ -33,6 +34,11 @@ struct FontData {
 	 * the strikeout position. For a Roman font with a 2048 em square, 102 is suggested.
 	 */
 	int16_t strikethroughThickness;
+
+	FontWeight srcWeight;
+	FontStyle srcStyle;
+	FontWeight dstWeight;
+	FontStyle dstStyle;
 
 	constexpr bool valid() const {
 		return ftFace && hbFont;

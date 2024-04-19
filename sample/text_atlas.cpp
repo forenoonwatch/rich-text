@@ -22,7 +22,7 @@ TextAtlas::TextAtlas() {
 
 Image* TextAtlas::get_glyph_info(Text::SingleScriptFont font, uint32_t glyphIndex, float* texCoordExtentsOut,
 		float* sizeOut, float* offsetOut, bool& hasColorOut) {
-	GlyphKey key{font.size, glyphIndex, font.face.handle};
+	GlyphKey key{font.size, glyphIndex, font.face.handle, font.weight, font.style};
 
 	if (auto it = m_glyphs.find(key); it != m_glyphs.end()) {
 		std::memcpy(texCoordExtentsOut, it->second.texCoordExtents, 4 * sizeof(float));
@@ -146,7 +146,8 @@ bool TextAtlas::page_can_fit_glyph(Page& page, uint32_t width, uint32_t height) 
 // TextAtlas::GlyphKey
 
 bool TextAtlas::GlyphKey::operator==(const GlyphKey& o) const {
-	return size == o.size && glyphIndex == o.glyphIndex && face == o.face;
+	return size == o.size && glyphIndex == o.glyphIndex && face == o.face && weight == o.weight
+			&& style == o.style;
 }
 
 // TextAtlas::GlyphKeyHash
@@ -157,6 +158,8 @@ size_t TextAtlas::GlyphKeyHash::operator()(const GlyphKey& k) const {
 	hash = static_cast<size_t>(hash * HASH_MULTIPLIER) ^ static_cast<size_t>(k.size);
 	hash = static_cast<size_t>(hash * HASH_MULTIPLIER) ^ static_cast<size_t>(k.glyphIndex);
 	hash = static_cast<size_t>(hash * HASH_MULTIPLIER) ^ static_cast<size_t>(k.face);
+	hash = static_cast<size_t>(hash * HASH_MULTIPLIER) ^ static_cast<size_t>(k.weight);
+	hash = static_cast<size_t>(hash * HASH_MULTIPLIER) ^ static_cast<size_t>(k.style);
 	return hash;
 }
 

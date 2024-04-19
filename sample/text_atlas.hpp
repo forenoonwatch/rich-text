@@ -42,6 +42,8 @@ class TextAtlas final {
 			uint32_t size;
 			uint32_t glyphIndex;
 			Text::FaceIndex_T face;
+			Text::FontWeight weight;
+			Text::FontStyle style;
 
 			bool operator==(const GlyphKey&) const;
 		};

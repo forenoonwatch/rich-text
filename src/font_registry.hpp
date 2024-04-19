@@ -60,7 +60,7 @@ namespace Text::FontRegistry {
  *
  * @thread_safety Thread safe, see `FontData` for caveats about threading and lifetimes with the returned object.
  */
-[[nodiscard]] FontData get_font_data(FontFace, uint32_t size);
+[[nodiscard]] FontData get_font_data(FontFace, uint32_t size, FontWeight targetWeight, FontStyle targetStyle);
 [[nodiscard]] FontData get_font_data(Font);
 [[nodiscard]] FontData get_font_data(SingleScriptFont);
 

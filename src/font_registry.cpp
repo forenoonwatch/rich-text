@@ -115,8 +115,10 @@ struct FontDataOwner {
 		}
 	}
 
-	operator FontData() const {
-		return {ftFace, hbFont, strikethroughPosition, strikethroughThickness};
+	FontData get_font_data(FontWeight srcWeight, FontStyle srcStyle, FontWeight dstWeight,
+			FontStyle dstStyle) const {
+		return {ftFace, hbFont, strikethroughPosition, strikethroughThickness, srcWeight, srcStyle, dstWeight,
+				dstStyle};
 	}
 
 	void resize(uint32_t newSize) {
@@ -205,23 +207,29 @@ FontData FontRegistry::get_font_data(Font font) {
 	assert(font.valid() && "get_font_data(): Must pass valid Font");
 	assert(font.get_family().valid() && "get_font_data(): Must pass valid FontFamily");
 	assert(family_is_initialized(font.get_family()) && "get_font_data(): Must pass initialized FontFamily");
-	return get_font_data(get_face(font), font.get_size());
+	return get_font_data(get_face(font), font.get_size(), font.get_weight(), font.get_style());
 }
 
 FontData FontRegistry::get_font_data(SingleScriptFont font) {
-	return get_font_data(font.face, font.size);
+	return get_font_data(font.face, font.size, font.weight, font.style);
 }
 
-FontData FontRegistry::get_font_data(FontFace face, uint32_t size) {
+FontData FontRegistry::get_font_data(FontFace face, uint32_t size, FontWeight targetWeight,
+		FontStyle targetStyle) {
 	if (auto it = t_fontContext.cache.find(face.handle); it != t_fontContext.cache.end()) {
 		it->second.resize(size);
-		return it->second;
+		return it->second.get_font_data(face.sourceWeight, face.sourceStyle, targetWeight, targetStyle);
 	}
 
 	assert(face.valid() && "get_font_data(): Must pass valid face");
 	assert(size > 0 && "get_font_data(): Must pass valid size");
 
-	FontData fontData{};
+	FontData fontData{
+		.srcWeight = face.sourceWeight,
+		.srcStyle = face.sourceStyle,
+		.dstWeight = targetWeight,
+		.dstStyle = targetStyle,
+	};
 
 	g_mutex.lock_shared();
 
@@ -316,10 +324,8 @@ FontRegistryError FontRegistry::register_family(const FontFamilyCreateInfo& fami
 
 		if (face) {
 			// Find a default face among provided faces; prefer Regular/Normal
-			if (faceInfo.weight == FontWeight::REGULAR && faceInfo.style == FontStyle::NORMAL) {
-				defaultFace = face;
-			}
-			else if (!defaultFace) {
+			if (!defaultFace
+					|| (faceInfo.weight == FontWeight::REGULAR && faceInfo.style == FontStyle::NORMAL)) {
 				defaultFace = face;
 			}
 		}
@@ -409,7 +415,7 @@ static SingleScriptFont get_sub_font(Text::Font font, UText& iter, int32_t& offs
 	// No font can render this substring, just use the base font
 	if (!targetFace) {
 		offset = limit;
-		return {baseFont, font.get_size()};
+		return {baseFont, font.get_size(), font.get_weight(), font.get_style()};
 	}
 	
 	// Then, see how long it is able to render characters
@@ -423,12 +429,12 @@ static SingleScriptFont get_sub_font(Text::Font font, UText& iter, int32_t& offs
 		}
 		else if (!fontData.has_codepoint(c)) {
 			offset = offset + idx;
-			return {targetFace, font.get_size()};
+			return {targetFace, font.get_size(), font.get_weight(), font.get_style()};
 		}
 	}
 
 	offset = limit;
-	return {targetFace, font.get_size()};
+	return {targetFace, font.get_size(), font.get_weight(), font.get_style()};
 }
 
 static FontFamily get_or_add_family(const std::string_view& name) {
@@ -448,7 +454,11 @@ static FontFace get_or_add_face(const FontFaceCreateInfo& faceInfo) {
 		return it->second;
 	}
 
-	FontFace result{static_cast<FaceIndex_T>(g_faces.size())};
+	FontFace result{
+		.handle = static_cast<FaceIndex_T>(g_faces.size()),
+		.sourceWeight = faceInfo.weight,
+		.sourceStyle = faceInfo.style,
+	};
 	g_facesByName.emplace(std::make_pair(std::string(faceInfo.name), result));
 
 	g_faces.emplace_back(std::string(faceInfo.name), g_fileFuncs.pfnMapFile(faceInfo.uri));
@@ -480,7 +490,7 @@ static FontFace find_compatible_font(Text::Font font, uint32_t codepoint, FontFa
 		return {};
 	}
 	
-	fontData = FontRegistry::get_font_data(baseFont, font.get_size());
+	fontData = FontRegistry::get_font_data(baseFont, font.get_size(), font.get_weight(), font.get_style());
 	if (!fontData) {
 		return {};
 	}
@@ -495,7 +505,7 @@ static FontFace find_compatible_font(Text::Font font, uint32_t codepoint, FontFa
 		}
 
 		auto face = family_get_face(fam, font.get_weight(), font.get_style());
-		fontData = FontRegistry::get_font_data(face, font.get_size());
+		fontData = FontRegistry::get_font_data(face, font.get_size(), font.get_weight(), font.get_style());
 
 		if (!fontData) {
 			continue;

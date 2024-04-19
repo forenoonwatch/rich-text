@@ -13,6 +13,20 @@ using namespace Text;
 static constexpr bool USE_MSDF_ERROR_CORRECTION = false;
 static constexpr uint32_t MSDF_PADDING = 2;
 
+static constexpr float BOLD_SCALE[] = {
+	-1.f / 14.f, // Thin
+	-1.f / 18.f, // Extra Light
+	-1.f / 32.f, // Light
+	0.f, // Regular
+	1.f / 32.f, // Medium
+	1.f / 18.f, // Semi Bold
+	1.f / 14.f, // Bold
+	1.f / 11.f, // Extra Bold
+	1.f / 9.f, // Black
+};
+
+static constexpr float BOLD_SCALE_Y = 0.4f;
+
 namespace {
 
 struct OutlineContext {
@@ -22,6 +36,8 @@ struct OutlineContext {
 };
 
 }
+
+static void apply_synthetic_bold(FT_Face face, FontWeight srcWeight, FontWeight dstWeight);
 
 static int msdf_move_to(const FT_Vector* to, void* userData);
 static int msdf_line_to(const FT_Vector* to, void* userData);
@@ -99,7 +115,14 @@ float FontData::get_strikethrough_thickness() const {
 }
 
 FontGlyphResult FontData::rasterize_glyph(uint32_t glyph, float* offsetOut) const {
-	FT_Load_Glyph(ftFace, glyph, FT_LOAD_RENDER | FT_LOAD_COLOR);
+	FT_Load_Glyph(ftFace, glyph, FT_LOAD_NO_BITMAP | FT_LOAD_COLOR);
+
+	if (srcWeight != dstWeight) {
+		apply_synthetic_bold(ftFace, srcWeight, dstWeight);
+	}
+
+	FT_Render_Glyph(ftFace->glyph, FT_RENDER_MODE_NORMAL);
+
 	auto uWidth = static_cast<uint32_t>(ftFace->glyph->bitmap.width);
 	auto uHeight = static_cast<uint32_t>(ftFace->glyph->bitmap.rows);
 
@@ -253,6 +276,21 @@ Bitmap FontData::get_msdf_outline_glyph(uint32_t glyphIndex, uint8_t thickness, 
 }
 
 // Static Functions
+
+static void apply_synthetic_bold(FT_Face face, FontWeight /*srcWeight*/, FontWeight dstWeight) {
+	// FIXME: Create an effective scaling based on srcWeight
+	auto dstWeightIndex = static_cast<size_t>(dstWeight);
+
+	auto extraX = FT_MulFix(face->units_per_EM, face->size->metrics.x_scale) * BOLD_SCALE[dstWeightIndex];
+	auto extraY = FT_MulFix(face->units_per_EM, face->size->metrics.y_scale)
+			* BOLD_SCALE[dstWeightIndex] * BOLD_SCALE_Y;
+
+	FT_Outline_EmboldenXY(&face->glyph->outline, extraX, extraY);
+
+	if ((face->face_flags & FT_FACE_FLAG_FIXED_WIDTH) != 0) {
+		FT_Outline_Translate(&face->glyph->outline, static_cast<int>(extraX / -2.f), 0);
+	}
+}
 
 static constexpr float saturate(float v) {
 	return v < 0.f ? 0.f : (v > 1.f ? 1.f : v);
