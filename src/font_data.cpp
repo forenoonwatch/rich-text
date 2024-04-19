@@ -8,6 +8,8 @@
 
 #include <msdfgen.h>
 
+#include <cmath>
+
 using namespace Text;
 
 static constexpr bool USE_MSDF_ERROR_CORRECTION = false;
@@ -27,6 +29,9 @@ static constexpr float BOLD_SCALE[] = {
 
 static constexpr float BOLD_SCALE_Y = 0.4f;
 
+static constexpr const double M_PI = 3.14159265358979323846;
+static constexpr const double ITALIC_SHEAR = 12.0  * M_PI / 180.0;
+
 namespace {
 
 struct OutlineContext {
@@ -38,6 +43,7 @@ struct OutlineContext {
 }
 
 static void apply_synthetic_bold(FT_Face face, FontWeight srcWeight, FontWeight dstWeight);
+static void apply_synthetic_italic(FT_Face face, FontStyle srcStyle, FontStyle dstStyle);
 
 static int msdf_move_to(const FT_Vector* to, void* userData);
 static int msdf_line_to(const FT_Vector* to, void* userData);
@@ -116,6 +122,10 @@ float FontData::get_strikethrough_thickness() const {
 
 FontGlyphResult FontData::rasterize_glyph(uint32_t glyph, float* offsetOut) const {
 	FT_Load_Glyph(ftFace, glyph, FT_LOAD_NO_BITMAP | FT_LOAD_COLOR);
+
+	if (srcStyle != dstStyle) {
+		apply_synthetic_italic(ftFace, srcStyle, dstStyle);
+	}
 
 	if (srcWeight != dstWeight) {
 		apply_synthetic_bold(ftFace, srcWeight, dstWeight);
@@ -290,6 +300,19 @@ static void apply_synthetic_bold(FT_Face face, FontWeight /*srcWeight*/, FontWei
 	if ((face->face_flags & FT_FACE_FLAG_FIXED_WIDTH) != 0) {
 		FT_Outline_Translate(&face->glyph->outline, static_cast<int>(extraX / -2.f), 0);
 	}
+}
+
+static void apply_synthetic_italic(FT_Face face, FontStyle /*srcStyle*/, FontStyle dstStyle) {
+	auto shearAngle = dstStyle == FontStyle::ITALIC ? ITALIC_SHEAR : -ITALIC_SHEAR;
+
+	FT_Matrix shearMatrix{
+		.xx = 1L << 16,
+		.xy = static_cast<FT_Long>(std::scalbn(std::sin(shearAngle), 16)),
+		.yx = 0L,
+		.yy = 1L << 16,
+	};
+
+	FT_Outline_Transform(&face->glyph->outline, &shearMatrix);
 }
 
 static constexpr float saturate(float v) {
