@@ -23,10 +23,11 @@ class ValueRunsMixin {
 			return static_cast<const Derived*>(this)->get_run_limit(runIndex);
 		}
 
-		constexpr void get_runs_subset(int32_t offset, int32_t length, Derived& output) const {
+		template <typename Functor>
+		constexpr void for_each_run_in_range(int32_t offset, int32_t length, Functor&& func) const {
 			size_t i = 0;
 
-			while (i < get_run_count() && get_run_limit(i) < offset) {
+			while (i < get_run_count() && get_run_limit(i) <= offset) {
 				++i;
 			}
 
@@ -34,13 +35,19 @@ class ValueRunsMixin {
 				auto newLimit = get_run_limit(i) - offset;
 
 				if (newLimit < length) {
-					output.add(newLimit, static_cast<const Derived*>(this)->get_run_value(i));
+					func(newLimit, static_cast<const Derived*>(this)->get_run_value(i));
 				}
 				else {
-					output.add(length, static_cast<const Derived*>(this)->get_run_value(i));
+					func(length, static_cast<const Derived*>(this)->get_run_value(i));
 					break;
 				}
 			}
+		}
+
+		constexpr void get_runs_subset(int32_t offset, int32_t length, Derived& output) const {
+			for_each_run_in_range(offset, length, [&](int32_t limit, auto value) {
+				output.add(limit, value);
+			});
 		}
 
 		constexpr size_t get_run_containing_index(int32_t index) const {

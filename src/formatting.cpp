@@ -53,6 +53,7 @@ class FormattingParser {
 		ValueRunBuilder<StrokeState> m_strokeRuns;
 		ValueRunBuilder<bool> m_strikethroughRuns;
 		ValueRunBuilder<bool> m_underlineRuns;
+		ValueRunBuilder<bool> m_smallcapsRuns;
 
 		void parse_content(std::string_view expectedClose);
 		bool parse_open_bracket(std::string_view expectedClose);
@@ -69,8 +70,8 @@ class FormattingParser {
 
 		void parse_strikethrough();
 		void parse_underline();
-
 		void parse_italic();
+		void parse_smallcaps(std::string_view closingTag);
 
 		void parse_stroke();
 		[[nodiscard]] StrokeState parse_stroke_attributes();
@@ -112,6 +113,7 @@ FormattingRuns Text::make_default_formatting_runs(const std::string& text, std::
 		.strokeRuns{baseStroke, length},
 		.strikethroughRuns{false, length},
 		.underlineRuns{false, length},
+		.smallcapsRuns{false, length},
 	};
 }
 
@@ -142,6 +144,7 @@ void Text::convert_formatting_runs_to_utf16(FormattingRuns& runs, const std::str
 	convert_runs(runs.strokeRuns, contentText, dstText, dstTextLength);
 	convert_runs(runs.strikethroughRuns, contentText, dstText, dstTextLength);
 	convert_runs(runs.underlineRuns, contentText, dstText, dstTextLength);
+	convert_runs(runs.smallcapsRuns, contentText, dstText, dstTextLength);
 }
 
 // FormattingParser
@@ -155,7 +158,8 @@ FormattingParser::FormattingParser(const std::string& text, Font baseFont, Color
 		, m_colorRuns{std::move(baseColor)}
 		, m_strokeRuns{baseStroke}
 		, m_strikethroughRuns{false}
-		, m_underlineRuns{false} {}
+		, m_underlineRuns{false}
+		, m_smallcapsRuns{false} {}
 
 FormattingRuns FormattingParser::get_result(std::string& contentText) {
 	if (m_error) {
@@ -171,6 +175,7 @@ FormattingRuns FormattingParser::get_result(std::string& contentText) {
 			.strokeRuns = m_strokeRuns.get(),
 			.strikethroughRuns = m_strikethroughRuns.get(),
 			.underlineRuns = m_underlineRuns.get(),
+			.smallcapsRuns = m_smallcapsRuns.get(),
 		};
 
 		return result;
@@ -283,11 +288,10 @@ void FormattingParser::parse_s_tag() {
 			parse_strikethrough();
 			break;
 		case 'c':
-			if (!consume_char('>')) {
-				return;
-			}
-
-			// FIXME: parse_smallcaps();
+			parse_smallcaps("sc>");
+			break;
+		case 'm':
+			parse_smallcaps("smallcaps>");
 			break;
 		case 't':
 			parse_stroke();
@@ -438,6 +442,16 @@ void FormattingParser::parse_italic() {
 	if (hasFontChange) {
 		m_fontRuns.pop(m_output.view().size());
 	}
+}
+
+void FormattingParser::parse_smallcaps(std::string_view closingTag) {
+	if (!consume_word(closingTag.substr(2))) {
+		return;
+	}
+
+	m_smallcapsRuns.push(m_output.view().size(), true);
+	parse_content(closingTag);
+	m_smallcapsRuns.pop(m_output.view().size());
 }
 
 void FormattingParser::parse_stroke() {

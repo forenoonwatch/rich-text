@@ -200,7 +200,7 @@ void build_layout_info_icu(LayoutInfo& result, const char16_t* chars, int32_t co
  */
 void build_layout_info_utf8(LayoutInfo& result, const char* chars, int32_t count,
 		const ValueRuns<Font>& fontRuns, float textAreaWidth, float textAreaHeight,
-		TextYAlignment textYAlignment, LayoutInfoFlags flags);
+		TextYAlignment textYAlignment, LayoutInfoFlags flags, const ValueRuns<bool>* pSmallcapsRuns = nullptr);
 
 /**
  * @brief Converts a UTF-16 LayoutInfo to UTF-8 based indices 
