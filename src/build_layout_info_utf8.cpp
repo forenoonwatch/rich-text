@@ -54,7 +54,8 @@ struct LogicalRun {
 // FIXME: Using `stringOffset` is a bit cumbersome, refactor this logic to have full view of the string
 static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, SBParagraphRef sbParagraph,
 		const char* chars, int32_t count, int32_t stringOffset, const ValueRuns<Font>& fontRuns,
-		const ValueRuns<bool>* pSmallcapsRuns, int32_t fixedWidth);
+		const ValueRuns<bool>* pSmallcapsRuns, const ValueRuns<bool>* pSubscriptRuns,
+		const ValueRuns<bool>* pSuperscriptRuns, int32_t fixedWidth);
 
 static ValueRuns<SBLevel> compute_levels(SBParagraphRef sbParagraph, size_t paragraphLength);
 static ValueRuns<UScriptCode> compute_scripts(const char* chars, int32_t count);
@@ -62,8 +63,9 @@ static ValueRuns<SingleScriptFont> compute_sub_fonts(const char* chars, const Va
 		const ValueRuns<UScriptCode>& scriptRuns);
 
 static void shape_logical_run(LayoutBuildState& state, hb_font_t* pFont, const ValueRuns<bool>* pSmallcapsRuns,
-		const char* chars, int32_t offset, int32_t count, int32_t max, UScriptCode script,
-		const icu::Locale& locale, bool rightToLeft, int32_t stringOffset);
+		const ValueRuns<bool>* pSubscriptRuns, const ValueRuns<bool>* pSuperscriptRuns, const char* chars,
+		int32_t offset, int32_t count, int32_t max, UScriptCode script, const icu::Locale& locale,
+		bool rightToLeft, int32_t stringOffset);
 static int32_t find_previous_line_break(icu::BreakIterator& iter, const char* chars, int32_t count,
 		int32_t charIndex);
 static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result,
@@ -78,7 +80,8 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 
 void Text::build_layout_info_utf8(LayoutInfo& result, const char* chars, int32_t count,
 		const ValueRuns<Font>& fontRuns, float textAreaWidth, float textAreaHeight,
-		TextYAlignment textYAlignment, LayoutInfoFlags flags, const ValueRuns<bool>* pSmallcapsRuns) {
+		TextYAlignment textYAlignment, LayoutInfoFlags flags, const ValueRuns<bool>* pSmallcapsRuns,
+		const ValueRuns<bool>* pSubscriptRuns, const ValueRuns<bool>* pSuperscriptRuns) {
 	result.clear();
 
 	LayoutBuildState state{};
@@ -110,7 +113,8 @@ void Text::build_layout_info_utf8(LayoutInfo& result, const char* chars, int32_t
 			SBParagraphRef sbParagraph = SBAlgorithmCreateParagraph(sbAlgorithm, paragraphOffset,
 					paragraphLength, baseDefaultLevel);
 			lastHighestRun = build_sub_paragraph(state, result, sbParagraph, chars + paragraphOffset, byteCount,
-					paragraphOffset, subsetFontRuns, pSmallcapsRuns, fixedTextAreaWidth);
+					paragraphOffset, subsetFontRuns, pSmallcapsRuns, pSubscriptRuns, pSuperscriptRuns,
+					fixedTextAreaWidth);
 			SBParagraphRelease(sbParagraph);
 		}
 		else {
@@ -137,7 +141,8 @@ void Text::build_layout_info_utf8(LayoutInfo& result, const char* chars, int32_t
 
 static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, SBParagraphRef sbParagraph,
 		const char* chars, int32_t count, int32_t stringOffset, const ValueRuns<Font>& fontRuns,
-		const ValueRuns<bool>* pSmallcapsRuns, int32_t textAreaWidth) {
+		const ValueRuns<bool>* pSmallcapsRuns, const ValueRuns<bool>* pSubscriptRuns,
+		const ValueRuns<bool>* pSuperscriptRuns, int32_t textAreaWidth) {
 	auto levelRuns = compute_levels(sbParagraph, count);
 	auto scriptRuns = compute_scripts(chars, count);
 	ValueRuns<const icu::Locale*> localeRuns(&icu::Locale::getDefault(), count);
@@ -171,8 +176,9 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 	for (auto& run : logicalRuns) {
 		bool rightToLeft = run.level & 1;
 		auto fontData = FontRegistry::get_font_data(run.font);
-		shape_logical_run(state, fontData.hbFont, pSmallcapsRuns, chars, runStart, run.charEndIndex - runStart,
-				count, run.script, *run.pLocale, rightToLeft, stringOffset);
+		shape_logical_run(state, fontData.hbFont, pSmallcapsRuns, pSubscriptRuns, pSuperscriptRuns, chars,
+				runStart, run.charEndIndex - runStart, count, run.script, *run.pLocale, rightToLeft,
+				stringOffset);
 		run.glyphEndIndex = static_cast<uint32_t>(state.glyphs.size());
 		runStart = run.charEndIndex;
 	}
@@ -287,9 +293,32 @@ static ValueRuns<SingleScriptFont> compute_sub_fonts(const char* chars, const Va
 	return result;
 }
 
+static void maybe_add_tag_runs(std::vector<hb_feature_t>& features, const ValueRuns<bool>* pTagRuns,
+		hb_tag_t tag, int32_t stringOffset, int32_t count) {
+	if (!pTagRuns) {
+		return;
+	}
+
+	int32_t lastLimit = 0;
+
+	pTagRuns->for_each_run_in_range(stringOffset, count, [&](int32_t limit, bool shouldEmitTag) {
+		if (shouldEmitTag) {
+			features.push_back({
+				.tag = tag,
+				.value = 1,
+				.start = static_cast<unsigned>(lastLimit),
+				.end = static_cast<unsigned>(limit),
+			});
+		}
+
+		lastLimit = limit;
+	});
+}
+
 static void shape_logical_run(LayoutBuildState& state, hb_font_t* pFont, const ValueRuns<bool>* pSmallcapsRuns,
-		const char* chars, int32_t offset, int32_t count, int32_t max, UScriptCode script,
-		const icu::Locale& locale, bool rightToLeft, int32_t stringOffset) {
+		const ValueRuns<bool>* pSubscriptRuns, const ValueRuns<bool>* pSuperscriptRuns, const char* chars,
+		int32_t offset, int32_t count, int32_t max, UScriptCode script, const icu::Locale& locale,
+		bool rightToLeft, int32_t stringOffset) {
 	hb_buffer_set_script(state.pBuffer, hb_script_from_string(uscript_getShortName(script), 4));
 	hb_buffer_set_language(state.pBuffer, hb_language_from_string(locale.getLanguage(), -1));
 	hb_buffer_set_direction(state.pBuffer, rightToLeft ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
@@ -300,23 +329,9 @@ static void shape_logical_run(LayoutBuildState& state, hb_font_t* pFont, const V
 	hb_buffer_add_utf8(state.pBuffer, chars + offset, max - offset, 0, count);
 
 	std::vector<hb_feature_t> features;
-
-	if (pSmallcapsRuns) {
-		int32_t lastLimit = 0;
-
-		pSmallcapsRuns->for_each_run_in_range(stringOffset, count, [&](int32_t limit, bool smallcaps) {
-			if (smallcaps) {
-				features.push_back({
-					.tag = HB_TAG('s', 'm', 'c', 'p'),
-					.value = 1,
-					.start = static_cast<unsigned>(lastLimit),
-					.end = static_cast<unsigned>(limit),
-				});
-			}
-
-			lastLimit = limit;
-		});
-	}
+	maybe_add_tag_runs(features, pSmallcapsRuns, HB_TAG('s', 'm', 'c', 'p'), stringOffset, count);
+	maybe_add_tag_runs(features, pSubscriptRuns, HB_TAG('s', 'u', 'b', 's'), stringOffset, count);
+	maybe_add_tag_runs(features, pSuperscriptRuns, HB_TAG('s', 'u', 'p', 's'), stringOffset, count);
 
 	hb_shape(pFont, state.pBuffer, features.data(), static_cast<unsigned>(features.size()));
 

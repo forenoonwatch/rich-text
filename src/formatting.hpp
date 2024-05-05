@@ -22,6 +22,8 @@ struct FormattingRuns {
 	ValueRuns<bool> strikethroughRuns;
 	ValueRuns<bool> underlineRuns;
 	ValueRuns<bool> smallcapsRuns;
+	ValueRuns<bool> subscriptRuns;
+	ValueRuns<bool> superscriptRuns;
 };
 
 FormattingRuns make_default_formatting_runs(const std::string& text, std::string& contentText,

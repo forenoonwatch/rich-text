@@ -54,6 +54,8 @@ class FormattingParser {
 		ValueRunBuilder<bool> m_strikethroughRuns;
 		ValueRunBuilder<bool> m_underlineRuns;
 		ValueRunBuilder<bool> m_smallcapsRuns;
+		ValueRunBuilder<bool> m_subscriptRuns;
+		ValueRunBuilder<bool> m_superscriptRuns;
 
 		void parse_content(std::string_view expectedClose);
 		bool parse_open_bracket(std::string_view expectedClose);
@@ -64,14 +66,17 @@ class FormattingParser {
 		void parse_s_tag();
 		void parse_u_tag();
 
+		void parse_su_tag();
+
 		void parse_font();
 		[[nodiscard]] FontAttributes parse_font_attributes();
 		void parse_font_face(FontAttributes&);
 
-		void parse_strikethrough();
-		void parse_underline();
+		void parse_bool_tag(ValueRunBuilder<bool>& builder, std::string_view closingTag);
+
 		void parse_italic();
 		void parse_smallcaps(std::string_view closingTag);
+		void parse_subscript();
 
 		void parse_stroke();
 		[[nodiscard]] StrokeState parse_stroke_attributes();
@@ -114,6 +119,8 @@ FormattingRuns Text::make_default_formatting_runs(const std::string& text, std::
 		.strikethroughRuns{false, length},
 		.underlineRuns{false, length},
 		.smallcapsRuns{false, length},
+		.subscriptRuns{false, length},
+		.superscriptRuns{false, length},
 	};
 }
 
@@ -145,6 +152,8 @@ void Text::convert_formatting_runs_to_utf16(FormattingRuns& runs, const std::str
 	convert_runs(runs.strikethroughRuns, contentText, dstText, dstTextLength);
 	convert_runs(runs.underlineRuns, contentText, dstText, dstTextLength);
 	convert_runs(runs.smallcapsRuns, contentText, dstText, dstTextLength);
+	convert_runs(runs.subscriptRuns, contentText, dstText, dstTextLength);
+	convert_runs(runs.superscriptRuns, contentText, dstText, dstTextLength);
 }
 
 // FormattingParser
@@ -159,7 +168,9 @@ FormattingParser::FormattingParser(const std::string& text, Font baseFont, Color
 		, m_strokeRuns{baseStroke}
 		, m_strikethroughRuns{false}
 		, m_underlineRuns{false}
-		, m_smallcapsRuns{false} {}
+		, m_smallcapsRuns{false}
+		, m_subscriptRuns{false}
+		, m_superscriptRuns{false} {}
 
 FormattingRuns FormattingParser::get_result(std::string& contentText) {
 	if (m_error) {
@@ -176,6 +187,8 @@ FormattingRuns FormattingParser::get_result(std::string& contentText) {
 			.strikethroughRuns = m_strikethroughRuns.get(),
 			.underlineRuns = m_underlineRuns.get(),
 			.smallcapsRuns = m_smallcapsRuns.get(),
+			.subscriptRuns = m_subscriptRuns.get(),
+			.superscriptRuns = m_superscriptRuns.get(),
 		};
 
 		return result;
@@ -285,7 +298,7 @@ void FormattingParser::parse_comment() {
 void FormattingParser::parse_s_tag() {
 	switch (next_char()) {
 		case '>':
-			parse_strikethrough();
+			parse_bool_tag(m_strikethroughRuns, "s>");
 			break;
 		case 'c':
 			parse_smallcaps("sc>");
@@ -296,6 +309,9 @@ void FormattingParser::parse_s_tag() {
 		case 't':
 			parse_stroke();
 			break;
+		case 'u':
+			parse_su_tag();
+			break;
 		default:
 			raise_error();
 			break;
@@ -305,7 +321,7 @@ void FormattingParser::parse_s_tag() {
 void FormattingParser::parse_u_tag() {
 	switch (next_char()) {
 		case '>':
-			parse_underline();
+			parse_bool_tag(m_underlineRuns, "u>");
 			break;
 		case 'c':
 			if (!consume_char('>')) {
@@ -322,6 +338,28 @@ void FormattingParser::parse_u_tag() {
 			}
 
 			// FIXME: parse_uppercase();
+			break;
+		default:
+			raise_error();
+			break;
+	}
+}
+
+void FormattingParser::parse_su_tag() {
+	switch (next_char()) {
+		case 'b':
+			if (!consume_char('>')) {
+				return;
+			}
+
+			parse_bool_tag(m_subscriptRuns, "sub>");
+			break;
+		case 'p':
+			if (!consume_word("er>")) {
+				return;
+			}
+
+			parse_bool_tag(m_superscriptRuns, "super>");
 			break;
 		default:
 			raise_error();
@@ -412,16 +450,10 @@ void FormattingParser::parse_font_face(FontAttributes& attribs) {
 	}
 }
 
-void FormattingParser::parse_strikethrough() {
-	m_strikethroughRuns.push(m_output.view().size(), true);
-	parse_content("s>");
-	m_strikethroughRuns.pop(m_output.view().size());
-}
-
-void FormattingParser::parse_underline() {
-	m_underlineRuns.push(m_output.view().size(), true);
-	parse_content("u>");
-	m_underlineRuns.pop(m_output.view().size());
+void FormattingParser::parse_bool_tag(ValueRunBuilder<bool>& builder, std::string_view closingTag) {
+	builder.push(m_output.view().size(), true);
+	parse_content(closingTag);
+	builder.pop(m_output.view().size());
 }
 
 void FormattingParser::parse_italic() {
@@ -449,9 +481,7 @@ void FormattingParser::parse_smallcaps(std::string_view closingTag) {
 		return;
 	}
 
-	m_smallcapsRuns.push(m_output.view().size(), true);
-	parse_content(closingTag);
-	m_smallcapsRuns.pop(m_output.view().size());
+	parse_bool_tag(m_smallcapsRuns, closingTag);
 }
 
 void FormattingParser::parse_stroke() {
@@ -789,5 +819,8 @@ void FormattingParser::finalize_runs() {
 	m_strokeRuns.pop(m_output.view().size());
 	m_strikethroughRuns.pop(m_output.view().size());
 	m_underlineRuns.pop(m_output.view().size());
+	m_smallcapsRuns.pop(m_output.view().size());
+	m_subscriptRuns.pop(m_output.view().size());
+	m_superscriptRuns.pop(m_output.view().size());
 }
 

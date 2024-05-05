@@ -616,7 +616,7 @@ void TextBox::recalc_text() {
 
 	Text::build_layout_info_utf8(m_layout, text.data(), text.size(), m_formatting.fontRuns,
 			m_textWrapped ? get_size()[0] : 0.f, get_size()[1], m_textYAlignment, Text::LayoutInfoFlags::NONE,
-			&m_formatting.smallcapsRuns);
+			&m_formatting.smallcapsRuns, &m_formatting.subscriptRuns, &m_formatting.superscriptRuns);
 
 	m_visualCursorInfo = m_layout.calc_cursor_pixel_pos(get_size()[0], m_textXAlignment, m_cursorPosition);
 }
