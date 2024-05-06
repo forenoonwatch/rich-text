@@ -213,11 +213,11 @@ void convert_layout_info_to_utf8(const LayoutInfo& src, LayoutInfo& result, cons
 
 template <typename Functor>
 void Text::LayoutInfo::for_each_line(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
-	auto lineY = m_lines.front().ascent + m_textStartY;
+	auto lineY = m_textStartY;
 
 	for (size_t i = 0; i < m_lines.size(); ++i) {
 		auto lineX = get_line_x_start(i, textWidth, textXAlignment);
-		func(i, lineX, lineY);
+		func(i, lineX, lineY + m_lines[i].ascent);
 		lineY += get_line_height(i);
 	}
 }
