@@ -7,7 +7,7 @@
 #include FT_FREETYPE_H
 #include FT_TRUETYPE_TABLES_H
 
-#include <hb-ft.h>
+#include "harfbuzz_font.hpp"
 
 #include <unicode/utext.h>
 
@@ -133,7 +133,7 @@ struct FontDataOwner {
 			.height = static_cast<FT_Long>(size) * 64,
 		};
 		FT_Request_Size(ftFace, &sr);
-		hb_ft_font_changed(hbFont);
+		harfbuzz_font_mark_changed(hbFont);
 	}
 };
 
@@ -248,7 +248,7 @@ FontData FontRegistry::get_font_data(FontFace face, uint32_t size, FontWeight ta
 		return {};
 	}
 
-	fontData.hbFont = hb_ft_font_create(fontData.ftFace, nullptr);
+	fontData.hbFont = harfbuzz_font_create(fontData.ftFace);
 
 	if (!fontData.hbFont) {
 		return {};
@@ -259,8 +259,6 @@ FontData FontRegistry::get_font_data(FontFace face, uint32_t size, FontWeight ta
 		.height = static_cast<FT_Long>(size) * 64,
 	};
 	FT_Request_Size(fontData.ftFace, &sr);
-
-	hb_ft_font_set_load_flags(fontData.hbFont, FT_LOAD_DEFAULT);
 
 	if (auto* pOS2Table = reinterpret_cast<TT_OS2*>(FT_Get_Sfnt_Table(fontData.ftFace, FT_SFNT_OS2))) {
 		fontData.strikethroughPosition = -pOS2Table->yStrikeoutPosition;

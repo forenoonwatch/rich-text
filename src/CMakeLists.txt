@@ -6,6 +6,7 @@ target_sources(LibRichText PRIVATE
 	"${CMAKE_CURRENT_SOURCE_DIR}/font_data.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/formatting.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/formatting_iterator.cpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/harfbuzz_font.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/layout_info.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/build_layout_info_icu.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/build_layout_info_utf8.cpp"
