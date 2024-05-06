@@ -60,12 +60,14 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 static ValueRuns<SBLevel> compute_levels(SBParagraphRef sbParagraph, size_t paragraphLength);
 static ValueRuns<UScriptCode> compute_scripts(const char* chars, int32_t count);
 static ValueRuns<SingleScriptFont> compute_sub_fonts(const char* chars, const ValueRuns<Font>& fontRuns,
-		const ValueRuns<UScriptCode>& scriptRuns);
+		const ValueRuns<UScriptCode>& scriptRuns, const ValueRuns<bool>& smallcapsRuns,
+		const ValueRuns<bool>& subscriptRuns, const ValueRuns<bool>& superscriptRuns);
 
 static void shape_logical_run(LayoutBuildState& state, hb_font_t* pFont, const ValueRuns<bool>* pSmallcapsRuns,
 		const ValueRuns<bool>* pSubscriptRuns, const ValueRuns<bool>* pSuperscriptRuns, const char* chars,
 		int32_t offset, int32_t count, int32_t max, UScriptCode script, const icu::Locale& locale,
-		bool rightToLeft, int32_t stringOffset);
+		bool rightToLeft, int32_t stringOffset, bool syntheticSmallCaps, bool syntheticSubscript,
+		bool syntheticSuperscript);
 static int32_t find_previous_line_break(icu::BreakIterator& iter, const char* chars, int32_t count,
 		int32_t charIndex);
 static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result,
@@ -146,7 +148,30 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 	auto levelRuns = compute_levels(sbParagraph, count);
 	auto scriptRuns = compute_scripts(chars, count);
 	ValueRuns<const icu::Locale*> localeRuns(&icu::Locale::getDefault(), count);
-	auto subFontRuns = compute_sub_fonts(chars, fontRuns, scriptRuns);
+
+	// FIXME: Build a ValueRunsIterator that doesn't require building fake runs - also properly iterate
+	// sub-sections of the parent runs
+	ValueRuns<bool> smallcapsRuns(false, fontRuns.get_limit());
+	ValueRuns<bool> subscriptRuns(false, fontRuns.get_limit());
+	ValueRuns<bool> superscriptRuns(false, fontRuns.get_limit());
+
+	if (pSmallcapsRuns) {
+		smallcapsRuns.clear();
+		pSmallcapsRuns->get_runs_subset(stringOffset, count, smallcapsRuns);
+	}
+
+	if (pSubscriptRuns) {
+		subscriptRuns.clear();
+		pSubscriptRuns->get_runs_subset(stringOffset, count, subscriptRuns);
+	}
+
+	if (pSuperscriptRuns) {
+		superscriptRuns.clear();
+		pSuperscriptRuns->get_runs_subset(stringOffset, count, superscriptRuns);
+	}
+
+	auto subFontRuns = compute_sub_fonts(chars, fontRuns, scriptRuns, smallcapsRuns, subscriptRuns,
+			superscriptRuns);
 	int32_t runStart{};
 
 	std::vector<LogicalRun> logicalRuns;
@@ -178,7 +203,8 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 		auto fontData = FontRegistry::get_font_data(run.font);
 		shape_logical_run(state, fontData.hbFont, pSmallcapsRuns, pSubscriptRuns, pSuperscriptRuns, chars,
 				runStart, run.charEndIndex - runStart, count, run.script, *run.pLocale, rightToLeft,
-				stringOffset);
+				stringOffset, run.font.syntheticSmallCaps, run.font.syntheticSubscript,
+				run.font.syntheticSuperscript);
 		run.glyphEndIndex = static_cast<uint32_t>(state.glyphs.size());
 		runStart = run.charEndIndex;
 	}
@@ -279,23 +305,26 @@ static ValueRuns<UScriptCode> compute_scripts(const char* chars, int32_t count) 
 }
 
 static ValueRuns<SingleScriptFont> compute_sub_fonts(const char* chars, const ValueRuns<Font>& fontRuns,
-		const ValueRuns<UScriptCode>& scriptRuns) {
+		const ValueRuns<UScriptCode>& scriptRuns, const ValueRuns<bool>& smallcapsRuns,
+		const ValueRuns<bool>& subscriptRuns, const ValueRuns<bool>& superscriptRuns) {
 	ValueRuns<SingleScriptFont> result(fontRuns.get_run_count());
 	int32_t offset{};
 
-	iterate_run_intersections([&](auto limit, auto baseFont, auto script) {
+	iterate_run_intersections([&](auto limit, auto baseFont, auto script, bool smallCaps, bool subscript,
+			bool superscript) {
 		while (offset < limit) {
-			auto subFont = FontRegistry::get_sub_font(baseFont, chars, offset, limit, script);
+			auto subFont = FontRegistry::get_sub_font(baseFont, chars, offset, limit, script, smallCaps,
+					subscript, superscript);
 			result.add(offset, subFont);
 		}
-	}, fontRuns, scriptRuns);
+	}, fontRuns, scriptRuns, smallcapsRuns, subscriptRuns, superscriptRuns);
 
 	return result;
 }
 
 static void maybe_add_tag_runs(std::vector<hb_feature_t>& features, const ValueRuns<bool>* pTagRuns,
-		hb_tag_t tag, int32_t stringOffset, int32_t count) {
-	if (!pTagRuns) {
+		hb_tag_t tag, int32_t stringOffset, int32_t count, bool isSynthesizingThis) {
+	if (!pTagRuns || isSynthesizingThis) {
 		return;
 	}
 
@@ -318,7 +347,8 @@ static void maybe_add_tag_runs(std::vector<hb_feature_t>& features, const ValueR
 static void shape_logical_run(LayoutBuildState& state, hb_font_t* pFont, const ValueRuns<bool>* pSmallcapsRuns,
 		const ValueRuns<bool>* pSubscriptRuns, const ValueRuns<bool>* pSuperscriptRuns, const char* chars,
 		int32_t offset, int32_t count, int32_t max, UScriptCode script, const icu::Locale& locale,
-		bool rightToLeft, int32_t stringOffset) {
+		bool rightToLeft, int32_t stringOffset, bool syntheticSmallCaps, bool syntheticSubscript,
+		bool syntheticSuperscript) {
 	hb_buffer_set_script(state.pBuffer, hb_script_from_string(uscript_getShortName(script), 4));
 	hb_buffer_set_language(state.pBuffer, hb_language_from_string(locale.getLanguage(), -1));
 	hb_buffer_set_direction(state.pBuffer, rightToLeft ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
@@ -329,9 +359,15 @@ static void shape_logical_run(LayoutBuildState& state, hb_font_t* pFont, const V
 	hb_buffer_add_utf8(state.pBuffer, chars + offset, max - offset, 0, count);
 
 	std::vector<hb_feature_t> features;
-	maybe_add_tag_runs(features, pSmallcapsRuns, HB_TAG('s', 'm', 'c', 'p'), stringOffset, count);
-	maybe_add_tag_runs(features, pSubscriptRuns, HB_TAG('s', 'u', 'b', 's'), stringOffset, count);
-	maybe_add_tag_runs(features, pSuperscriptRuns, HB_TAG('s', 'u', 'p', 's'), stringOffset, count);
+	// FIXME: This is probably no longer necessary to do in this way, because now runs are already split
+	// by whether or not they're a unique permuatation of (smcp, subs, sups), so there is only ever a unique
+	// value for each run
+	maybe_add_tag_runs(features, pSmallcapsRuns, HB_TAG('s', 'm', 'c', 'p'), stringOffset + offset, count,
+			syntheticSmallCaps);
+	maybe_add_tag_runs(features, pSubscriptRuns, HB_TAG('s', 'u', 'b', 's'), stringOffset + offset, count,
+			syntheticSubscript);
+	maybe_add_tag_runs(features, pSuperscriptRuns, HB_TAG('s', 'u', 'p', 's'), stringOffset + offset, count,
+			syntheticSuperscript);
 
 	hb_shape(pFont, state.pBuffer, features.data(), static_cast<unsigned>(features.size()));
 

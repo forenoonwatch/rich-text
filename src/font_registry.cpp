@@ -115,10 +115,23 @@ struct FontDataOwner {
 		}
 	}
 
-	FontData get_font_data(FontWeight srcWeight, FontStyle srcStyle, FontWeight dstWeight,
-			FontStyle dstStyle) const {
-		return {ftFace, hbFont, strikethroughPosition, strikethroughThickness, srcWeight, srcStyle, dstWeight,
-				dstStyle};
+	FontData get_font_data(FontWeight srcWeight, FontStyle srcStyle, FontWeight dstWeight, FontStyle dstStyle,
+			bool syntheticSmallCaps, bool syntheticSubscript, bool syntheticSuperscript) const {
+		return FontData{
+			.ftFace = ftFace,
+			.hbFont = hbFont,
+			.strikethroughPosition = strikethroughPosition,
+			.strikethroughThickness = strikethroughThickness,
+			.synthInfo = {
+				.srcWeight = srcWeight,
+				.dstWeight = dstWeight,
+				.srcStyle = srcStyle,
+				.dstStyle = dstStyle,
+				.syntheticSubscript = syntheticSubscript,
+				.syntheticSuperscript = syntheticSuperscript,
+				.syntheticSmallCaps = syntheticSmallCaps,
+			}
+		};
 	}
 
 	void resize(uint32_t newSize) {
@@ -175,7 +188,7 @@ static std::vector<FontFamily>& family_get_fallback(FontFamily family);
 static FontFace family_get_face(FontFamily family, FontWeight weight, FontStyle style);
 
 static SingleScriptFont get_sub_font(Text::Font font, UText& iter, int32_t& offset, int32_t limit,
-		UScriptCode script);
+		UScriptCode script, bool smallcaps, bool subscript, bool superscript);
 
 static FontFamily get_or_add_family(const std::string_view& name);
 static FontFace get_or_add_face(const FontFaceCreateInfo& faceInfo);
@@ -207,28 +220,39 @@ FontData FontRegistry::get_font_data(Font font) {
 	assert(font.valid() && "get_font_data(): Must pass valid Font");
 	assert(font.get_family().valid() && "get_font_data(): Must pass valid FontFamily");
 	assert(family_is_initialized(font.get_family()) && "get_font_data(): Must pass initialized FontFamily");
-	return get_font_data(get_face(font), font.get_size(), font.get_weight(), font.get_style());
+	return get_font_data(get_face(font), font.get_size(), font.get_weight(), font.get_style(), false, false,
+			false);
 }
 
 FontData FontRegistry::get_font_data(SingleScriptFont font) {
-	return get_font_data(font.face, font.size, font.weight, font.style);
+	return get_font_data(font.face, font.size, font.weight, font.style, font.syntheticSmallCaps,
+			font.syntheticSubscript, font.syntheticSuperscript);
 }
 
 FontData FontRegistry::get_font_data(FontFace face, uint32_t size, FontWeight targetWeight,
-		FontStyle targetStyle) {
+		FontStyle targetStyle, bool syntheticSmallCaps, bool syntheticSubscript, bool syntheticSuperscript) {
+	auto effectiveSize = calc_effective_font_size(size, syntheticSmallCaps,
+			syntheticSubscript || syntheticSuperscript);
+
 	if (auto it = t_fontContext.cache.find(face.handle); it != t_fontContext.cache.end()) {
-		it->second.resize(size);
-		return it->second.get_font_data(face.sourceWeight, face.sourceStyle, targetWeight, targetStyle);
+		it->second.resize(effectiveSize);
+		return it->second.get_font_data(face.sourceWeight, face.sourceStyle, targetWeight, targetStyle,
+				syntheticSmallCaps, syntheticSubscript, syntheticSuperscript);
 	}
 
 	assert(face.valid() && "get_font_data(): Must pass valid face");
 	assert(size > 0 && "get_font_data(): Must pass valid size");
 
 	FontData fontData{
-		.srcWeight = face.sourceWeight,
-		.srcStyle = face.sourceStyle,
-		.dstWeight = targetWeight,
-		.dstStyle = targetStyle,
+		.synthInfo = {
+			.srcWeight = face.sourceWeight,
+			.dstWeight = targetWeight,
+			.srcStyle = face.sourceStyle,
+			.dstStyle = targetStyle,
+			.syntheticSubscript = syntheticSubscript,
+			.syntheticSuperscript = syntheticSuperscript,
+			.syntheticSmallCaps = syntheticSmallCaps,
+		},
 	};
 
 	g_mutex.lock_shared();
@@ -256,7 +280,7 @@ FontData FontRegistry::get_font_data(FontFace face, uint32_t size, FontWeight ta
 
 	FT_Size_RequestRec sr{
 		.type = FT_SIZE_REQUEST_TYPE_REAL_DIM,
-		.height = static_cast<FT_Long>(size) * 64,
+		.height = static_cast<FT_Long>(effectiveSize) * 64,
 	};
 	FT_Request_Size(fontData.ftFace, &sr);
 
@@ -343,11 +367,11 @@ FontRegistryError FontRegistry::register_family(const FontFamilyCreateInfo& fami
 }
 
 SingleScriptFont FontRegistry::get_sub_font(Text::Font font, const char* text, int32_t& offset, int32_t limit,
-		UScriptCode script) {
+		UScriptCode script, bool smallcaps, bool subscript, bool superscript) {
 	UText iter UTEXT_INITIALIZER;
 	UErrorCode errc{};
 	utext_openUTF8(&iter, text + offset, limit - offset, &errc);
-	return get_sub_font(font, iter, offset, limit, script);
+	return get_sub_font(font, iter, offset, limit, script, smallcaps, subscript, superscript);
 }
 
 SingleScriptFont FontRegistry::get_sub_font(Text::Font font, const char16_t* text, int32_t& offset, 
@@ -355,7 +379,7 @@ SingleScriptFont FontRegistry::get_sub_font(Text::Font font, const char16_t* tex
 	UText iter UTEXT_INITIALIZER;
 	UErrorCode errc{};
 	utext_openUChars(&iter, text + offset, limit - offset, &errc);
-	return get_sub_font(font, iter, offset, limit, script);
+	return get_sub_font(font, iter, offset, limit, script, false, false, false);
 }
 
 // Static Functions
@@ -381,12 +405,15 @@ static FontFace family_get_face(FontFamily family, FontWeight weight, FontStyle 
 }
 
 static SingleScriptFont get_sub_font(Text::Font font, UText& iter, int32_t& offset, int32_t limit,
-		UScriptCode script) {
+		UScriptCode script, bool smallcaps, bool subscript, bool superscript) {
 	std::shared_lock lock(g_mutex);
 
 	assert(font.valid() && "get_sub_font(): Must be called with a valid font");
 	assert(font.get_family().valid() && "get_sub_font(): Must be called with a valid font family");
 	assert(family_is_initialized(font.get_family()) && "get_sub_font(): Base family must be initialized");
+
+	// FIXME: Subscript/Superscript synthesis forced on
+	bool shouldSynthesizeSubSuper = true;
 
 	auto baseFont = get_font_for_script(font.get_family(), font.get_weight(), font.get_style(), script);
 	auto& fallbackFamilies = g_familyData[font.get_family().handle].fallbackFamilies;
@@ -413,7 +440,8 @@ static SingleScriptFont get_sub_font(Text::Font font, UText& iter, int32_t& offs
 	// No font can render this substring, just use the base font
 	if (!targetFace) {
 		offset = limit;
-		return {baseFont, font.get_size(), font.get_weight(), font.get_style()};
+		return SingleScriptFont{baseFont, font.get_size(), font.get_weight(), font.get_style(),
+				shouldSynthesizeSubSuper && subscript, shouldSynthesizeSubSuper && superscript, false};
 	}
 	
 	// Then, see how long it is able to render characters
@@ -427,12 +455,14 @@ static SingleScriptFont get_sub_font(Text::Font font, UText& iter, int32_t& offs
 		}
 		else if (!fontData.has_codepoint(c)) {
 			offset = offset + idx;
-			return {targetFace, font.get_size(), font.get_weight(), font.get_style()};
+			return SingleScriptFont{targetFace, font.get_size(), font.get_weight(), font.get_style(),
+					shouldSynthesizeSubSuper && subscript, shouldSynthesizeSubSuper && superscript, false};
 		}
 	}
 
 	offset = limit;
-	return {targetFace, font.get_size(), font.get_weight(), font.get_style()};
+	return SingleScriptFont{targetFace, font.get_size(), font.get_weight(), font.get_style(),
+			shouldSynthesizeSubSuper && subscript, shouldSynthesizeSubSuper && superscript, false};
 }
 
 static FontFamily get_or_add_family(const std::string_view& name) {
@@ -485,12 +515,13 @@ static FontFace get_font_for_script(FontFamily family, FontWeight weight, FontSt
 static FontFace find_compatible_font(Text::Font font, uint32_t codepoint, FontFace baseFont,
 		const std::vector<FontFamily>& fallbackFamilies, FontData& fontData) {
 	if (!baseFont) {
-		return {};
+		return FontFace{};
 	}
 	
-	fontData = FontRegistry::get_font_data(baseFont, font.get_size(), font.get_weight(), font.get_style());
+	fontData = FontRegistry::get_font_data(baseFont, font.get_size(), font.get_weight(), font.get_style(),
+			false, false, false);
 	if (!fontData) {
-		return {};
+		return FontFace{};
 	}
 
 	if (fontData.has_codepoint(codepoint)) {
@@ -503,7 +534,8 @@ static FontFace find_compatible_font(Text::Font font, uint32_t codepoint, FontFa
 		}
 
 		auto face = family_get_face(fam, font.get_weight(), font.get_style());
-		fontData = FontRegistry::get_font_data(face, font.get_size(), font.get_weight(), font.get_style());
+		fontData = FontRegistry::get_font_data(face, font.get_size(), font.get_weight(), font.get_style(),
+				false, false, false);
 
 		if (!fontData) {
 			continue;
@@ -514,7 +546,7 @@ static FontFace find_compatible_font(Text::Font font, uint32_t codepoint, FontFa
 		}
 	}
 
-	return {};
+	return FontFace{};
 }
 
 FaceData::~FaceData() {

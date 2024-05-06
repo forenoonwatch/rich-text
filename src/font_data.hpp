@@ -35,10 +35,7 @@ struct FontData {
 	 */
 	int16_t strikethroughThickness;
 
-	FontWeight srcWeight;
-	FontStyle srcStyle;
-	FontWeight dstWeight;
-	FontStyle dstStyle;
+	SyntheticFontInfo synthInfo;
 
 	constexpr bool valid() const {
 		return ftFace && hbFont;

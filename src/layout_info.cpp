@@ -71,6 +71,7 @@ void LayoutInfo::append_empty_line(uint32_t charIndex, float height, float ascen
 	m_glyphPositions.emplace_back();
 
 	m_visualRuns.push_back({
+		.font = SingleScriptFont{},
 		.glyphEndIndex = m_visualRuns.empty() ? 0 : m_visualRuns.back().glyphEndIndex,
 		.charStartIndex = charIndex,
 		.charEndIndex = charIndex,

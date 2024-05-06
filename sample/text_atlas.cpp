@@ -22,13 +22,14 @@ TextAtlas::TextAtlas() {
 
 Image* TextAtlas::get_glyph_info(Text::SingleScriptFont font, uint32_t glyphIndex, float* texCoordExtentsOut,
 		float* sizeOut, float* offsetOut, bool& hasColorOut) {
-	GlyphKey key{font.size, glyphIndex, font.face.handle, font.weight, font.style};
+	GlyphKey key{font.get_effective_size(), glyphIndex, font.face.handle, font.weight, font.style};
 
 	if (auto it = m_glyphs.find(key); it != m_glyphs.end()) {
 		std::memcpy(texCoordExtentsOut, it->second.texCoordExtents, 4 * sizeof(float));
 		std::memcpy(sizeOut, it->second.bitmapSize, 2 * sizeof(float));
 		std::memcpy(offsetOut, it->second.offset, 2 * sizeof(float));
 		hasColorOut = it->second.pPage ? it->second.pPage->hasColor : false;
+		offsetOut[1] += font.get_baseline_offset();
 		return &it->second.pPage->image;
 	}
 
@@ -50,18 +51,20 @@ Image* TextAtlas::get_glyph_info(Text::SingleScriptFont font, uint32_t glyphInde
 
 	m_glyphs.emplace(std::make_pair(std::move(key), std::move(info)));
 
+	offsetOut[1] += font.get_baseline_offset();
 	return result;
 }
 
 Image* TextAtlas::get_stroke_info(Text::SingleScriptFont font, uint32_t glyphIndex, uint8_t thickness,
 		StrokeType type, float* texCoordExtentsOut, float* sizeOut, float* offsetOut, bool& hasColorOut) {
-	StrokeKey key{font.size, glyphIndex, font.face.handle, thickness, type};
+	StrokeKey key{font.get_effective_size(), glyphIndex, font.face.handle, thickness, type};
 
 	if (auto it = m_strokes.find(key); it != m_strokes.end()) {
 		std::memcpy(texCoordExtentsOut, it->second.texCoordExtents, 4 * sizeof(float));
 		std::memcpy(sizeOut, it->second.bitmapSize, 2 * sizeof(float));
 		std::memcpy(offsetOut, it->second.offset, 2 * sizeof(float));
 		hasColorOut = it->second.pPage ? it->second.pPage->hasColor : false;
+		offsetOut[1] += font.get_baseline_offset();
 		return &it->second.pPage->image;
 	}
 
@@ -83,6 +86,7 @@ Image* TextAtlas::get_stroke_info(Text::SingleScriptFont font, uint32_t glyphInd
 
 	m_strokes.emplace(std::make_pair(std::move(key), std::move(info)));
 
+	offsetOut[1] += font.get_baseline_offset();
 	return result;
 }
 

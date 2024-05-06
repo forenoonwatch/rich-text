@@ -54,11 +54,11 @@ struct FontFace {
 	FaceIndex_T handle{INVALID_FACE};
 	// The source weight and style as this face expects its underlying font data to be, for use in calculating
 	// the expected synthetic bold/italic transformations
-	FontWeight sourceWeight{FontWeight::REGULAR};
-	FontStyle sourceStyle{FontStyle::NORMAL};
+	FontWeight sourceWeight: 4 {FontWeight::REGULAR};
+	FontStyle sourceStyle: 2 {FontStyle::NORMAL};
 
 	constexpr bool operator==(const FontFace& other) const {
-		return handle == other.handle;
+		return handle == other.handle && sourceWeight == other.sourceWeight && sourceStyle == other.sourceStyle;
 	}
 
 	constexpr bool operator!=(const FontFace& other) const {
@@ -73,6 +73,40 @@ struct FontFace {
 		return valid();
 	}
 };
+
+struct SyntheticFontInfo {
+	FontWeight srcWeight: 4;
+	FontWeight dstWeight: 4;
+	FontStyle srcStyle: 2;
+	FontStyle dstStyle: 2;
+	bool syntheticSubscript: 1;
+	bool syntheticSuperscript: 1;
+	bool syntheticSmallCaps: 1;
+};
+
+constexpr float GLYPH_SUB_SUPER_SCALE = 0.7f;
+
+// Based on fixed offset values used within WebKit
+constexpr const float SUBSCRIPT_OFFSET_RATIO = 0.2f;
+constexpr const float SUPERSCRIPT_OFFSET_RATIO = 0.34f;
+
+constexpr float calc_font_scale_modifier(bool syntheticSmallCaps, bool syntheticSubSuper) {
+	float sizeModifier = 1.f;
+	sizeModifier *= syntheticSubSuper ? GLYPH_SUB_SUPER_SCALE : 1.f;
+	return sizeModifier;
+}
+
+constexpr uint32_t calc_effective_font_size(uint32_t baseSize, bool syntheticSmallCaps,
+		bool syntheticSubSuper) {
+	return baseSize * calc_font_scale_modifier(syntheticSmallCaps, syntheticSubSuper);
+}
+
+constexpr float calc_baseline_offset(float baseSize, bool syntheticSmallCaps, bool syntheticSubscript,
+		bool syntheticSuperscript) {
+	auto baselineOffset = syntheticSubscript * SUBSCRIPT_OFFSET_RATIO
+			+ syntheticSuperscript * -SUPERSCRIPT_OFFSET_RATIO;
+	return baselineOffset * baseSize;
+}
 
 }
 

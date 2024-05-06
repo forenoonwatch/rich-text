@@ -11,8 +11,8 @@ namespace Text {
 struct FontFaceCreateInfo {
 	std::string_view name;
 	std::string_view uri;
-	FontWeight weight;
-	FontStyle style;
+	FontWeight weight: 4;
+	FontStyle style: 2;
 };
 
 struct FontFamilyCreateInfo {
@@ -60,7 +60,8 @@ namespace Text::FontRegistry {
  *
  * @thread_safety Thread safe, see `FontData` for caveats about threading and lifetimes with the returned object.
  */
-[[nodiscard]] FontData get_font_data(FontFace, uint32_t size, FontWeight targetWeight, FontStyle targetStyle);
+[[nodiscard]] FontData get_font_data(FontFace, uint32_t size, FontWeight targetWeight, FontStyle targetStyle,
+		bool syntheticSmallCaps, bool syntheticSubscript, bool syntheticSuperscript);
 [[nodiscard]] FontData get_font_data(Font);
 [[nodiscard]] FontData get_font_data(SingleScriptFont);
 
@@ -106,7 +107,7 @@ namespace Text::FontRegistry {
  * @thread_safety Thread safe, may block internally.
  */
 [[nodiscard]] SingleScriptFont get_sub_font(Font font, const char* text, int32_t& offset, int32_t limit, 
-		UScriptCode script);
+		UScriptCode script, bool smallcaps, bool subscript, bool superscript);
 [[nodiscard]] SingleScriptFont get_sub_font(Font font, const char16_t* text, int32_t& offset, int32_t limit, 
 		UScriptCode script);
 

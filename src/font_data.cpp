@@ -42,8 +42,10 @@ struct OutlineContext {
 
 }
 
-static void apply_synthetic_bold(FT_Face face, FontWeight srcWeight, FontWeight dstWeight);
-static void apply_synthetic_italic(FT_Face face, FontStyle srcStyle, FontStyle dstStyle);
+static void try_apply_synthetics(FT_Face face, FT_Outline& outline, SyntheticFontInfo synthInfo);
+
+static void apply_synthetic_bold(FT_Face face, FT_Outline& outline, FontWeight srcWeight, FontWeight dstWeight);
+static void apply_synthetic_italic(FT_Face face, FT_Outline& outline, FontStyle srcStyle, FontStyle dstStyle);
 
 static int msdf_move_to(const FT_Vector* to, void* userData);
 static int msdf_line_to(const FT_Vector* to, void* userData);
@@ -54,11 +56,15 @@ static int msdf_cubic_to(const FT_Vector* control1, const FT_Vector* control2, c
 static Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float scaleX, float scaleY);
 
 float FontData::get_ascent() const {
-	return static_cast<float>(ftFace->size->metrics.ascender) / 64.f;
+	return static_cast<float>(ftFace->size->metrics.ascender) / 64.f
+			/ calc_font_scale_modifier(synthInfo.syntheticSmallCaps,
+					synthInfo.syntheticSubscript || synthInfo.syntheticSuperscript);
 }
 
 float FontData::get_descent() const {
-	return static_cast<float>(ftFace->size->metrics.descender) / 64.f;
+	return static_cast<float>(ftFace->size->metrics.descender) / 64.f
+			/ calc_font_scale_modifier(synthInfo.syntheticSmallCaps,
+					synthInfo.syntheticSubscript || synthInfo.syntheticSuperscript);
 }
 
 uint32_t FontData::get_upem() const {
@@ -123,13 +129,7 @@ float FontData::get_strikethrough_thickness() const {
 FontGlyphResult FontData::rasterize_glyph(uint32_t glyph, float* offsetOut) const {
 	FT_Load_Glyph(ftFace, glyph, FT_LOAD_NO_BITMAP | FT_LOAD_COLOR);
 
-	if (srcStyle != dstStyle) {
-		apply_synthetic_italic(ftFace, srcStyle, dstStyle);
-	}
-
-	if (srcWeight != dstWeight) {
-		apply_synthetic_bold(ftFace, srcWeight, dstWeight);
-	}
+	try_apply_synthetics(ftFace, ftFace->glyph->outline, synthInfo);
 
 	FT_Render_Glyph(ftFace->glyph, FT_RENDER_MODE_NORMAL);
 
@@ -200,6 +200,9 @@ FontGlyphResult FontData::rasterize_glyph_outline(uint32_t glyphIndex, uint8_t t
 	FT_Stroker_Set(stroker, static_cast<FT_Fixed>(thickness) * 64, FT_STROKER_LINECAP_ROUND, lineJoin, 0);
 
 	FT_Glyph_Stroke(&glyph, stroker, false);
+
+	try_apply_synthetics(ftFace, reinterpret_cast<FT_OutlineGlyph>(glyph)->outline, synthInfo);
+
 	FT_Glyph_To_Bitmap(&glyph, FT_RENDER_MODE_NORMAL, nullptr, true);
 
 	auto bmpGlyph = reinterpret_cast<FT_BitmapGlyph>(glyph);
@@ -287,7 +290,18 @@ Bitmap FontData::get_msdf_outline_glyph(uint32_t glyphIndex, uint8_t thickness, 
 
 // Static Functions
 
-static void apply_synthetic_bold(FT_Face face, FontWeight /*srcWeight*/, FontWeight dstWeight) {
+static void try_apply_synthetics(FT_Face face, FT_Outline& outline, SyntheticFontInfo synthInfo) {
+	if (synthInfo.srcStyle != synthInfo.dstStyle) {
+		apply_synthetic_italic(face, outline, synthInfo.srcStyle, synthInfo.dstStyle);
+	}
+
+	if (synthInfo.srcWeight != synthInfo.dstWeight) {
+		apply_synthetic_bold(face, outline, synthInfo.srcWeight, synthInfo.dstWeight);
+	}
+}
+
+static void apply_synthetic_bold(FT_Face face, FT_Outline& outline, FontWeight /*srcWeight*/,
+		FontWeight dstWeight) {
 	// FIXME: Create an effective scaling based on srcWeight
 	auto dstWeightIndex = static_cast<size_t>(dstWeight);
 
@@ -298,11 +312,12 @@ static void apply_synthetic_bold(FT_Face face, FontWeight /*srcWeight*/, FontWei
 	FT_Outline_EmboldenXY(&face->glyph->outline, extraX, extraY);
 
 	if ((face->face_flags & FT_FACE_FLAG_FIXED_WIDTH) != 0) {
-		FT_Outline_Translate(&face->glyph->outline, static_cast<int>(extraX / -2.f), 0);
+		FT_Outline_Translate(&outline, static_cast<int>(extraX / -2.f), 0);
 	}
 }
 
-static void apply_synthetic_italic(FT_Face face, FontStyle /*srcStyle*/, FontStyle dstStyle) {
+static void apply_synthetic_italic(FT_Face face, FT_Outline& outline, FontStyle /*srcStyle*/,
+		FontStyle dstStyle) {
 	auto shearAngle = dstStyle == FontStyle::ITALIC ? ITALIC_SHEAR : -ITALIC_SHEAR;
 
 	FT_Matrix shearMatrix{
@@ -312,7 +327,7 @@ static void apply_synthetic_italic(FT_Face face, FontStyle /*srcStyle*/, FontSty
 		.yy = 1L << 16,
 	};
 
-	FT_Outline_Transform(&face->glyph->outline, &shearMatrix);
+	FT_Outline_Transform(&outline, &shearMatrix);
 }
 
 static constexpr float saturate(float v) {

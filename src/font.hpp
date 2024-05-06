@@ -52,8 +52,20 @@ class Font final {
 struct SingleScriptFont {
 	FontFace face;
 	uint32_t size;
-	FontWeight weight;
-	FontStyle style;
+	FontWeight weight: 4;
+	FontStyle style: 2;
+	bool syntheticSubscript: 1;
+	bool syntheticSuperscript: 1;
+	bool syntheticSmallCaps: 1;
+
+	constexpr uint32_t get_effective_size() const {
+		return calc_effective_font_size(size, syntheticSmallCaps, syntheticSubscript || syntheticSuperscript);
+	}
+
+	constexpr float get_baseline_offset() const {
+		return calc_baseline_offset(static_cast<float>(size), syntheticSmallCaps, syntheticSubscript,
+				syntheticSuperscript);
+	}
 
 	constexpr bool operator==(const SingleScriptFont& other) const {
 		return face == other.face && size == other.size;
