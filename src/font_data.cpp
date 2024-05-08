@@ -57,14 +57,12 @@ static Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float 
 
 float FontData::get_ascent() const {
 	return static_cast<float>(ftFace->size->metrics.ascender) / 64.f
-			/ calc_font_scale_modifier(synthInfo.syntheticSmallCaps,
-					synthInfo.syntheticSubscript || synthInfo.syntheticSuperscript);
+			/ calc_font_scale_modifier(false, synthInfo.syntheticSubscript || synthInfo.syntheticSuperscript);
 }
 
 float FontData::get_descent() const {
 	return static_cast<float>(ftFace->size->metrics.descender) / 64.f
-			/ calc_font_scale_modifier(synthInfo.syntheticSmallCaps,
-					synthInfo.syntheticSubscript || synthInfo.syntheticSuperscript);
+			/ calc_font_scale_modifier(false, synthInfo.syntheticSubscript || synthInfo.syntheticSuperscript);
 }
 
 uint32_t FontData::get_upem() const {

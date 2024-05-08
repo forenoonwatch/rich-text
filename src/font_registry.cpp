@@ -404,6 +404,43 @@ static FontFace family_get_face(FontFamily family, FontWeight weight, FontStyle 
 	return g_familyData[family.handle].get_face(weight, style);
 }
 
+namespace {
+
+struct CaseScanResult {
+	int32_t limit;
+	bool upperCase;
+};
+
+}
+
+static CaseScanResult calc_case_run_limit(UText iter, int32_t offset, int32_t limit) {
+	bool runIsUpperCase = true;
+	bool initializedState = false;
+
+	for (;;) {
+		auto idx = UTEXT_GETNATIVEINDEX(&iter);
+		auto c = UTEXT_NEXT32(&iter);
+
+		if (c == U_SENTINEL) {
+			break;
+		}
+		else if (!u_getCombiningClass(c)) {
+			bool charIsUpperCase = !u_hasBinaryProperty(c, UCHAR_CHANGES_WHEN_UPPERCASED);
+
+			if (!initializedState) {
+				runIsUpperCase = charIsUpperCase;
+				initializedState = true;
+			}
+
+			if (runIsUpperCase != charIsUpperCase) {
+				return {offset + static_cast<int32_t>(idx), runIsUpperCase};
+			}
+		}
+	}
+
+	return {limit, runIsUpperCase};
+}
+
 static SingleScriptFont get_sub_font(Text::Font font, UText& iter, int32_t& offset, int32_t limit,
 		UScriptCode script, bool smallcaps, bool subscript, bool superscript) {
 	std::shared_lock lock(g_mutex);
@@ -414,6 +451,16 @@ static SingleScriptFont get_sub_font(Text::Font font, UText& iter, int32_t& offs
 
 	// FIXME: Subscript/Superscript synthesis forced on
 	bool shouldSynthesizeSubSuper = true;
+	// FIXME: Smallaps synthesis forced on
+	bool shouldSynthesizeSmallCaps = true;
+
+	bool fontMustSynthesizeSmallCaps = false;
+
+	if (smallcaps && shouldSynthesizeSmallCaps) {
+		auto [casingLimit, upperCase] = calc_case_run_limit(iter, offset, limit);
+		fontMustSynthesizeSmallCaps = !upperCase;
+		limit = casingLimit;
+	}
 
 	auto baseFont = get_font_for_script(font.get_family(), font.get_weight(), font.get_style(), script);
 	auto& fallbackFamilies = g_familyData[font.get_family().handle].fallbackFamilies;
@@ -437,11 +484,24 @@ static SingleScriptFont get_sub_font(Text::Font font, UText& iter, int32_t& offs
 		}
 	}
 
+	SingleScriptFont resultFont{
+		.face = targetFace,
+		.size = font.get_size(),
+		.weight = font.get_weight(),
+		.style = font.get_style(),
+		.subscript = subscript,
+		.superscript = superscript,
+		.smallcaps = smallcaps,
+		.syntheticSubscript = shouldSynthesizeSubSuper && subscript,
+		.syntheticSuperscript = shouldSynthesizeSubSuper && superscript,
+		.syntheticSmallCaps = fontMustSynthesizeSmallCaps
+	};
+
 	// No font can render this substring, just use the base font
 	if (!targetFace) {
 		offset = limit;
-		return SingleScriptFont{baseFont, font.get_size(), font.get_weight(), font.get_style(),
-				shouldSynthesizeSubSuper && subscript, shouldSynthesizeSubSuper && superscript, false};
+		resultFont.face = baseFont;
+		return resultFont;
 	}
 	
 	// Then, see how long it is able to render characters
@@ -455,14 +515,12 @@ static SingleScriptFont get_sub_font(Text::Font font, UText& iter, int32_t& offs
 		}
 		else if (!fontData.has_codepoint(c)) {
 			offset = offset + idx;
-			return SingleScriptFont{targetFace, font.get_size(), font.get_weight(), font.get_style(),
-					shouldSynthesizeSubSuper && subscript, shouldSynthesizeSubSuper && superscript, false};
+			return resultFont;
 		}
 	}
 
 	offset = limit;
-	return SingleScriptFont{targetFace, font.get_size(), font.get_weight(), font.get_style(),
-			shouldSynthesizeSubSuper && subscript, shouldSynthesizeSubSuper && superscript, false};
+	return resultFont;
 }
 
 static FontFamily get_or_add_family(const std::string_view& name) {

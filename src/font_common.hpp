@@ -84,15 +84,18 @@ struct SyntheticFontInfo {
 	bool syntheticSmallCaps: 1;
 };
 
-constexpr float GLYPH_SUB_SUPER_SCALE = 0.7f;
+constexpr const float GLYPH_SUB_SUPER_SCALE = 0.7f;
+constexpr const float GLYPH_SMALL_CAPS_SCALE = 0.8f;
 
 // Based on fixed offset values used within WebKit
 constexpr const float SUBSCRIPT_OFFSET_RATIO = 0.2f;
 constexpr const float SUPERSCRIPT_OFFSET_RATIO = 0.34f;
 
+
 constexpr float calc_font_scale_modifier(bool syntheticSmallCaps, bool syntheticSubSuper) {
 	float sizeModifier = 1.f;
 	sizeModifier *= syntheticSubSuper ? GLYPH_SUB_SUPER_SCALE : 1.f;
+	sizeModifier *= syntheticSmallCaps ? GLYPH_SMALL_CAPS_SCALE : 1.f;
 	return sizeModifier;
 }
 

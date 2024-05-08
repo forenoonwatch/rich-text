@@ -54,6 +54,9 @@ struct SingleScriptFont {
 	uint32_t size;
 	FontWeight weight: 4;
 	FontStyle style: 2;
+	bool subscript: 1;
+	bool superscript: 1;
+	bool smallcaps: 1;
 	bool syntheticSubscript: 1;
 	bool syntheticSuperscript: 1;
 	bool syntheticSmallCaps: 1;

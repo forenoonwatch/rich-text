@@ -4,6 +4,7 @@
 #include "value_run_utils.hpp"
 #include "font_registry.hpp"
 #include "script_run_iterator.hpp"
+#include "string_transformations.hpp"
 
 #include <unicode/brkiter.h>
 
@@ -63,11 +64,9 @@ static ValueRuns<SingleScriptFont> compute_sub_fonts(const char* chars, const Va
 		const ValueRuns<UScriptCode>& scriptRuns, const ValueRuns<bool>& smallcapsRuns,
 		const ValueRuns<bool>& subscriptRuns, const ValueRuns<bool>& superscriptRuns);
 
-static void shape_logical_run(LayoutBuildState& state, hb_font_t* pFont, const ValueRuns<bool>* pSmallcapsRuns,
-		const ValueRuns<bool>* pSubscriptRuns, const ValueRuns<bool>* pSuperscriptRuns, const char* chars,
+static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& font, const char* chars,
 		int32_t offset, int32_t count, int32_t max, UScriptCode script, const icu::Locale& locale,
-		bool rightToLeft, int32_t stringOffset, bool syntheticSmallCaps, bool syntheticSubscript,
-		bool syntheticSuperscript);
+		bool rightToLeft, int32_t stringOffset);
 static int32_t find_previous_line_break(icu::BreakIterator& iter, const char* chars, int32_t count,
 		int32_t charIndex);
 static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result,
@@ -200,11 +199,8 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 
 	for (auto& run : logicalRuns) {
 		bool rightToLeft = run.level & 1;
-		auto fontData = FontRegistry::get_font_data(run.font);
-		shape_logical_run(state, fontData.hbFont, pSmallcapsRuns, pSubscriptRuns, pSuperscriptRuns, chars,
-				runStart, run.charEndIndex - runStart, count, run.script, *run.pLocale, rightToLeft,
-				stringOffset, run.font.syntheticSmallCaps, run.font.syntheticSubscript,
-				run.font.syntheticSuperscript);
+		shape_logical_run(state, run.font, chars, runStart, run.charEndIndex - runStart, count, run.script,
+				*run.pLocale, rightToLeft, stringOffset);
 		run.glyphEndIndex = static_cast<uint32_t>(state.glyphs.size());
 		runStart = run.charEndIndex;
 	}
@@ -322,54 +318,51 @@ static ValueRuns<SingleScriptFont> compute_sub_fonts(const char* chars, const Va
 	return result;
 }
 
-static void maybe_add_tag_runs(std::vector<hb_feature_t>& features, const ValueRuns<bool>* pTagRuns,
-		hb_tag_t tag, int32_t stringOffset, int32_t count, bool isSynthesizingThis) {
-	if (!pTagRuns || isSynthesizingThis) {
+static void maybe_add_tag_runs(std::vector<hb_feature_t>& features, hb_tag_t tag, int32_t count,
+		bool needsFeature, bool isSynthesizingThis) {
+	if (!needsFeature || isSynthesizingThis) {
 		return;
 	}
 
-	int32_t lastLimit = 0;
-
-	pTagRuns->for_each_run_in_range(stringOffset, count, [&](int32_t limit, bool shouldEmitTag) {
-		if (shouldEmitTag) {
-			features.push_back({
-				.tag = tag,
-				.value = 1,
-				.start = static_cast<unsigned>(lastLimit),
-				.end = static_cast<unsigned>(limit),
-			});
-		}
-
-		lastLimit = limit;
+	features.push_back({
+		.tag = tag,
+		.value = 1,
+		.end = static_cast<unsigned>(count),
 	});
 }
 
-static void shape_logical_run(LayoutBuildState& state, hb_font_t* pFont, const ValueRuns<bool>* pSmallcapsRuns,
-		const ValueRuns<bool>* pSubscriptRuns, const ValueRuns<bool>* pSuperscriptRuns, const char* chars,
+static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& font, const char* chars,
 		int32_t offset, int32_t count, int32_t max, UScriptCode script, const icu::Locale& locale,
-		bool rightToLeft, int32_t stringOffset, bool syntheticSmallCaps, bool syntheticSubscript,
-		bool syntheticSuperscript) {
+		bool rightToLeft, int32_t stringOffset) {
+	hb_buffer_clear_contents(state.pBuffer);
+
 	hb_buffer_set_script(state.pBuffer, hb_script_from_string(uscript_getShortName(script), 4));
 	hb_buffer_set_language(state.pBuffer, hb_language_from_string(locale.getLanguage(), -1));
 	hb_buffer_set_direction(state.pBuffer, rightToLeft ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
-	hb_buffer_set_length(state.pBuffer, 0);
 	hb_buffer_set_flags(state.pBuffer, (hb_buffer_flags_t)((offset == 0 ? HB_BUFFER_FLAG_BOT : 0)
 			| (offset + count == max ? HB_BUFFER_FLAG_EOT : 0)));
-	hb_buffer_add_utf8(state.pBuffer, chars, max, offset, 0);
-	hb_buffer_add_utf8(state.pBuffer, chars + offset, max - offset, 0, count);
+
+	std::vector<uint32_t> charRemapping;
+
+	if (font.syntheticSmallCaps) {
+		auto [upperStr, upperMapping] = string_to_upper({chars + offset, static_cast<size_t>(count)});
+		hb_buffer_add_utf8(state.pBuffer, upperStr.data(), (int)upperStr.size(), 0, (int)upperStr.size());
+		charRemapping = std::move(upperMapping);
+		count = (int32_t)upperStr.size();
+	}
+	else {
+		hb_buffer_add_utf8(state.pBuffer, chars, max, offset, 0);
+		hb_buffer_add_utf8(state.pBuffer, chars + offset, max - offset, 0, count);
+	}
 
 	std::vector<hb_feature_t> features;
-	// FIXME: This is probably no longer necessary to do in this way, because now runs are already split
-	// by whether or not they're a unique permuatation of (smcp, subs, sups), so there is only ever a unique
-	// value for each run
-	maybe_add_tag_runs(features, pSmallcapsRuns, HB_TAG('s', 'm', 'c', 'p'), stringOffset + offset, count,
-			syntheticSmallCaps);
-	maybe_add_tag_runs(features, pSubscriptRuns, HB_TAG('s', 'u', 'b', 's'), stringOffset + offset, count,
-			syntheticSubscript);
-	maybe_add_tag_runs(features, pSuperscriptRuns, HB_TAG('s', 'u', 'p', 's'), stringOffset + offset, count,
-			syntheticSuperscript);
+	maybe_add_tag_runs(features, HB_TAG('s', 'm', 'c', 'p'), count, font.smallcaps, font.syntheticSmallCaps);
+	maybe_add_tag_runs(features, HB_TAG('s', 'u', 'b', 's'), count, font.subscript, font.syntheticSubscript);
+	maybe_add_tag_runs(features, HB_TAG('s', 'u', 'p', 's'), count, font.superscript,
+			font.syntheticSuperscript);
 
-	hb_shape(pFont, state.pBuffer, features.data(), static_cast<unsigned>(features.size()));
+	auto fontData = FontRegistry::get_font_data(font);
+	hb_shape(fontData.hbFont, state.pBuffer, features.data(), static_cast<unsigned>(features.size()));
 
 	auto glyphCount = hb_buffer_get_length(state.pBuffer);
 	auto* glyphPositions = hb_buffer_get_glyph_positions(state.pBuffer, nullptr);
@@ -386,6 +379,12 @@ static void shape_logical_run(LayoutBuildState& state, hb_font_t* pFont, const V
 
 	state.glyphPositions.emplace_back(scalbnf(cursorX, -6));
 	state.glyphPositions.emplace_back(scalbnf(cursorY, -6));
+
+	if (!charRemapping.empty()) {
+		for (unsigned i = 0; i < glyphCount; ++i) {
+			glyphInfos[i].cluster = charRemapping[glyphInfos[i].cluster];
+		}
+	}
 
 	if (rightToLeft) {
 		for (unsigned i = glyphCount - 1; ; --i) {
@@ -426,6 +425,7 @@ static int32_t find_previous_line_break(icu::BreakIterator& iter, const char* ch
 	// Skip over any whitespace or control characters because they can hang in the margin
 	UChar32 chr;
 	while (charIndex < count) {
+		// FIXME: U8_GET may be O(n), use U8_NEXT instead
 		U8_GET((const uint8_t*)chars, 0, charIndex, count, chr);
 
 		if (!u_isWhitespace(chr) && !u_iscntrl(chr)) {
