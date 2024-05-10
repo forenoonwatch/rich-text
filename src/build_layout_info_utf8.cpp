@@ -4,9 +4,10 @@
 #include "value_run_utils.hpp"
 #include "font_registry.hpp"
 #include "script_run_iterator.hpp"
-#include "string_transformations.hpp"
 
 #include <unicode/brkiter.h>
+#include <unicode/casemap.h>
+#include <unicode/edits.h>
 
 extern "C" {
 #include <SheenBidi.h>
@@ -331,6 +332,37 @@ static void maybe_add_tag_runs(std::vector<hb_feature_t>& features, hb_tag_t tag
 	});
 }
 
+static void remap_char_index(hb_glyph_info_t& glyphInfo, icu::Edits::Iterator& it, const char* sourceStr) {
+	UErrorCode errc{};
+	if (it.findSourceIndex(glyphInfo.cluster, errc)) [[likely]] {
+		auto srcIndex = it.sourceIndex() + (glyphInfo.cluster - it.destinationIndex());
+
+		// Sometimes the edits can map a codepoint lead to a trailing code unit in the source string,
+		// e.g. latin sharp S -> SS
+		while (U8_IS_TRAIL(sourceStr[srcIndex]) && srcIndex > 0) {
+			--srcIndex;
+		}
+
+		glyphInfo.cluster = srcIndex;
+	}
+}
+
+static void remap_char_indices(hb_glyph_info_t* glyphInfos, unsigned glyphCount, icu::Edits& edits,
+		const char* sourceStr, bool rightToLeft) {
+	auto it = edits.getFineChangesIterator();
+
+	if (rightToLeft) {
+		for (unsigned i = glyphCount; i--;) {
+			remap_char_index(glyphInfos[i], it, sourceStr);
+		}
+	}
+	else {
+		for (unsigned i = 0; i < glyphCount; ++i) {
+			remap_char_index(glyphInfos[i], it, sourceStr);
+		}
+	}
+}
+
 static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& font, const char* chars,
 		int32_t offset, int32_t count, int32_t max, UScriptCode script, const icu::Locale& locale,
 		bool rightToLeft, int32_t stringOffset) {
@@ -342,12 +374,15 @@ static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& f
 	hb_buffer_set_flags(state.pBuffer, (hb_buffer_flags_t)((offset == 0 ? HB_BUFFER_FLAG_BOT : 0)
 			| (offset + count == max ? HB_BUFFER_FLAG_EOT : 0)));
 
-	std::vector<uint32_t> charRemapping;
+	icu::Edits edits;
 
 	if (font.syntheticSmallCaps) {
-		auto [upperStr, upperMapping] = string_to_upper({chars + offset, static_cast<size_t>(count)});
+		std::string upperStr;
+		icu::StringByteSink<std::string> sink(&upperStr);
+		UErrorCode errc{};
+
+		icu::CaseMap::utf8ToUpper(uscript_getName(script), 0, {chars + offset, count}, sink, &edits, errc);
 		hb_buffer_add_utf8(state.pBuffer, upperStr.data(), (int)upperStr.size(), 0, (int)upperStr.size());
-		charRemapping = std::move(upperMapping);
 		count = (int32_t)upperStr.size();
 	}
 	else {
@@ -370,6 +405,10 @@ static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& f
 	int32_t cursorX{};
 	int32_t cursorY{};
 
+	if (font.syntheticSmallCaps) {
+		remap_char_indices(glyphInfos, glyphCount, edits, chars + offset, rightToLeft);
+	}
+
 	for (unsigned i = 0; i < glyphCount; ++i) {
 		state.glyphPositions.emplace_back(scalbnf(cursorX + glyphPositions[i].x_offset, -6));
 		state.glyphPositions.emplace_back(scalbnf(cursorY + glyphPositions[i].y_offset, -6));
@@ -379,12 +418,6 @@ static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& f
 
 	state.glyphPositions.emplace_back(scalbnf(cursorX, -6));
 	state.glyphPositions.emplace_back(scalbnf(cursorY, -6));
-
-	if (!charRemapping.empty()) {
-		for (unsigned i = 0; i < glyphCount; ++i) {
-			glyphInfos[i].cluster = charRemapping[glyphInfos[i].cluster];
-		}
-	}
 
 	if (rightToLeft) {
 		for (unsigned i = glyphCount - 1; ; --i) {

@@ -13,7 +13,6 @@ target_sources(LibRichText PRIVATE
 	"${CMAKE_CURRENT_SOURCE_DIR}/convert_layout_info_utf8.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/script_run_iterator.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/cursor_controller.cpp"
-	"${CMAKE_CURRENT_SOURCE_DIR}/string_transformations.cpp"
 )
 
 if (ICU_BUILD_LX)

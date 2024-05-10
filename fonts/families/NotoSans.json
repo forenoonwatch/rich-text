@@ -1,6 +1,6 @@
 {
 	"name": "Noto Sans",
-	"scripts": ["Latn"],
+	"scripts": ["Latn", "Grek"],
 	"linked_families": [
 		"Noto Naskh Arabic",
 		"Noto Serif Devanagari",
