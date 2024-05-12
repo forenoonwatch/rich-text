@@ -65,13 +65,14 @@ void LayoutInfo::append_line(float height, float ascent) {
 	});
 }
 
-void LayoutInfo::append_empty_line(uint32_t charIndex, float height, float ascent) {
+void LayoutInfo::append_empty_line(const SingleScriptFont& font, uint32_t charIndex, float height,
+		float ascent) {
 	// All inserted runs need at least 2 glyph position entries
 	m_glyphPositions.emplace_back();
 	m_glyphPositions.emplace_back();
 
 	m_visualRuns.push_back({
-		.font = SingleScriptFont{},
+		.font = font,
 		.glyphEndIndex = m_visualRuns.empty() ? 0 : m_visualRuns.back().glyphEndIndex,
 		.charStartIndex = charIndex,
 		.charEndIndex = charIndex,

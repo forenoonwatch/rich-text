@@ -125,7 +125,8 @@ void Text::build_layout_info_utf8(LayoutInfo& result, const char* chars, int32_t
 			auto height = fontData.get_ascent() - fontData.get_descent();
 
 			lastHighestRun = result.get_run_count();
-			result.append_empty_line(static_cast<uint32_t>(paragraphOffset), height, fontData.get_ascent());
+			result.append_empty_line(FontRegistry::get_default_single_script_font(font),
+					static_cast<uint32_t>(paragraphOffset), height, fontData.get_ascent());
 		}
 
 		result.set_run_char_end_offset(lastHighestRun, separatorLength * (!isLastParagraph));

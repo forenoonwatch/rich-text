@@ -49,7 +49,7 @@ class LayoutInfo {
 		void append_run(const SingleScriptFont& font, uint32_t charStartIndex, uint32_t charEndIndex,
 				bool rightToLeft);
 		void append_line(float height, float ascent);
-		void append_empty_line(uint32_t charIndex, float height, float ascent);
+		void append_empty_line(const SingleScriptFont& font, uint32_t charIndex, float height, float ascent);
 		void set_run_char_end_offset(size_t runIndex, uint8_t charEndOffset);
 		void set_text_start_y(float);
 

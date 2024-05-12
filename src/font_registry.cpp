@@ -216,6 +216,19 @@ FontFace FontRegistry::get_face(Font font) {
 	return g_familyData[font.get_family().handle].get_face(font.get_weight(), font.get_style());
 }
 
+SingleScriptFont FontRegistry::get_default_single_script_font(Font font) {
+	assert(font.valid() && "get_font_data(): Must pass valid Font");
+	assert(font.get_family().valid() && "get_font_data(): Must pass valid FontFamily");
+	assert(family_is_initialized(font.get_family()) && "get_font_data(): Must pass initialized FontFamily");
+
+	return SingleScriptFont{
+		.face = get_face(font),
+		.size = font.get_size(),
+		.weight = font.get_weight(),
+		.style = font.get_style(),
+	};
+}
+
 FontData FontRegistry::get_font_data(Font font) {
 	assert(font.valid() && "get_font_data(): Must pass valid Font");
 	assert(font.get_family().valid() && "get_font_data(): Must pass valid FontFamily");

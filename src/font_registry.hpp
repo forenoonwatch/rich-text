@@ -55,6 +55,15 @@ namespace Text::FontRegistry {
 [[nodiscard]] FontFace get_face(Font font);
 
 /**
+ * Gets a generic SingleScriptFont utilizing any valid sub-font of the given Font for use in getting a
+ * default ascender, descender, underline/strikeout metrics, etc.. This should not be used to perform shaping
+ * or rasterize glyphs.
+ *
+ * @thread_safety Thread safe, may block internally.
+ */
+[[nodiscard]] SingleScriptFont get_default_single_script_font(Font font);
+
+/**
  * Gets a temporary handle to FreeType and HarfBuzz data structures representing the given font face. Object
  * may be invalid if the face handle is invalid or underlying font data failed to load at any point.
  *
