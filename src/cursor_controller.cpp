@@ -70,7 +70,7 @@ CursorPosition CursorController::next_word(CursorPosition cursor) {
 			break;
 		}
 
-		return {static_cast<uint32_t>(nextIndex)};
+		cursor = {static_cast<uint32_t>(nextIndex)};
 
 		U8_GET((const uint8_t*)m_text.data(), 0, nextIndex, m_text.size(), c);
 		bool whitespace = u_isWhitespace(c);

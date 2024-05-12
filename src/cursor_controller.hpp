@@ -40,6 +40,10 @@ class CursorController {
 				float posX);
 		CursorPosition closest_to_position(const LayoutInfo&, float textAreaWidth, TextXAlignment, float posX,
 				float posY);
+
+		std::string_view get_text() const {
+			return m_text;
+		}
 	private:
 		icu::BreakIterator* m_iter;
 		std::string_view m_text;

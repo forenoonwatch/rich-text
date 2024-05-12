@@ -446,7 +446,7 @@ void TextBox::cursor_move_to_text_start(bool selectionMode) {
 }
 
 void TextBox::cursor_move_to_text_end(bool selectionMode) {
-	set_cursor_position_internal({static_cast<uint32_t>(m_text.size())}, selectionMode);
+	set_cursor_position_internal({static_cast<uint32_t>(m_cursorCtrl.get_text().size())}, selectionMode);
 }
 
 void TextBox::cursor_move_to_mouse(double mouseX, double mouseY, bool selectionMode) {
