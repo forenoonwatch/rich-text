@@ -306,6 +306,12 @@ void TextBox::render(UIContainer& container) {
 					get_position()[1] + lineY + pY + offset[1], glyphSize[0],
 					glyphSize[1], texCoordExtents, pGlyphImage, textColor,
 					CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT, pClip);
+
+			if (CVars::showGlyphOutlines) {
+				container.emit_rect(get_position()[0] + lineX + pX + offset[0],
+					get_position()[1] + lineY + pY + offset[1], glyphSize[0],
+					glyphSize[1], {0, 0.5f, 0, 1}, PipelineIndex::OUTLINE);
+			}
 			
 			// Underline
 			if ((event & Text::FormattingEvent::UNDERLINE_END) != Text::FormattingEvent::NONE) {
