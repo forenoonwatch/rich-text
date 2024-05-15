@@ -79,7 +79,6 @@ struct FontFuncsLazyLoader : hb_font_funcs_lazy_loader_t<FontFuncsLazyLoader> {
 }
 
 static hb_face_t* harfbuzz_face_create(FT_Face ftFace);
-static void harfbuzz_face_destroy(void* data);
 
 static void harfbuzz_font_destroy(void* data);
 
@@ -190,12 +189,12 @@ static hb_face_t* harfbuzz_face_create(FT_Face ftFace) {
 
 	if (!ftFace->stream->read) {
 		auto* blob = hb_blob_create((const char*)ftFace->stream->base, (unsigned)ftFace->stream->size,
-				HB_MEMORY_MODE_READONLY, ftFace, harfbuzz_face_destroy);
+				HB_MEMORY_MODE_READONLY, ftFace, nullptr);
 		face = hb_face_create(blob, ftFace->face_index);
 		hb_blob_destroy(blob);
 	}
 	else {
-		face = hb_face_create_for_tables(face_reference_table, ftFace, harfbuzz_face_destroy);
+		face = hb_face_create_for_tables(face_reference_table, ftFace, nullptr);
 	}
 
 	hb_face_set_index(face, ftFace->face_index);
@@ -204,13 +203,8 @@ static hb_face_t* harfbuzz_face_create(FT_Face ftFace) {
 	return face;
 }
 
-static void harfbuzz_face_destroy(void* data) {
-	FT_Done_Face(reinterpret_cast<FT_Face>(data));
-}
-
 static void harfbuzz_font_destroy(void* data) {
 	auto* pImpl = reinterpret_cast<HarfbuzzFontImpl*>(data);
-	harfbuzz_face_destroy(pImpl->ftFace);
 	delete pImpl;
 }
 
