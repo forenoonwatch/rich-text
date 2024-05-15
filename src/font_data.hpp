@@ -9,6 +9,8 @@ struct hb_font_t;
 
 namespace Text {
 
+constexpr const double MSDF_PIXELS_PER_EM = 32.0;
+
 struct FontGlyphResult {
 	Bitmap bitmap;
 	bool hasColor;

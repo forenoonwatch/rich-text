@@ -2,6 +2,9 @@
 
 #include "font_registry.hpp"
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 #include <glad/glad.h>
 
 #include <cstring>
@@ -10,24 +13,31 @@ static constexpr const size_t HASH_BASE = 0xCBF29CE484222325ull;
 static constexpr const size_t HASH_MULTIPLIER = 0x100000001B3ull;
 
 static constexpr uint32_t TEXTURE_EXTENT = 2048u;
-static constexpr uint32_t TEXTURE_PADDING = 1u;
+static constexpr uint32_t TEXTURE_PADDING = 2u;
 
 // MSDFTextAtlas
 
-Image* MSDFTextAtlas::get_glyph_info(Text::SingleScriptFont font, uint32_t glyphIndex, float* texCoordExtentsOut,
-		float* sizeOut, float* offsetOut, bool& hasColorOut) {
+Image* MSDFTextAtlas::get_glyph_info(Text::SingleScriptFont font, uint32_t glyphIndex,
+		float* texCoordExtentsOut, float* sizeOut, float* offsetOut, bool& hasColorOut) {
 	GlyphKey key{glyphIndex, font.face.handle};
+	auto fontData = Text::FontRegistry::get_font_data(font);
+	auto& metrics = fontData.ftFace->size->metrics;
+	auto scaleX = static_cast<float>(metrics.x_ppem) / static_cast<float>(Text::MSDF_PIXELS_PER_EM);
+	auto scaleY = static_cast<float>(metrics.y_ppem) / static_cast<float>(Text::MSDF_PIXELS_PER_EM);
 
 	if (auto it = m_glyphs.find(key); it != m_glyphs.end()) {
 		std::memcpy(texCoordExtentsOut, it->second.texCoordExtents, 4 * sizeof(float));
 		std::memcpy(sizeOut, it->second.bitmapSize, 2 * sizeof(float));
 		std::memcpy(offsetOut, it->second.offset, 2 * sizeof(float));
+		offsetOut[0] *= scaleX;
+		offsetOut[1] *= scaleY;
+		sizeOut[0] *= scaleX;
+		sizeOut[1] *= scaleY;
 		hasColorOut = it->second.pPage ? it->second.pPage->hasColor : false;
 		return &it->second.pPage->image;
 	}
 
 	GlyphInfo info{};
-	auto fontData = Text::FontRegistry::get_font_data(font);
 	auto bitmap = fontData.get_msdf_glyph(glyphIndex, info.offset);
 	bool hasColor = false;
 	info.bitmapSize[0] = static_cast<float>(bitmap.get_width());
@@ -42,6 +52,11 @@ Image* MSDFTextAtlas::get_glyph_info(Text::SingleScriptFont font, uint32_t glyph
 	std::memcpy(sizeOut, info.bitmapSize, 2 * sizeof(float));
 	std::memcpy(offsetOut, info.offset, 2 * sizeof(float));
 	hasColorOut = hasColor;
+
+	offsetOut[0] *= scaleX;
+	offsetOut[1] *= scaleY;
+	sizeOut[0] *= scaleX;
+	sizeOut[1] *= scaleY;
 
 	m_glyphs.emplace(std::make_pair(std::move(key), std::move(info)));
 

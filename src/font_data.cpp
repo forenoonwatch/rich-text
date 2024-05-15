@@ -13,7 +13,6 @@
 using namespace Text;
 
 static constexpr bool USE_MSDF_ERROR_CORRECTION = false;
-static constexpr uint32_t MSDF_PADDING = 2;
 
 static constexpr float BOLD_SCALE[] = {
 	-1.f / 14.f, // Thin
@@ -53,7 +52,7 @@ static int msdf_conic_to(const FT_Vector* control, const FT_Vector* to, void* us
 static int msdf_cubic_to(const FT_Vector* control1, const FT_Vector* control2, const FT_Vector* to,
 		void* userData);
 
-static Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float scaleX, float scaleY);
+static Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float* offsetOut, int32_t upem);
 
 float FontData::get_ascent() const {
 	return static_cast<float>(ftFace->size->metrics.ascender) / 64.f
@@ -230,19 +229,16 @@ FontGlyphResult FontData::rasterize_glyph_outline(uint32_t glyphIndex, uint8_t t
 }
 
 Bitmap FontData::get_msdf_glyph(uint32_t glyphIndex, float* offsetOut) const {
-	//FT_Load_Glyph(ftFace, glyphIndex, FT_LOAD_NO_SCALE);
-	FT_Load_Glyph(ftFace, glyphIndex, FT_LOAD_BITMAP_METRICS_ONLY);
-	msdfgen::Shape shape{};
-	offsetOut[0] = static_cast<float>(ftFace->glyph->bitmap_left);
-	offsetOut[1] = static_cast<float>(-ftFace->glyph->bitmap_top);
+	FT_Load_Glyph(ftFace, glyphIndex, FT_LOAD_NO_BITMAP | FT_LOAD_NO_SCALE);
+	try_apply_synthetics(ftFace, ftFace->glyph->outline, synthInfo);
 
-	return load_msdf_shape(shape, ftFace->glyph->outline, 1.f, 1.f);
+	msdfgen::Shape shape{};
+	return load_msdf_shape(shape, ftFace->glyph->outline, offsetOut, ftFace->units_per_EM);
 }
 
 Bitmap FontData::get_msdf_outline_glyph(uint32_t glyphIndex, uint8_t thickness, StrokeType type,
 		float* offsetOut) const {
-	//FT_Load_Glyph(m_ftFace, glyphIndex, FT_LOAD_NO_BITMAP | FT_LOAD_NO_SCALE);
-	FT_Load_Glyph(ftFace, glyphIndex, FT_LOAD_BITMAP_METRICS_ONLY);
+	FT_Load_Glyph(ftFace, glyphIndex, FT_LOAD_NO_BITMAP | FT_LOAD_NO_SCALE);
 
 	FT_Glyph glyph;
 	FT_Get_Glyph(ftFace->glyph, &glyph);
@@ -276,8 +272,10 @@ Bitmap FontData::get_msdf_outline_glyph(uint32_t glyphIndex, uint8_t thickness, 
 
 	FT_Stroker_Export(stroker, &outline);
 
+	try_apply_synthetics(ftFace, outline, synthInfo);
+
 	msdfgen::Shape shape{};
-	auto result = load_msdf_shape(shape, outline, 1.f, 1.f);
+	auto result = load_msdf_shape(shape, outline, offsetOut, ftFace->units_per_EM);
 
 	FT_Outline_Done(glyph->library, &outline);
 	FT_Stroker_Done(stroker);
@@ -336,7 +334,7 @@ static constexpr Color msdf_make_color(const float* c) {
 	return {saturate(c[0]), saturate(c[1]), saturate(c[2]), 1.f};
 }
 
-static Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float scaleX, float scaleY) {
+static Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float* offsetOut, int32_t upem) {
 	shape.contours.clear();
 	shape.inverseYAxis = true;
 
@@ -361,15 +359,32 @@ static Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float 
 		return {};
 	}
 
+	shape.normalize();
 	auto bounds = shape.getBounds();
-	auto width = static_cast<int32_t>((bounds.r - bounds.l + 2.0 * static_cast<double>(MSDF_PADDING))
-			* scaleX);
-	auto height = static_cast<int32_t>((bounds.t - bounds.b + 2.0 * static_cast<double>(MSDF_PADDING))
-			* scaleY);
 
-	msdfgen::Vector2 scale{scaleX, scaleY};
-	msdfgen::Vector2 translate{static_cast<double>(MSDF_PADDING)};
-	msdfgen::Projection projection{scale, translate};
+	auto scale = MSDF_PIXELS_PER_EM / static_cast<double>(upem);
+	auto range = 2.0 / scale;
+
+	auto l = bounds.l, b = bounds.b, r = bounds.r, t = bounds.t;
+
+	l -= 0.5 * range;
+	r += 0.5 * range;
+	b -= 0.5 * range;
+	t += 0.5 * range;
+
+	auto w = scale * (r - l);
+	auto h = scale * (t - b);
+
+	auto width = static_cast<int32_t>(w + 1.0) + 1;
+	auto height = static_cast<int32_t>(h + 1.0) + 1;
+
+	auto tx = -l + 0.5 * (width - w) / scale;
+	auto ty = -b + 0.5 * (height - h) / scale;
+
+	offsetOut[0] = l * scale;
+	offsetOut[1] = -t * scale;
+
+	msdfgen::Projection projection{{scale, scale}, {tx, ty}};
 	msdfgen::Bitmap<float, 3> bmp(width, height);
 
 	msdfgen::MSDFGeneratorConfig generatorConfig{};
@@ -384,11 +399,11 @@ static Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float 
 
 	//msdfgen::edgeColoringSimple(shape, 3.0, 0);
 	msdfgen::edgeColoringInkTrap(shape, 3.0, 0);
-	msdfgen::generateMSDF(bmp, shape, projection, 2.0, generatorConfig);
+	msdfgen::generateMSDF(bmp, shape, projection, range, generatorConfig);
 
 	if constexpr (USE_MSDF_ERROR_CORRECTION) {
 		msdfgen::distanceSignCorrection(bmp, shape, projection);
-		msdfgen::msdfErrorCorrection(bmp, shape, projection, 2.0, postErrorCorrectionConfig);
+		msdfgen::msdfErrorCorrection(bmp, shape, projection, range, postErrorCorrectionConfig);
 	}
 
 	Bitmap result(width, height);
@@ -403,7 +418,7 @@ static Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float 
 }
 
 static msdfgen::Point2 make_point2(const FT_Vector& v) {
-	return {scalbn(v.x, -6), scalbn(v.y, -6)};
+	return {(double)v.x, (double)v.y};
 }
 
 static int msdf_move_to(const FT_Vector* to, void* userData) {
