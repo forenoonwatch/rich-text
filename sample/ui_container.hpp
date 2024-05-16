@@ -1,12 +1,16 @@
 #pragma once
 
 #include "color.hpp"
+#include "cursor_position.hpp"
 #include "pair.hpp"
 #include "pipeline.hpp"
+#include "text_alignment.hpp"
 #include "ui_object.hpp"
-#include "cursor_position.hpp"
 
 class TextBox;
+
+namespace Text { struct FormattingRuns; }
+namespace Text { class LayoutInfo; }
 
 class UIContainer final : public UIObject {
 	public:
@@ -28,6 +32,9 @@ class UIContainer final : public UIObject {
 				const Text::Pair<float, float>* pClip = nullptr);
 		void emit_rect(float x, float y, float width, float height, const Color& color, PipelineIndex pipeline,
 				const Text::Pair<float, float>* pClip = nullptr);
+
+		void draw_text(const Text::LayoutInfo&, const Text::FormattingRuns&, float x, float y, float width,
+				TextXAlignment, CursorPosition selectionStart = {}, CursorPosition cursorPosition = {});
 
 		std::weak_ptr<UIObject> get_focused_text_box() const;
 	protected:

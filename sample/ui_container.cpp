@@ -1,7 +1,12 @@
 #include "ui_container.hpp"
 
+#include "config_vars.hpp"
+#include "msdf_text_atlas.hpp"
 #include "text_atlas.hpp"
 #include "text_box.hpp"
+#include "visitor_base.hpp"
+
+#include "text_draw_util.hpp"
 
 #include <GLFW/glfw3.h>
 
@@ -64,6 +69,129 @@ void UIContainer::emit_rect(float x, float y, float width, float height, const C
 		PipelineIndex pipeline, const Text::Pair<float, float>* pClip) {
 	float texCoords[4] = {0.f, 0.f, 1.f, 1.f};
 	emit_rect(x, y, width, height, texCoords, g_textAtlas->get_default_texture(), color, pipeline, pClip);
+}
+
+void UIContainer::draw_text(const Text::LayoutInfo& layout, const Text::FormattingRuns& formatting,
+		float positionX, float positionY, float textAreaWidth, TextXAlignment textXAlignment,
+		CursorPosition inSelectionStart, CursorPosition inCursorPosition) {
+	bool hasHighlighting = inSelectionStart.is_valid();
+	uint32_t selectionStart{};
+	uint32_t selectionEnd{};
+
+	// Add highlight ranges in a separate pass to keep from accidental clipping across runs
+	if (hasHighlighting) {
+		selectionStart = inSelectionStart.get_position();
+		selectionEnd = inCursorPosition.get_position();
+
+		if (selectionStart > selectionEnd) {
+			std::swap(selectionStart, selectionEnd);
+		}
+
+		layout.for_each_run(textAreaWidth, textXAlignment, [&](auto lineIndex, auto runIndex,
+				auto lineX, auto lineY) {
+			if (layout.run_contains_char_range(runIndex, selectionStart, selectionEnd)) {
+				auto [minPos, maxPos] = layout.get_position_range_in_run(runIndex, selectionStart,
+						selectionEnd);
+				
+				emit_rect(positionX + lineX + minPos, positionY + lineY
+						- layout.get_line_ascent(lineIndex), maxPos - minPos,
+						layout.get_line_height(lineIndex), Color::from_rgb(0, 120, 215), PipelineIndex::RECT);
+			}
+		});
+	}
+
+	// Draw main text rects
+	bool runHasHighlighting = false;
+	Text::Pair<float, float> highlightRange{};
+	const Text::Pair<float, float>* pClip = nullptr;
+
+	Text::draw_text(layout, formatting, textAreaWidth, textXAlignment, VisitorBase {
+		// Helper callback that gets called once per run. Used to set up highlighting metadata.
+		[&](size_t /*lineIndex*/, size_t runIndex) {
+			runHasHighlighting = hasHighlighting && layout.run_contains_char_range(runIndex, selectionStart,
+					selectionEnd);
+
+			if (runHasHighlighting) {
+				highlightRange = layout.get_position_range_in_run(runIndex, selectionStart, selectionEnd);
+				highlightRange.first += positionX;
+				highlightRange.second += positionX;
+				pClip = &highlightRange;
+			}
+			else {
+				highlightRange = {};
+				pClip = nullptr;
+			}
+		},
+		// Callback for all non-stroke glyphs
+		[&](const Text::SingleScriptFont& font, uint32_t glyphIndex, float x, float y, const Color& color) {
+			float offset[2]{};
+			float texCoordExtents[4]{};
+			float glyphSize[2]{};
+			bool glyphHasColor{};
+
+			auto* pGlyphImage = CVars::useMSDF ? g_msdfTextAtlas->get_glyph_info(font, glyphIndex,
+							texCoordExtents, glyphSize, offset, glyphHasColor)
+					: g_textAtlas->get_glyph_info(font, glyphIndex, texCoordExtents, glyphSize, offset,
+							glyphHasColor);
+
+			emit_rect(positionX + x + offset[0], positionY + y + offset[1], glyphSize[0], glyphSize[1],
+					texCoordExtents, pGlyphImage, glyphHasColor ? Color{1.f, 1.f, 1.f, 1.f} : color,
+					CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT, pClip);
+
+			if (CVars::showGlyphOutlines) {
+				emit_rect(positionX + x + offset[0], positionY + y + offset[1], glyphSize[0], glyphSize[1],
+						{0, 0.5f, 0, 1}, PipelineIndex::OUTLINE);
+			}
+		},
+		// Callback for all stroke glyphs
+		[&](const Text::SingleScriptFont& font, uint32_t glyphIndex, float x, float y,
+				const Text::StrokeState& stroke) {
+			float offset[2]{};
+			float texCoordExtents[4]{};
+			float glyphSize[2]{};
+			bool strokeHasColor{};
+
+			auto* pGlyphImage = CVars::useMSDF ? g_msdfTextAtlas->get_stroke_info(font, glyphIndex,
+							stroke.thickness, stroke.joins, texCoordExtents, glyphSize, offset, strokeHasColor)
+					: g_textAtlas->get_stroke_info(font, glyphIndex, stroke.thickness, stroke.joins,
+							texCoordExtents, glyphSize, offset, strokeHasColor);
+
+			emit_rect(positionX + x + offset[0], positionY + y + offset[1], glyphSize[0], glyphSize[1],
+					texCoordExtents, pGlyphImage, stroke.color,
+					CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT);
+		},
+		// Callback for all untextured rects (underline, strikethrough)
+		[&](float x, float y, float width, float height, const Color& color) {
+			emit_rect(positionX + x, positionY + y, width, height, color, PipelineIndex::RECT, pClip);
+		}
+	});
+
+	// Debug render run outlines
+	if (CVars::showRunOutlines) {
+		layout.for_each_run(textAreaWidth, textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
+				auto lineY) {
+			auto* positions = layout.get_run_positions(runIndex);
+			auto minBound = positions[0];
+			auto maxBound = positions[2 * layout.get_run_glyph_count(runIndex)]; 
+			emit_rect(positionX + lineX + minBound,
+					positionY + lineY - layout.get_line_ascent(lineIndex), maxBound - minBound,
+					layout.get_line_height(lineIndex), {0, 0.5f, 0, 1}, PipelineIndex::OUTLINE);
+		});
+	}
+
+	// Debug render glyph boundaries
+	if (CVars::showGlyphBoundaries) {
+		layout.for_each_run(textAreaWidth, textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
+				auto lineY) {
+			auto* positions = layout.get_run_positions(runIndex);
+
+			for (int32_t i = 0; i <= layout.get_run_glyph_count(runIndex); ++i) {
+				emit_rect(positionX + lineX + positions[2 * i],
+						positionY + lineY - layout.get_line_ascent(lineIndex), 0.5f,
+						layout.get_line_height(lineIndex), {0, 0.5f, 0, 1}, PipelineIndex::OUTLINE);
+			}
+		});
+	}
 }
 
 void UIContainer::render() {
