@@ -3,6 +3,8 @@
 #include "iteration_decision.hpp"
 
 #include <memory>
+#include <string>
+#include <string_view>
 
 class UIContainer;
 
@@ -26,11 +28,16 @@ class UIObject : public std::enable_shared_from_this<UIObject> {
 
 		void set_parent(UIObject*);
 		void set_position(float x, float y);
+		void set_name(std::string name);
 		virtual void set_size(float width, float height);
 
 		const float* get_position() const;
 		const float* get_size() const;
 		bool is_mouse_inside(float mouseX, float mouseY) const;
+
+		const std::string& get_name() const;
+
+		UIObject* find_first_child(std::string_view name) const;
 
 		template <typename Functor>
 		IterationDecision for_each_child(Functor&& func);
@@ -52,6 +59,8 @@ class UIObject : public std::enable_shared_from_this<UIObject> {
 		std::shared_ptr<UIObject> m_nextChild{};
 		std::weak_ptr<UIObject> m_prevChild{};
 		std::weak_ptr<UIObject> m_lastChild{};
+
+		std::string m_name{"UIObject"};
 };
 
 template <typename Functor>

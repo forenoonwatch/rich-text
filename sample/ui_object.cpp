@@ -63,6 +63,10 @@ void UIObject::set_position(float x, float y) {
 	m_position[1] = y;
 }
 
+void UIObject::set_name(std::string name) {
+	m_name = std::move(name);
+}
+
 void UIObject::set_size(float width, float height) {
 	m_size[0] = width;
 	m_size[1] = height;
@@ -74,6 +78,25 @@ const float* UIObject::get_position() const {
 
 const float* UIObject::get_size() const {
 	return m_size;
+}
+
+const std::string& UIObject::get_name() const {
+	return m_name;
+}
+
+UIObject* UIObject::find_first_child(std::string_view name) const {
+	UIObject* result = nullptr;
+
+	for_each_child([&](UIObject& child) {
+		if (name.compare(child.get_name()) == 0) {
+			result = &child;
+			return IterationDecision::BREAK;
+		}
+
+		return IterationDecision::CONTINUE;
+	});
+
+	return result;
 }
 
 bool UIObject::is_mouse_inside(float mouseX, float mouseY) const {
