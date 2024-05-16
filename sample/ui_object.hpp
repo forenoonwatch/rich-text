@@ -20,6 +20,9 @@ class UIObject : public std::enable_shared_from_this<UIObject> {
 		virtual bool handle_mouse_move(UIContainer&, double mouseX, double mouseY);
 		virtual bool handle_text_input(UIContainer&, unsigned codepoint);
 
+		virtual void handle_focused(UIContainer&);
+		virtual void handle_focus_lost(UIContainer&);
+
 		UIObject(UIObject&&) = delete;
 		void operator=(UIObject&&) = delete;
 
@@ -36,6 +39,8 @@ class UIObject : public std::enable_shared_from_this<UIObject> {
 		bool is_mouse_inside(float mouseX, float mouseY) const;
 
 		const std::string& get_name() const;
+
+		bool is_focused() const;
 
 		UIObject* find_first_child(std::string_view name) const;
 
@@ -61,6 +66,10 @@ class UIObject : public std::enable_shared_from_this<UIObject> {
 		std::weak_ptr<UIObject> m_lastChild{};
 
 		std::string m_name{"UIObject"};
+
+		bool m_focused{false};
+
+		friend class UIContainer;
 };
 
 template <typename Functor>

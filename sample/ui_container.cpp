@@ -206,12 +206,25 @@ void UIContainer::render() {
 }
 
 bool UIContainer::handle_mouse_button(int button, int action, int mods, double mouseX, double mouseY) {
+	bool focusedOnObject = false;
+
+	// FIXME: should be for_each_descendant_bottom_up
 	auto iterDec = for_each_descendant([&](auto& desc) {
-		return desc.handle_mouse_button(*this, button, action, mods, mouseX, mouseY) ? IterationDecision::BREAK
-				: IterationDecision::CONTINUE;
-		
-		return IterationDecision::CONTINUE;
+		auto iterDec = desc.handle_mouse_button(*this, button, action, mods, mouseX, mouseY)
+				? IterationDecision::BREAK : IterationDecision::CONTINUE;
+
+		// If the object passes through mouse input, consider it unfocused
+		if (action == GLFW_PRESS && button == GLFW_MOUSE_BUTTON_1 && iterDec == IterationDecision::BREAK) {
+			focusedOnObject = true;
+			focus_object(desc);
+		}
+
+		return iterDec;
 	});
+
+	if (action == GLFW_PRESS && button == GLFW_MOUSE_BUTTON_1 && !focusedOnObject) {
+		release_focused_object();
+	}
 
 	return iterDec == IterationDecision::BREAK;
 }
@@ -242,32 +255,38 @@ bool UIContainer::handle_mouse_move(double mouseX, double mouseY) {
 
 bool UIContainer::handle_text_input(unsigned codepoint) {
 	auto iterDec = for_each_descendant([&](auto& desc) {
-		return desc.handle_text_input(*this, codepoint) ? IterationDecision::BREAK : IterationDecision::CONTINUE;
+		return desc.handle_text_input(*this, codepoint)
+			? IterationDecision::BREAK : IterationDecision::CONTINUE;
 	});
 
 	return iterDec == IterationDecision::BREAK;
 }
 
 void UIContainer::handle_focus_lost() {
-	if (auto textBox = m_focusedTextBox.lock()) {
-		static_cast<TextBox&>(*textBox).release_focus(*this);
+	release_focused_object();
+}
+
+void UIContainer::focus_object(UIObject& object) {
+	if (m_focusedObject.lock().get() == &object) {
+		return;
 	}
+
+	release_focused_object();
+
+	m_focusedObject = object.weak_from_this();
+	object.m_focused = true;
+	object.handle_focused(*this);
 }
 
-void UIContainer::focus_text_box(TextBox& textBox) {
-	unfocus_text_box();
-	m_focusedTextBox = textBox.weak_from_this();
-}
+void UIContainer::release_focused_object() {
+	if (auto pObject = m_focusedObject.lock()) {
+		pObject->m_focused = false;
+		pObject->handle_focus_lost(*this);
+	}
 
-void UIContainer::unfocus_text_box() {
-	m_focusedTextBox = {};
-	m_dragSelecting = false;
+	m_focusedObject = {};
 	m_clickCount = 0;
 	m_lastClickPos = {CursorPosition::INVALID_VALUE};
-}
-
-void UIContainer::set_drag_selecting(bool dragSelecting) {
-	m_dragSelecting = dragSelecting;
 }
 
 uint32_t UIContainer::text_box_click(CursorPosition pos) {
@@ -284,10 +303,6 @@ uint32_t UIContainer::text_box_click(CursorPosition pos) {
 	m_lastClickPos = pos;
 
 	return m_clickCount;
-}
-
-bool UIContainer::is_drag_selecting() const {
-	return m_dragSelecting;
 }
 
 void UIContainer::draw_rect_internal(float x, float y, float width, float height, const float* texCoords,

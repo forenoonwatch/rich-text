@@ -20,6 +20,10 @@ bool UIObject::handle_text_input(UIContainer& /*container*/, unsigned /*codepoin
 	return false;
 }
 
+void UIObject::handle_focused(UIContainer& /*container*/) {}
+
+void UIObject::handle_focus_lost(UIContainer& /*container*/) {}
+
 void UIObject::set_parent(UIObject* newParent) {
 	auto oldParent = m_parent.lock();
 
@@ -82,6 +86,10 @@ const float* UIObject::get_size() const {
 
 const std::string& UIObject::get_name() const {
 	return m_name;
+}
+
+bool UIObject::is_focused() const {
+	return m_focused;
 }
 
 UIObject* UIObject::find_first_child(std::string_view name) const {

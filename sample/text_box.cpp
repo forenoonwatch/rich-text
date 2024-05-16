@@ -15,50 +15,44 @@ bool TextBox::handle_mouse_button(UIContainer& container, int button, int action
 		return false;
 	}
 
-	bool mouseInside = is_mouse_inside(mouseX, mouseY);
-
-	if (action == GLFW_PRESS) {
+	if (action == GLFW_PRESS && is_mouse_inside(mouseX, mouseY)) {
 		if (is_focused()) {
-			if (mouseInside) {
-				cursor_move_to_mouse(mouseX - get_position()[0], mouseY - get_position()[1],
-						mods & GLFW_MOD_SHIFT);
+			cursor_move_to_mouse(mouseX - get_position()[0], mouseY - get_position()[1],
+					mods & GLFW_MOD_SHIFT);
 
-				switch (container.text_box_click(m_cursorPosition) % 4) {
-					// Highlight Current Word
-					case 1:
-						cursor_move_to_prev_word(false);
-						cursor_move_to_next_word(true);
-						break;
-					// Highlight Current Line
-					case 2:
-						cursor_move_to_line_start(false);
-						cursor_move_to_line_end(true);
-						break;
-					// Highlight Whole Text
-					case 3:
-						cursor_move_to_text_start(false);
-						cursor_move_to_text_end(true);
-						break;
-					default:
-						break;
-				}
-			}
-			else {
-				release_focus(container);
+			switch (container.text_box_click(m_cursorPosition) % 4) {
+				// Highlight Current Word
+				case 1:
+					cursor_move_to_prev_word(false);
+					cursor_move_to_next_word(true);
+					break;
+				// Highlight Current Line
+				case 2:
+					cursor_move_to_line_start(false);
+					cursor_move_to_line_end(true);
+					break;
+				// Highlight Whole Text
+				case 3:
+					cursor_move_to_text_start(false);
+					cursor_move_to_text_end(true);
+					break;
+				default:
+					break;
 			}
 		}
 		else {
-			capture_focus(container);
+			// FIXME: the recalc_text in handle_focused is now unnecessary I think
+			recalc_text();
 			cursor_move_to_mouse(mouseX - get_position()[0], mouseY - get_position()[1], mods & GLFW_MOD_SHIFT);
 		}
 
-		container.set_drag_selecting(true);
+		m_dragSelecting = true;
 
-		return mouseInside;
+		return true;
 	}
 	else if (action == GLFW_RELEASE) {
 		if (is_focused()) {
-			container.set_drag_selecting(false);
+			m_dragSelecting = false;
 		}
 	}
 
@@ -153,7 +147,7 @@ bool TextBox::handle_key_press(UIContainer& container, int key, int action, int 
 }
 
 bool TextBox::handle_mouse_move(UIContainer& container, double mouseX, double mouseY) {
-	if (is_focused() && container.is_drag_selecting()) {
+	if (is_focused() && m_dragSelecting) {
 		cursor_move_to_mouse(mouseX - get_position()[0], mouseY - get_position()[1], true);
 	}
 
@@ -176,27 +170,13 @@ bool TextBox::handle_text_input(UIContainer&, unsigned codepoint) {
 	return false;
 }
 
-void TextBox::capture_focus(UIContainer& container) {
-	if (is_focused()) {
-		return;
-	}
-
-	m_focused = true;
-
-	container.focus_text_box(*this);
+void TextBox::handle_focused(UIContainer&) {
 	recalc_text();
 }
 
-void TextBox::release_focus(UIContainer& container) {
-	if (!is_focused()) {
-		return;
-	}
-
-	m_focused = false;
-
-	container.unfocus_text_box();
-
+void TextBox::handle_focus_lost(UIContainer&) {
 	m_selectionStart = {CursorPosition::INVALID_VALUE};
+	m_dragSelecting = false;
 	recalc_text();
 }
 
@@ -210,10 +190,6 @@ void TextBox::render(UIContainer& container) {
 		container.emit_rect(get_position()[0] + m_visualCursorInfo.x, get_position()[1] + m_visualCursorInfo.y,
 				1, m_visualCursorInfo.height, cursorColor, PipelineIndex::RECT);
 	}
-}
-
-bool TextBox::is_focused() const {
-	return m_focused;
 }
 
 // Private Methods
@@ -338,7 +314,7 @@ void TextBox::handle_key_enter(UIContainer& container) {
 		insert_text("\n", m_cursorPosition.get_position());
 	}
 	else {
-		release_focus(container);
+		container.release_focused_object();
 	}
 }
 

@@ -15,8 +15,8 @@ class TextBox final : public UIObject {
 		bool handle_mouse_move(UIContainer&, double mouseX, double mouseY) override;
 		bool handle_text_input(UIContainer&, unsigned codepoint) override;
 
-		void capture_focus(UIContainer&);
-		void release_focus(UIContainer&);
+		void handle_focused(UIContainer&) override;
+		void handle_focus_lost(UIContainer&) override;
 
 		void render(UIContainer&) override;
 
@@ -31,8 +31,6 @@ class TextBox final : public UIObject {
 		void set_rich_text(bool);
 		void set_editable(bool);
 		void set_selectable(bool);
-
-		bool is_focused() const;
 	private:
 		Text::Font m_font{};
 		std::string m_text{};
@@ -47,7 +45,7 @@ class TextBox final : public UIObject {
 		bool m_richText = false;
 		bool m_editable = true;
 		bool m_selectable = true;
-		bool m_focused = false;
+		bool m_dragSelecting = false;
 
 		Text::LayoutInfo m_layout;
 		Text::FormattingRuns m_formatting;

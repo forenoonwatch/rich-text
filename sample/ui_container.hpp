@@ -36,14 +36,12 @@ class UIContainer final : public UIObject {
 		void draw_text(const Text::LayoutInfo&, const Text::FormattingRuns&, float x, float y, float width,
 				TextXAlignment, CursorPosition selectionStart = {}, CursorPosition cursorPosition = {});
 
-		std::weak_ptr<UIObject> get_focused_text_box() const;
-	protected:
-		void focus_text_box(TextBox&);
-		void unfocus_text_box();
-		void set_drag_selecting(bool);
-		uint32_t text_box_click(CursorPosition);
+		void focus_object(UIObject&);
+		void release_focused_object();
 
-		bool is_drag_selecting() const;
+		std::weak_ptr<UIObject> get_focused_object() const;
+	protected:
+		uint32_t text_box_click(CursorPosition);
 
 		friend TextBox;
 	private:
@@ -51,12 +49,12 @@ class UIContainer final : public UIObject {
 		Pipeline* m_pipeline{};
 		Image* m_texture{};
 
+		std::weak_ptr<UIObject> m_focusedObject{};
+
 		// TextBox control info
-		std::weak_ptr<UIObject> m_focusedTextBox{};
 		double m_lastClickTime{};
 		uint32_t m_clickCount{};
 		CursorPosition m_lastClickPos{CursorPosition::INVALID_VALUE};
-		bool m_dragSelecting{};
 
 		void draw_rect_internal(float x, float y, float width, float height, const float* texCoords,
 				Image* texture, const Color& color, PipelineIndex pipeline);
