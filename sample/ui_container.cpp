@@ -71,6 +71,32 @@ void UIContainer::emit_rect(float x, float y, float width, float height, const C
 	emit_rect(x, y, width, height, texCoords, g_textAtlas->get_default_texture(), color, pipeline, pClip);
 }
 
+void UIContainer::draw_text(const Text::LayoutInfo& layout, float positionX, float positionY,
+		float textAreaWidth, TextXAlignment textXAlignment, const Color& color) {
+	Text::draw_text(layout, textAreaWidth, textXAlignment, VisitorBase {
+		[&](const Text::SingleScriptFont& font, uint32_t glyphIndex, float x, float y) {
+			float offset[2]{};
+			float texCoordExtents[4]{};
+			float glyphSize[2]{};
+			bool glyphHasColor{};
+
+			auto* pGlyphImage = CVars::useMSDF ? g_msdfTextAtlas->get_glyph_info(font, glyphIndex,
+							texCoordExtents, glyphSize, offset, glyphHasColor)
+					: g_textAtlas->get_glyph_info(font, glyphIndex, texCoordExtents, glyphSize, offset,
+							glyphHasColor);
+
+			emit_rect(positionX + x + offset[0], positionY + y + offset[1], glyphSize[0], glyphSize[1],
+					texCoordExtents, pGlyphImage, glyphHasColor ? Color{1.f, 1.f, 1.f, 1.f} : color,
+					CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT);
+
+			if (CVars::showGlyphOutlines) {
+				emit_rect(positionX + x + offset[0], positionY + y + offset[1], glyphSize[0], glyphSize[1],
+						{0, 0.5f, 0, 1}, PipelineIndex::OUTLINE);
+			}
+		}
+	});
+}
+
 void UIContainer::draw_text(const Text::LayoutInfo& layout, const Text::FormattingRuns& formatting,
 		float positionX, float positionY, float textAreaWidth, TextXAlignment textXAlignment,
 		CursorPosition inSelectionStart, CursorPosition inCursorPosition) {
@@ -192,6 +218,16 @@ void UIContainer::draw_text(const Text::LayoutInfo& layout, const Text::Formatti
 			}
 		});
 	}
+}
+
+void UIContainer::draw_text_immediate(Text::Font font, const Color& color, std::string_view text, float x,
+		float y, float width, float height, TextXAlignment textXAlignment, TextYAlignment textYAlignment) {
+	Text::LayoutInfo layout{};
+	Text::ValueRuns<Text::Font> fontRuns(font, text.size());
+	Text::build_layout_info_utf8(layout, text.data(), text.size(), fontRuns, width, height, textYAlignment,
+			Text::LayoutInfoFlags::NONE);
+
+	draw_text(layout, x, y, width, textXAlignment, color);
 }
 
 void UIContainer::render() {

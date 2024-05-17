@@ -8,6 +8,32 @@
 namespace Text {
 
 template <typename Visitor>
+void draw_text(const LayoutInfo& layout, float textAreaWidth, TextXAlignment textXAlignment,
+		Visitor&& visitor) {
+	uint32_t glyphIndex{};
+	uint32_t glyphPosIndex{};
+	auto* glyphPositions = layout.get_glyph_position_data();
+
+	layout.for_each_run(textAreaWidth, textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
+			auto lineY) {
+		auto font = layout.get_run_font(runIndex);
+		auto fontData = Text::FontRegistry::get_font_data(font);
+
+		for (auto glyphEndIndex = layout.get_run_glyph_end_index(runIndex); glyphIndex < glyphEndIndex; 
+				++glyphIndex, glyphPosIndex += 2) {
+			auto pX = glyphPositions[glyphPosIndex];
+			auto pY = glyphPositions[glyphPosIndex + 1];
+			auto glyphID = layout.get_glyph_id(glyphIndex);
+
+			// Main Glyph
+			visitor(font, glyphID, lineX + pX, lineY + pY);
+		}
+
+		glyphPosIndex += 2;
+	});
+}
+
+template <typename Visitor>
 void draw_text(const LayoutInfo& layout, const FormattingRuns& formatting, float textAreaWidth,
 		TextXAlignment textXAlignment, Visitor&& visitor) {
 	uint32_t glyphIndex{};

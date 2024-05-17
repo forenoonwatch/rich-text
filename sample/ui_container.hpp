@@ -2,6 +2,7 @@
 
 #include "color.hpp"
 #include "cursor_position.hpp"
+#include "font.hpp"
 #include "pair.hpp"
 #include "pipeline.hpp"
 #include "text_alignment.hpp"
@@ -33,8 +34,13 @@ class UIContainer final : public UIObject {
 		void emit_rect(float x, float y, float width, float height, const Color& color, PipelineIndex pipeline,
 				const Text::Pair<float, float>* pClip = nullptr);
 
+		void draw_text(const Text::LayoutInfo&, float x, float y, float width, TextXAlignment,
+				const Color& color);
 		void draw_text(const Text::LayoutInfo&, const Text::FormattingRuns&, float x, float y, float width,
 				TextXAlignment, CursorPosition selectionStart = {}, CursorPosition cursorPosition = {});
+
+		void draw_text_immediate(Text::Font font, const Color& color, std::string_view text, float x, float y,
+				float width, float height, TextXAlignment, TextYAlignment);
 
 		void focus_object(UIObject&);
 		void release_focused_object();
