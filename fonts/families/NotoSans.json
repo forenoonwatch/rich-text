@@ -8,6 +8,7 @@
 		"Noto Sans Egyptian Hieroglyphs"
 	],
 	"fallback_families": [
+		"Noto Sans Symbols",
 		"Twemoji"
 	],
 	"faces": [

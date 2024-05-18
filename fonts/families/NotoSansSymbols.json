@@ -1,0 +1,11 @@
+{
+	"name": "Noto Sans Symbols",
+	"faces": [
+		{
+			"name": "Noto Sans Symbols",
+			"uri": "fonts/NotoSans/NotoSansSymbols2-Regular.ttf",
+			"weight": 400,
+			"style": "normal"
+		}
+	]
+}
