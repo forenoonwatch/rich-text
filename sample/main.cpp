@@ -1,7 +1,6 @@
 #include <cstdio>
 
 #include "file_read_bytes.hpp"
-#include "text_box.hpp"
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -10,9 +9,16 @@
 #include "pipeline.hpp"
 #include "text_atlas.hpp"
 #include "msdf_text_atlas.hpp"
+
+#include "text_box.hpp"
+#include "tool_bar.hpp"
+#include "tool_bar_menu.hpp"
+#include "tool_bar_menu_item.hpp"
 #include "ui_container.hpp"
 
 #include "font_registry.hpp"
+
+#include "config_vars.hpp"
 
 static int g_width = 640;
 static int g_height = 480;
@@ -27,6 +33,8 @@ static void on_focus_event(GLFWwindow* window, int focused);
 static void on_resize(GLFWwindow* window, int width, int height);
 
 static void render(UIContainer& container);
+
+static void set_up_toolbar(UIContainer& container);
 
 static void GLAPIENTRY gl_message_callback(GLenum source, GLenum type, GLuint id, GLenum severity,
 		GLsizei length, const GLchar* message, const void* userParam) {
@@ -69,12 +77,15 @@ int main() {
 	g_msdfTextAtlas = new MSDFTextAtlas;
 
 	auto textBox = TextBox::create();
-	textBox->set_position(INSET, 0.f);
+	textBox->set_name("TextBox");
 	textBox->set_rich_text(true);
-	textBox->set_font(std::move(font));
-	textBox->set_size(g_width - 2 * INSET, g_height - INSET);
+	textBox->set_font(font);
+	textBox->set_position(INSET, ToolBar::TOOL_BAR_HEIGHT);
+	textBox->set_size(g_width - 2 * INSET, g_height - INSET - ToolBar::TOOL_BAR_HEIGHT);
 	textBox->set_parent(container.get());
 
+	set_up_toolbar(*container);
+	
 	{
 		std::vector<char> fileData;
 		if (fileData = file_read_bytes("Sample.txt"); !fileData.empty()) {
@@ -158,15 +169,52 @@ static void on_resize(GLFWwindow* window, int width, int height) {
 
 	pContainer->set_size(static_cast<float>(width), static_cast<float>(height));
 
-	pContainer->for_each_child([&](auto& child) {
-		child.set_size(static_cast<float>(width) - 2 * INSET, static_cast<float>(height) - INSET);
-		return IterationDecision::CONTINUE;
-	});
+	if (auto* pTextBox = pContainer->find_first_child("TextBox")) {
+		pTextBox->set_size(static_cast<float>(width) - 2 * INSET, static_cast<float>(height) - INSET);
+	}
+
+	if (auto* pToolBar = pContainer->find_first_child("ToolBar")) {
+		pToolBar->set_size(static_cast<float>(width), ToolBar::TOOL_BAR_HEIGHT);
+	}
 }
 
 static void render(UIContainer& container) {
 	glClearColor(1.f, 1.f, 1.f, 1.f);
 	glClear(GL_COLOR_BUFFER_BIT);
 	container.render();
+}
+
+static void set_up_toolbar(UIContainer& container) {
+	auto toolBar = ToolBar::create(g_width);
+	toolBar->set_name("ToolBar");
+	toolBar->set_parent(&container);
+
+	auto formatMenu = toolBar->add_menu("Format");
+
+	auto itemUseMSDF = formatMenu->add_item("UseMSDF", "Use MSDF");
+	itemUseMSDF->set_clicked_callback([](auto& btn) {
+		btn.set_selected(!btn.is_selected());
+		CVars::useMSDF = btn.is_selected();
+	});
+
+	auto viewMenu = toolBar->add_menu("View");
+
+	auto itemShowGlyphOutlines = viewMenu->add_item("ShowGlyphOutlines", "Show Glyph Outlines");
+	itemShowGlyphOutlines->set_clicked_callback([](auto& btn) {
+		btn.set_selected(!btn.is_selected());
+		CVars::showGlyphOutlines = btn.is_selected();
+	});
+
+	auto itemShowRunOutlines = viewMenu->add_item("ShowRunOutlines", "Show Run Outlines");
+	itemShowRunOutlines->set_clicked_callback([](auto& btn) {
+		btn.set_selected(!btn.is_selected());
+		CVars::showRunOutlines = btn.is_selected();
+	});
+
+	auto itemShowGlyphBoundaries = viewMenu->add_item("ShowGlyphBoundaries", "Show Glyph Boundaries");
+	itemShowGlyphBoundaries->set_clicked_callback([](auto& btn) {
+		btn.set_selected(!btn.is_selected());
+		CVars::showGlyphBoundaries = btn.is_selected();
+	});
 }
 

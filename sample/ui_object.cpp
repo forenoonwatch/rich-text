@@ -1,7 +1,6 @@
 #include "ui_object.hpp"
 
-void UIObject::render(UIContainer& /*container*/) {
-}
+void UIObject::render(UIContainer& /*container*/) {}
 
 bool UIObject::handle_mouse_button(UIContainer& /*container*/, int /*button*/, int /*action*/, int /*mods*/,
 		double /*mouseX*/, double /*mouseY*/) {
@@ -23,6 +22,10 @@ bool UIObject::handle_text_input(UIContainer& /*container*/, unsigned /*codepoin
 void UIObject::handle_focused(UIContainer& /*container*/) {}
 
 void UIObject::handle_focus_lost(UIContainer& /*container*/) {}
+
+void UIObject::handle_mouse_enter(UIContainer& /*container*/, double /*mouseX*/, double /*mouseY*/) {}
+
+void UIObject::handle_mouse_leave(UIContainer& /*container*/) {}
 
 void UIObject::set_parent(UIObject* newParent) {
 	auto oldParent = m_parent.lock();
@@ -60,11 +63,14 @@ void UIObject::set_parent(UIObject* newParent) {
 
 		newParent->m_lastChild = weak_from_this();
 	}
+
+	recalc_absolute_dimensions();
 }
 
 void UIObject::set_position(float x, float y) {
 	m_position[0] = x;
 	m_position[1] = y;
+	recalc_absolute_dimensions();
 }
 
 void UIObject::set_name(std::string name) {
@@ -74,10 +80,23 @@ void UIObject::set_name(std::string name) {
 void UIObject::set_size(float width, float height) {
 	m_size[0] = width;
 	m_size[1] = height;
+	recalc_absolute_dimensions();
+}
+
+void UIObject::set_visible(bool visible) {
+	m_visible = visible;
+}
+
+std::shared_ptr<UIObject> UIObject::get_parent() const {
+	return m_parent.lock();
 }
 
 const float* UIObject::get_position() const {
 	return m_position;
+}
+
+const float* UIObject::get_absolute_position() const {
+	return m_absolutePosition;
 }
 
 const float* UIObject::get_size() const {
@@ -86,6 +105,21 @@ const float* UIObject::get_size() const {
 
 const std::string& UIObject::get_name() const {
 	return m_name;
+}
+
+std::string UIObject::get_full_name() const {
+	std::string result = m_name;
+
+	for_each_ancestor([&](auto& anc) {
+		result = anc.get_name() + "." + result;
+		return IterationDecision::CONTINUE;
+	});
+
+	return result;
+}
+
+bool UIObject::is_visible() const {
+	return m_visible;
 }
 
 bool UIObject::is_focused() const {
@@ -108,7 +142,36 @@ UIObject* UIObject::find_first_child(std::string_view name) const {
 }
 
 bool UIObject::is_mouse_inside(float mouseX, float mouseY) const {
-	return mouseX >= m_position[0] && mouseY >= m_position[1] && mouseX - m_position[0] <= m_size[0]
-			&& mouseY - m_position[1] <= m_size[1];
+	return mouseX >= m_absolutePosition[0] && mouseY >= m_absolutePosition[1]
+			&& mouseX - m_absolutePosition[0] <= m_size[0] && mouseY - m_absolutePosition[1] <= m_size[1];
+}
+
+void UIObject::recalc_absolute_dimensions() {
+	if (auto pParent = m_parent.lock()) {
+		m_absolutePosition[0] = pParent->m_absolutePosition[0] + m_position[0];
+		m_absolutePosition[1] = pParent->m_absolutePosition[1] + m_position[1];
+	}
+	else {
+		m_absolutePosition[0] = m_position[0];
+		m_absolutePosition[1] = m_position[1];
+	}
+
+	for_each_descendant([](auto& desc) {
+		desc.recalc_absolute_dimensions();
+		return IterationDecision::CONTINUE;
+	});
+}
+
+void UIObject::render_internal(UIContainer& container) {
+	if (!m_visible) {
+		return;
+	}
+
+	render(container);
+
+	for_each_child([&](auto& child) {
+		child.render_internal(container);
+		return IterationDecision::CONTINUE;
+	});
 }
 

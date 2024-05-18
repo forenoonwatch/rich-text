@@ -17,7 +17,7 @@ bool TextBox::handle_mouse_button(UIContainer& container, int button, int action
 
 	if (action == GLFW_PRESS && is_mouse_inside(mouseX, mouseY)) {
 		if (is_focused()) {
-			cursor_move_to_mouse(mouseX - get_position()[0], mouseY - get_position()[1],
+			cursor_move_to_mouse(mouseX - get_absolute_position()[0], mouseY - get_absolute_position()[1],
 					mods & GLFW_MOD_SHIFT);
 
 			switch (container.text_box_click(m_cursorPosition) % 4) {
@@ -43,7 +43,8 @@ bool TextBox::handle_mouse_button(UIContainer& container, int button, int action
 		else {
 			// FIXME: the recalc_text in handle_focused is now unnecessary I think
 			recalc_text();
-			cursor_move_to_mouse(mouseX - get_position()[0], mouseY - get_position()[1], mods & GLFW_MOD_SHIFT);
+			cursor_move_to_mouse(mouseX - get_absolute_position()[0], mouseY - get_absolute_position()[1],
+					mods & GLFW_MOD_SHIFT);
 		}
 
 		m_dragSelecting = true;
@@ -148,7 +149,7 @@ bool TextBox::handle_key_press(UIContainer& container, int key, int action, int 
 
 bool TextBox::handle_mouse_move(UIContainer& container, double mouseX, double mouseY) {
 	if (is_focused() && m_dragSelecting) {
-		cursor_move_to_mouse(mouseX - get_position()[0], mouseY - get_position()[1], true);
+		cursor_move_to_mouse(mouseX - get_absolute_position()[0], mouseY - get_absolute_position()[1], true);
 	}
 
 	return false;
@@ -181,13 +182,13 @@ void TextBox::handle_focus_lost(UIContainer&) {
 }
 
 void TextBox::render(UIContainer& container) {
-	container.draw_text(m_layout, m_formatting, get_position()[0], get_position()[1], get_size()[0],
+	container.draw_text(m_layout, m_formatting, get_absolute_position()[0], get_absolute_position()[1], get_size()[0],
 			m_textXAlignment, m_selectionStart, m_cursorPosition);
 
 	// Draw Cursor
 	if (is_focused()) {
 		Color cursorColor{0, 0, 0, 1};
-		container.emit_rect(get_position()[0] + m_visualCursorInfo.x, get_position()[1] + m_visualCursorInfo.y,
+		container.emit_rect(get_absolute_position()[0] + m_visualCursorInfo.x, get_absolute_position()[1] + m_visualCursorInfo.y,
 				1, m_visualCursorInfo.height, cursorColor, PipelineIndex::RECT);
 	}
 }

@@ -235,8 +235,8 @@ void UIContainer::render() {
 	m_pipeline = nullptr;
 	m_texture = nullptr;
 
-	for_each_descendant([&](auto& desc) {
-		desc.render(*this);
+	for_each_child([this](auto& child) {
+		child.render_internal(*this);
 		return IterationDecision::CONTINUE;
 	});
 }
@@ -244,8 +244,9 @@ void UIContainer::render() {
 bool UIContainer::handle_mouse_button(int button, int action, int mods, double mouseX, double mouseY) {
 	bool focusedOnObject = false;
 
-	// FIXME: should be for_each_descendant_bottom_up
-	auto iterDec = for_each_descendant([&](auto& desc) {
+	m_mouseButtonsDown[button] = action != GLFW_RELEASE;
+
+	auto iterDec = for_each_descendant_bottom_up([&](auto& desc) {
 		auto iterDec = desc.handle_mouse_button(*this, button, action, mods, mouseX, mouseY)
 				? IterationDecision::BREAK : IterationDecision::CONTINUE;
 
@@ -266,7 +267,7 @@ bool UIContainer::handle_mouse_button(int button, int action, int mods, double m
 }
 
 bool UIContainer::handle_key_press(int key, int action, int mods, double mouseX, double mouseY) {
-	auto iterDec = for_each_descendant([&](auto& desc) {
+	auto iterDec = for_each_descendant_bottom_up([&](auto& desc) {
 		if (desc.is_mouse_inside(mouseX, mouseY)) {
 			return desc.handle_key_press(*this, key, action, mods) ? IterationDecision::BREAK
 					: IterationDecision::CONTINUE;
@@ -279,12 +280,30 @@ bool UIContainer::handle_key_press(int key, int action, int mods, double mouseX,
 }
 
 bool UIContainer::handle_mouse_move(double mouseX, double mouseY) {
+	m_mouseX = mouseX;
+	m_mouseY = mouseY;
+
+	UIObject* pHoveredObject = nullptr;
+
 	auto iterDec = for_each_descendant([&](auto& desc) {
+		if (desc.is_mouse_inside(mouseX, mouseY)) {
+			pHoveredObject = &desc;
+		}
+
 		return desc.handle_mouse_move(*this, mouseX, mouseY) ? IterationDecision::BREAK
 				: IterationDecision::CONTINUE;
-		
-		return IterationDecision::CONTINUE;
 	});
+
+	auto pLastHoveredObject = m_hoveredObject.lock();
+
+	if (pLastHoveredObject.get() && pLastHoveredObject.get() != pHoveredObject) {
+		pLastHoveredObject->handle_mouse_leave(*this);
+	}
+
+	if (pHoveredObject) {
+		pHoveredObject->handle_mouse_enter(*this, mouseX, mouseY);
+		m_hoveredObject = pHoveredObject->weak_from_this();
+	}
 
 	return iterDec == IterationDecision::BREAK;
 }
@@ -323,6 +342,18 @@ void UIContainer::release_focused_object() {
 	m_focusedObject = {};
 	m_clickCount = 0;
 	m_lastClickPos = {CursorPosition::INVALID_VALUE};
+}
+
+double UIContainer::get_mouse_x() const {
+	return m_mouseX;
+}
+
+double UIContainer::get_mouse_y() const {
+	return m_mouseY;
+}
+
+bool UIContainer::is_mouse_button_down(int mouseButton) const {
+	return m_mouseButtonsDown[mouseButton];
 }
 
 uint32_t UIContainer::text_box_click(CursorPosition pos) {

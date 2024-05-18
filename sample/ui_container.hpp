@@ -8,6 +8,8 @@
 #include "text_alignment.hpp"
 #include "ui_object.hpp"
 
+#include <bitset>
+
 class TextBox;
 
 namespace Text { struct FormattingRuns; }
@@ -46,6 +48,11 @@ class UIContainer final : public UIObject {
 		void release_focused_object();
 
 		std::weak_ptr<UIObject> get_focused_object() const;
+
+		double get_mouse_x() const;
+		double get_mouse_y() const;
+
+		bool is_mouse_button_down(int mouseButton) const;
 	protected:
 		uint32_t text_box_click(CursorPosition);
 
@@ -56,6 +63,12 @@ class UIContainer final : public UIObject {
 		Image* m_texture{};
 
 		std::weak_ptr<UIObject> m_focusedObject{};
+		std::weak_ptr<UIObject> m_hoveredObject{};
+
+		double m_mouseX{};
+		double m_mouseY{};
+
+		std::bitset<8> m_mouseButtonsDown;
 
 		// TextBox control info
 		double m_lastClickTime{};
