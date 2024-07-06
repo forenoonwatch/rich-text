@@ -48,7 +48,7 @@ struct FontFamily {
 	}
 };
 
-struct FontFace {
+struct FaceDataHandle {
 	static constexpr const FaceIndex_T INVALID_FACE = static_cast<FaceIndex_T>(~0u);
 
 	FaceIndex_T handle{INVALID_FACE};
@@ -57,11 +57,11 @@ struct FontFace {
 	FontWeight sourceWeight: 4 {FontWeight::REGULAR};
 	FontStyle sourceStyle: 2 {FontStyle::NORMAL};
 
-	constexpr bool operator==(const FontFace& other) const {
+	constexpr bool operator==(const FaceDataHandle& other) const {
 		return handle == other.handle && sourceWeight == other.sourceWeight && sourceStyle == other.sourceStyle;
 	}
 
-	constexpr bool operator!=(const FontFace& other) const {
+	constexpr bool operator!=(const FaceDataHandle& other) const {
 		return !(*this == other);
 	}
 

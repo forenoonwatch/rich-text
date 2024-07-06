@@ -52,7 +52,7 @@ namespace Text::FontRegistry {
  *
  * @thread_safety Thread safe, may block internally.
  */
-[[nodiscard]] FontFace get_face(Font font);
+[[nodiscard]] FaceDataHandle get_face(Font font);
 
 /**
  * Gets a generic SingleScriptFont utilizing any valid sub-font of the given Font for use in getting a
@@ -69,8 +69,8 @@ namespace Text::FontRegistry {
  *
  * @thread_safety Thread safe, see `FontData` for caveats about threading and lifetimes with the returned object.
  */
-[[nodiscard]] FontData get_font_data(FontFace, uint32_t size, FontWeight targetWeight, FontStyle targetStyle,
-		bool syntheticSmallCaps, bool syntheticSubscript, bool syntheticSuperscript);
+[[nodiscard]] FontData get_font_data(FaceDataHandle, uint32_t size, FontWeight targetWeight,
+		FontStyle targetStyle, bool syntheticSmallCaps, bool syntheticSubscript, bool syntheticSuperscript);
 [[nodiscard]] FontData get_font_data(Font);
 [[nodiscard]] FontData get_font_data(SingleScriptFont);
 

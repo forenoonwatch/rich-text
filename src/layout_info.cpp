@@ -93,7 +93,7 @@ void LayoutInfo::set_text_start_y(float textStartY) {
 	m_textStartY = textStartY;
 }
 
-VisualCursorInfo LayoutInfo::calc_cursor_pixel_pos(float textWidth, TextXAlignment textXAlignment,
+VisualCursorInfo LayoutInfo::calc_cursor_pixel_pos(float textWidth, XAlignment textXAlignment,
 		CursorPosition cursor) const {
 	size_t lineIndex;
 	auto runIndex = get_run_containing_cursor(cursor, lineIndex);
@@ -183,22 +183,22 @@ CursorPosition LayoutInfo::get_line_end_position(size_t lineIndex) const {
 			: m_visualRuns[highestRun].charEndIndex, oppositeAffinity);
 }
 
-float LayoutInfo::get_line_x_start(size_t lineNumber, float textWidth, TextXAlignment align) const {
+float LayoutInfo::get_line_x_start(size_t lineNumber, float textWidth, XAlignment align) const {
 	auto lineWidth = m_lines[lineNumber].width;
 
 	switch (align) {
-		case TextXAlignment::LEFT:
+		case XAlignment::LEFT:
 			return 0.f;
-		case TextXAlignment::RIGHT:
+		case XAlignment::RIGHT:
 			return textWidth - lineWidth;
-		case TextXAlignment::CENTER:
+		case XAlignment::CENTER:
 			return 0.5f * (textWidth - lineWidth);
 	}
 
 	RICHTEXT_UNREACHABLE();
 }
 
-CursorPosition LayoutInfo::find_closest_cursor_position(float textWidth, TextXAlignment textXAlignment,
+CursorPosition LayoutInfo::find_closest_cursor_position(float textWidth, XAlignment textXAlignment,
 		icu::BreakIterator& iter, size_t lineNumber, float cursorX) const {
 	cursorX -= get_line_x_start(lineNumber, textWidth, textXAlignment);
 

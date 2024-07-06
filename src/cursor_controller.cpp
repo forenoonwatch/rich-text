@@ -116,12 +116,12 @@ CursorPosition CursorController::prev_word(CursorPosition cursor) {
 }
 
 CursorPosition CursorController::closest_in_line(const LayoutInfo& layout, float textAreaWidth,
-		TextXAlignment textXAlignment, size_t lineIndex, float posX) {
+		XAlignment textXAlignment, size_t lineIndex, float posX) {
 	return layout.find_closest_cursor_position(textAreaWidth, textXAlignment, *m_iter, lineIndex, posX);
 }
 
 CursorPosition CursorController::closest_to_position(const LayoutInfo& layout, float textAreaWidth,
-		TextXAlignment textXAlignment, float posX, float posY) {
+		XAlignment textXAlignment, float posX, float posY) {
 	auto lineIndex = layout.get_closest_line_to_height(posY);
 
 	if (lineIndex == layout.get_line_count()) {

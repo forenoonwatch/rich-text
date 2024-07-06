@@ -2,15 +2,19 @@
 
 #include <cstdint>
 
-enum class TextXAlignment : uint8_t {
+namespace Text {
+
+enum class XAlignment : uint8_t {
 	LEFT,
 	RIGHT,
 	CENTER
 };
 
-enum class TextYAlignment : uint8_t {
+enum class YAlignment : uint8_t {
 	TOP,
 	CENTER,
 	BOTTOM
 };
+
+}
 

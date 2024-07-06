@@ -61,7 +61,7 @@ class LayoutInfo {
 		 * @param textXAlignment The X alignment of the paragraph text
 		 * @param cursorPosition The position of the cursor
 		 */
-		VisualCursorInfo calc_cursor_pixel_pos(float textWidth, TextXAlignment textXAlignment,
+		VisualCursorInfo calc_cursor_pixel_pos(float textWidth, XAlignment textXAlignment,
 				CursorPosition cursorPosition) const;
 
 		/**
@@ -85,10 +85,10 @@ class LayoutInfo {
 		CursorPosition get_line_start_position(size_t lineIndex) const;
 		CursorPosition get_line_end_position(size_t lineIndex) const;
 
-		CursorPosition find_closest_cursor_position(float textWidth, TextXAlignment, icu::BreakIterator&,
+		CursorPosition find_closest_cursor_position(float textWidth, XAlignment, icu::BreakIterator&,
 				size_t lineNumber, float cursorX) const;
 
-		float get_line_x_start(size_t lineIndex, float textWidth, TextXAlignment) const;
+		float get_line_x_start(size_t lineIndex, float textWidth, XAlignment) const;
 
 		/**
 		 * Whether the range [firstCharIndex, lastCharIndex) intersect's the run's [charStartIndex, charEndIndex)
@@ -146,11 +146,11 @@ class LayoutInfo {
 		size_t get_glyph_position_data_count() const;
 
 		template <typename Functor>
-		void for_each_line(float textWidth, TextXAlignment textXAlignment, Functor&& func) const;
+		void for_each_line(float textWidth, XAlignment textXAlignment, Functor&& func) const;
 		template <typename Functor>
-		void for_each_run(float textWidth, TextXAlignment textXAlignment, Functor&& func) const;
+		void for_each_run(float textWidth, XAlignment textXAlignment, Functor&& func) const;
 		template <typename Functor>
-		void for_each_glyph(float textWidth, TextXAlignment textXAlignment, Functor&& func) const;
+		void for_each_glyph(float textWidth, XAlignment textXAlignment, Functor&& func) const;
 	private:
 		struct VisualRun {
 			SingleScriptFont font;
@@ -186,21 +186,21 @@ class LayoutInfo {
  */
 void build_layout_info_icu_lx(LayoutInfo& result, const char16_t* chars, int32_t count,
 		const ValueRuns<Font>& fontRuns, float textAreaWidth, float textAreaHeight,
-		TextYAlignment textYAlignment, LayoutInfoFlags flags);
+		YAlignment textYAlignment, LayoutInfoFlags flags);
 
 /**
  * @brief Builds the paragraph layout using direct calls to ubidi.h and usc_impl.h run calculation functions
  */
 void build_layout_info_icu(LayoutInfo& result, const char16_t* chars, int32_t count,
 		const ValueRuns<Font>& fontRuns, float textAreaWidth, float textAreaHeight,
-		TextYAlignment textYAlignment, LayoutInfoFlags flags);
+		YAlignment textYAlignment, LayoutInfoFlags flags);
 
 /**
  * @brief Builds the paragraph layout using UTF-8 APIs
  */
 void build_layout_info_utf8(LayoutInfo& result, const char* chars, int32_t count,
 		const ValueRuns<Font>& fontRuns, float textAreaWidth, float textAreaHeight,
-		TextYAlignment textYAlignment, LayoutInfoFlags flags, const ValueRuns<bool>* pSmallcapsRuns = nullptr,
+		YAlignment textYAlignment, LayoutInfoFlags flags, const ValueRuns<bool>* pSmallcapsRuns = nullptr,
 		const ValueRuns<bool>* pSubscriptRuns = nullptr, const ValueRuns<bool>* pSuperscriptRuns = nullptr);
 
 /**
@@ -212,7 +212,7 @@ void convert_layout_info_to_utf8(const LayoutInfo& src, LayoutInfo& result, cons
 }
 
 template <typename Functor>
-void Text::LayoutInfo::for_each_line(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
+void Text::LayoutInfo::for_each_line(float textWidth, XAlignment textXAlignment, Functor&& func) const {
 	auto lineY = m_textStartY;
 
 	for (size_t i = 0; i < m_lines.size(); ++i) {
@@ -223,7 +223,7 @@ void Text::LayoutInfo::for_each_line(float textWidth, TextXAlignment textXAlignm
 }
 
 template <typename Functor>
-void Text::LayoutInfo::for_each_run(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
+void Text::LayoutInfo::for_each_run(float textWidth, XAlignment textXAlignment, Functor&& func) const {
 	uint32_t runIndex{};
 
 	for_each_line(textWidth, textXAlignment, [&](auto lineIndex, auto lineX, auto lineY) {
@@ -234,7 +234,7 @@ void Text::LayoutInfo::for_each_run(float textWidth, TextXAlignment textXAlignme
 }
 
 template <typename Functor>
-void Text::LayoutInfo::for_each_glyph(float textWidth, TextXAlignment textXAlignment, Functor&& func) const {
+void Text::LayoutInfo::for_each_glyph(float textWidth, XAlignment textXAlignment, Functor&& func) const {
 	uint32_t glyphIndex{};
 	uint32_t glyphPosIndex{};
 

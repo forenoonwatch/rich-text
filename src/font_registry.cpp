@@ -53,13 +53,13 @@ struct FaceData {
 };
 
 struct FamilyData {
-	FontFace lookup[WEIGHT_COUNT][STYLE_COUNT]{};
+	FaceDataHandle lookup[WEIGHT_COUNT][STYLE_COUNT]{};
 	std::vector<FontFamily> linkedFamilies;
 	std::vector<FontFamily> fallbackFamilies;
 	std::bitset<USCRIPT_CODE_LIMIT> scripts;
 	bool initialized{};
 
-	FontFace get_face(FontWeight weight, FontStyle style) const {
+	FaceDataHandle get_face(FontWeight weight, FontStyle style) const {
 		return lookup[static_cast<size_t>(weight)][static_cast<size_t>(style)];
 	}
 
@@ -171,7 +171,7 @@ thread_local FontContext t_fontContext;
 static std::shared_mutex g_mutex;
 
 static std::vector<FaceData> g_faces;
-static std::unordered_map<std::string, FontFace, StringHash, std::equal_to<>> g_facesByName;
+static std::unordered_map<std::string, FaceDataHandle, StringHash, std::equal_to<>> g_facesByName;
 
 static std::vector<FamilyData> g_familyData;
 static std::unordered_map<std::string, FontFamily, StringHash, std::equal_to<>> g_familiesByName;
@@ -185,17 +185,17 @@ static bool family_is_initialized(FontFamily family);
 static std::bitset<USCRIPT_CODE_LIMIT>& family_get_scripts(FontFamily family);
 static std::vector<FontFamily>& family_get_linked(FontFamily family);
 static std::vector<FontFamily>& family_get_fallback(FontFamily family);
-static FontFace family_get_face(FontFamily family, FontWeight weight, FontStyle style);
+static FaceDataHandle family_get_face(FontFamily family, FontWeight weight, FontStyle style);
 
 static SingleScriptFont get_sub_font(Text::Font font, UText& iter, int32_t& offset, int32_t limit,
 		UScriptCode script, bool smallcaps, bool subscript, bool superscript);
 
 static FontFamily get_or_add_family(const std::string_view& name);
-static FontFace get_or_add_face(const FontFaceCreateInfo& faceInfo);
+static FaceDataHandle get_or_add_face(const FontFaceCreateInfo& faceInfo);
 
-static FontFace get_font_for_script(FontFamily family, FontWeight weight, FontStyle style,
+static FaceDataHandle get_font_for_script(FontFamily family, FontWeight weight, FontStyle style,
 		UScriptCode script);
-static FontFace find_compatible_font(Text::Font font, uint32_t codepoint, FontFace baseFont,
+static FaceDataHandle find_compatible_font(Text::Font font, uint32_t codepoint, FaceDataHandle baseFont,
 		const std::vector<FontFamily>& fallbackFamilies, FontData& fontData);
 
 // Public Functions
@@ -210,7 +210,7 @@ FontFamily FontRegistry::get_family(std::string_view name) {
 	return {};
 }
 
-FontFace FontRegistry::get_face(Font font) {
+FaceDataHandle FontRegistry::get_face(Font font) {
 	std::shared_lock lock(g_mutex);
 	assert(font && "FontRegistry::get_face must be called with a valid font");
 	return g_familyData[font.get_family().handle].get_face(font.get_weight(), font.get_style());
@@ -242,7 +242,7 @@ FontData FontRegistry::get_font_data(SingleScriptFont font) {
 			font.syntheticSubscript, font.syntheticSuperscript);
 }
 
-FontData FontRegistry::get_font_data(FontFace face, uint32_t size, FontWeight targetWeight,
+FontData FontRegistry::get_font_data(FaceDataHandle face, uint32_t size, FontWeight targetWeight,
 		FontStyle targetStyle, bool syntheticSmallCaps, bool syntheticSubscript, bool syntheticSuperscript) {
 	auto effectiveSize = calc_effective_font_size(size, syntheticSmallCaps,
 			syntheticSubscript || syntheticSuperscript);
@@ -350,7 +350,7 @@ FontRegistryError FontRegistry::register_family(const FontFamilyCreateInfo& fami
 	}
 
 	auto& faceLookup = g_familyData[family.handle].lookup;
-	FontFace defaultFace{};
+	FaceDataHandle defaultFace{};
 
 	for (uint32_t i = 0; i < familyInfo.faceCount; ++i) {
 		auto& faceInfo = familyInfo.pFaces[i];
@@ -413,7 +413,7 @@ static std::vector<FontFamily>& family_get_fallback(FontFamily family) {
 	return g_familyData[family.handle].fallbackFamilies;
 }
 
-static FontFace family_get_face(FontFamily family, FontWeight weight, FontStyle style) {
+static FaceDataHandle family_get_face(FontFamily family, FontWeight weight, FontStyle style) {
 	return g_familyData[family.handle].get_face(weight, style);
 }
 
@@ -482,7 +482,7 @@ static SingleScriptFont get_sub_font(Text::Font font, UText& iter, int32_t& offs
 
 	// First, find the first font that is able to render a char from the string.
 
-	FontFace targetFace{};
+	FaceDataHandle targetFace{};
 	FontData fontData;
 
 	for (;;) {
@@ -548,12 +548,12 @@ static FontFamily get_or_add_family(const std::string_view& name) {
 	return result;
 }
 
-static FontFace get_or_add_face(const FontFaceCreateInfo& faceInfo) {
+static FaceDataHandle get_or_add_face(const FontFaceCreateInfo& faceInfo) {
 	if (auto it = g_facesByName.find(faceInfo.name); it != g_facesByName.end()) {
 		return it->second;
 	}
 
-	FontFace result{
+	FaceDataHandle result{
 		.handle = static_cast<FaceIndex_T>(g_faces.size()),
 		.sourceWeight = faceInfo.weight,
 		.sourceStyle = faceInfo.style,
@@ -565,7 +565,7 @@ static FontFace get_or_add_face(const FontFaceCreateInfo& faceInfo) {
 	return result;
 }
 
-static FontFace get_font_for_script(FontFamily family, FontWeight weight, FontStyle style,
+static FaceDataHandle get_font_for_script(FontFamily family, FontWeight weight, FontStyle style,
 		UScriptCode script) {
 	if (g_familyData[family.handle].has_script(script)) {
 		return family_get_face(family, weight, style);
@@ -583,16 +583,16 @@ static FontFace get_font_for_script(FontFamily family, FontWeight weight, FontSt
 	return family_get_face(family, weight, style);
 }
 
-static FontFace find_compatible_font(Text::Font font, uint32_t codepoint, FontFace baseFont,
+static FaceDataHandle find_compatible_font(Text::Font font, uint32_t codepoint, FaceDataHandle baseFont,
 		const std::vector<FontFamily>& fallbackFamilies, FontData& fontData) {
 	if (!baseFont) {
-		return FontFace{};
+		return FaceDataHandle{};
 	}
 	
 	fontData = FontRegistry::get_font_data(baseFont, font.get_size(), font.get_weight(), font.get_style(),
 			false, false, false);
 	if (!fontData) {
-		return FontFace{};
+		return FaceDataHandle{};
 	}
 
 	if (fontData.has_codepoint(codepoint)) {
@@ -617,7 +617,7 @@ static FontFace find_compatible_font(Text::Font font, uint32_t codepoint, FontFa
 		}
 	}
 
-	return FontFace{};
+	return FaceDataHandle{};
 }
 
 FaceData::~FaceData() {

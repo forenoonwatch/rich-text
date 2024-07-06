@@ -87,7 +87,7 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 
 void Text::build_layout_info_icu(LayoutInfo& result, const char16_t* chars, int32_t count,
 		const ValueRuns<Font>& fontRuns, float textAreaWidth, float textAreaHeight,
-		TextYAlignment textYAlignment, LayoutInfoFlags flags) {
+		YAlignment textYAlignment, LayoutInfoFlags flags) {
 	result.clear();
 
 	LayoutBuildState state{};

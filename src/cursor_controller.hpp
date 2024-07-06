@@ -36,9 +36,9 @@ class CursorController {
 		CursorPosition next_word(CursorPosition);
 		CursorPosition prev_word(CursorPosition);
 
-		CursorPosition closest_in_line(const LayoutInfo&, float textAreaWidth, TextXAlignment, size_t lineIndex,
+		CursorPosition closest_in_line(const LayoutInfo&, float textAreaWidth, XAlignment, size_t lineIndex,
 				float posX);
-		CursorPosition closest_to_position(const LayoutInfo&, float textAreaWidth, TextXAlignment, float posX,
+		CursorPosition closest_to_position(const LayoutInfo&, float textAreaWidth, XAlignment, float posX,
 				float posY);
 
 		std::string_view get_text() const {

@@ -50,7 +50,7 @@ class Font final {
 };
 
 struct SingleScriptFont {
-	FontFace face;
+	FaceDataHandle face;
 	uint32_t size;
 	FontWeight weight: 4;
 	FontStyle style: 2;
