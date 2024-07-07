@@ -4,7 +4,7 @@
 #include "ui_container.hpp"
 
 static constexpr const float UNDERLINE_THICKNESS = 2.f;
-static constexpr const Color UNDERLINE_COLOR = Color::from_rgb(240, 240, 240);
+static constexpr const Text::Color UNDERLINE_COLOR = Text::Color::from_rgb(240, 240, 240);
 
 std::shared_ptr<ToolBar> ToolBar::create(float width) {
 	auto tb = std::make_shared<ToolBar>();

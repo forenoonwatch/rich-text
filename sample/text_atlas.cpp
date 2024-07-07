@@ -56,7 +56,7 @@ Image* TextAtlas::get_glyph_info(Text::SingleScriptFont font, uint32_t glyphInde
 }
 
 Image* TextAtlas::get_stroke_info(Text::SingleScriptFont font, uint32_t glyphIndex, uint8_t thickness,
-		StrokeType type, float* texCoordExtentsOut, float* sizeOut, float* offsetOut, bool& hasColorOut) {
+		Text::StrokeType type, float* texCoordExtentsOut, float* sizeOut, float* offsetOut, bool& hasColorOut) {
 	StrokeKey key{font.get_effective_size(), glyphIndex, font.face.handle, thickness, type};
 
 	if (auto it = m_strokes.find(key); it != m_strokes.end()) {
@@ -94,7 +94,7 @@ Image* TextAtlas::get_default_texture() {
 	return &m_defaultImage;
 }
 
-TextAtlas::Page* TextAtlas::upload_glyph(const Bitmap& bitmap, float* texCoordExtentsOut, bool hasColor) {
+TextAtlas::Page* TextAtlas::upload_glyph(const Text::Bitmap& bitmap, float* texCoordExtentsOut, bool hasColor) {
 	auto padWidth = bitmap.get_width() + TEXTURE_PADDING;
 	auto padHeight = bitmap.get_height() + TEXTURE_PADDING;
 	auto* pPage = get_or_create_target_page(padWidth, padHeight, hasColor);
@@ -170,8 +170,8 @@ size_t TextAtlas::GlyphKeyHash::operator()(const GlyphKey& k) const {
 // TextAtlas::StrokeKey
 
 bool TextAtlas::StrokeKey::operator==(const StrokeKey& o) const {
-	return glyphSize == o.glyphSize && glyphIndex == o.glyphIndex && face == o.face && strokeSize == o.strokeSize
-			&& type == o.type;
+	return glyphSize == o.glyphSize && glyphIndex == o.glyphIndex && face == o.face
+			&& strokeSize == o.strokeSize && type == o.type;
 }
 
 // TextAtlas::StrokeKeyHash

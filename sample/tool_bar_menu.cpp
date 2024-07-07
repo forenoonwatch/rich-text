@@ -8,14 +8,14 @@
 
 #include <GLFW/glfw3.h>
 
-static constexpr const Color HOVER_COLOR = Color::from_rgb(211, 224, 255, 127);
-static constexpr const Color HOVER_BORDER_COLOR = Color::from_rgb(153, 209, 255, 127);
+static constexpr const Text::Color HOVER_COLOR = Text::Color::from_rgb(211, 224, 255, 127);
+static constexpr const Text::Color HOVER_BORDER_COLOR = Text::Color::from_rgb(153, 209, 255, 127);
 
-static constexpr const Color SELECTED_COLOR = Color::from_rgb(153, 209, 255, 127);
-static constexpr const Color SELECTED_BORDER_COLOR = Color::from_rgb(51, 163, 255, 127);
+static constexpr const Text::Color SELECTED_COLOR = Text::Color::from_rgb(153, 209, 255, 127);
+static constexpr const Text::Color SELECTED_BORDER_COLOR = Text::Color::from_rgb(51, 163, 255, 127);
 
-static constexpr const Color TRAY_COLOR = Color::from_rgb(242, 242, 242);
-static constexpr const Color TRAY_BORDER_COLOR = Color::from_rgb(204, 204, 204);
+static constexpr const Text::Color TRAY_COLOR = Text::Color::from_rgb(242, 242, 242);
+static constexpr const Text::Color TRAY_BORDER_COLOR = Text::Color::from_rgb(204, 204, 204);
 
 std::shared_ptr<ToolBarMenu> ToolBarMenu::create(std::string name) {
 	auto tb = std::make_shared<ToolBarMenu>();
@@ -76,9 +76,9 @@ void ToolBarMenu::render(UIContainer& container) {
 				get_size()[1] - 1, HOVER_BORDER_COLOR, PipelineIndex::OUTLINE);
 	}
 
-	container.draw_text_immediate(font, Color{0.f, 0.f, 0.f, 1.f}, get_name(), get_absolute_position()[0],
-			get_absolute_position()[1], get_size()[0], get_size()[1], TextXAlignment::CENTER,
-			TextYAlignment::CENTER);
+	container.draw_text_immediate(font, Text::Color{0.f, 0.f, 0.f, 1.f}, get_name(), get_absolute_position()[0],
+			get_absolute_position()[1], get_size()[0], get_size()[1], Text::XAlignment::CENTER,
+			Text::YAlignment::CENTER);
 }
 
 std::shared_ptr<ToolBarMenuItem> ToolBarMenu::add_item(std::string name, std::string text) {

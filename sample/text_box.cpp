@@ -176,20 +176,21 @@ void TextBox::handle_focused(UIContainer&) {
 }
 
 void TextBox::handle_focus_lost(UIContainer&) {
-	m_selectionStart = {CursorPosition::INVALID_VALUE};
+	m_selectionStart = {Text::CursorPosition::INVALID_VALUE};
 	m_dragSelecting = false;
 	recalc_text();
 }
 
 void TextBox::render(UIContainer& container) {
-	container.draw_text(m_layout, m_formatting, get_absolute_position()[0], get_absolute_position()[1], get_size()[0],
-			m_textXAlignment, m_selectionStart, m_cursorPosition);
+	container.draw_text(m_layout, m_formatting, get_absolute_position()[0], get_absolute_position()[1],
+			get_size()[0], m_textXAlignment, m_selectionStart, m_cursorPosition);
 
 	// Draw Cursor
 	if (is_focused()) {
-		Color cursorColor{0, 0, 0, 1};
-		container.emit_rect(get_absolute_position()[0] + m_visualCursorInfo.x, get_absolute_position()[1] + m_visualCursorInfo.y,
-				1, m_visualCursorInfo.height, cursorColor, PipelineIndex::RECT);
+		Text::Color cursorColor{0, 0, 0, 1};
+		container.emit_rect(get_absolute_position()[0] + m_visualCursorInfo.x,
+				get_absolute_position()[1] + m_visualCursorInfo.y, 1, m_visualCursorInfo.height, cursorColor,
+				PipelineIndex::RECT);
 	}
 }
 
@@ -255,7 +256,7 @@ void TextBox::cursor_move_to_mouse(double mouseX, double mouseY, bool selectionM
 	set_cursor_position_internal(cursor, selectionMode);
 }
 
-void TextBox::set_cursor_position_internal(CursorPosition pos, bool selectionMode) {
+void TextBox::set_cursor_position_internal(Text::CursorPosition pos, bool selectionMode) {
 	if (selectionMode) {
 		if (!m_selectionStart.is_valid()) {
 			m_selectionStart = m_cursorPosition;
@@ -264,7 +265,7 @@ void TextBox::set_cursor_position_internal(CursorPosition pos, bool selectionMod
 		m_cursorPosition = pos;
 	}
 	else {
-		m_selectionStart = {CursorPosition::INVALID_VALUE};
+		m_selectionStart = {Text::CursorPosition::INVALID_VALUE};
 		m_cursorPosition = pos;
 	}
 
@@ -387,7 +388,7 @@ void TextBox::remove_highlighted_text() {
 	}
 
 	m_cursorPosition = start;
-	m_selectionStart = {CursorPosition::INVALID_VALUE};
+	m_selectionStart = {Text::CursorPosition::INVALID_VALUE};
 	remove_text(start.get_position(), end.get_position());
 }
 
@@ -433,12 +434,12 @@ void TextBox::set_text(std::string text) {
 	recalc_text();
 }
 
-void TextBox::set_text_x_alignment(TextXAlignment align) {
+void TextBox::set_text_x_alignment(Text::XAlignment align) {
 	m_textXAlignment = align;
 	recalc_text();
 }
 
-void TextBox::set_text_y_alignment(TextYAlignment align) {
+void TextBox::set_text_y_alignment(Text::YAlignment align) {
 	m_textYAlignment = align;
 	recalc_text();
 }

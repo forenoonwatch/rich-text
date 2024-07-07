@@ -15,7 +15,7 @@ std::shared_ptr<UIContainer> UIContainer::create() {
 }
 
 void UIContainer::emit_rect(float x, float y, float width, float height, const float* texCoords, Image* texture,
-		const Color& color, PipelineIndex pipeline, const Text::Pair<float, float>* pClip) {
+		const Text::Color& color, PipelineIndex pipeline, const Text::Pair<float, float>* pClip) {
 	if (pClip) {
 		// Rect is completely uncovered by clip range, just emit this rect with no clip
 		if (x >= pClip->second || x + width <= pClip->first) {
@@ -65,14 +65,14 @@ void UIContainer::emit_rect(float x, float y, float width, float height, const f
 	}
 }
 
-void UIContainer::emit_rect(float x, float y, float width, float height, const Color& color,
+void UIContainer::emit_rect(float x, float y, float width, float height, const Text::Color& color,
 		PipelineIndex pipeline, const Text::Pair<float, float>* pClip) {
 	float texCoords[4] = {0.f, 0.f, 1.f, 1.f};
 	emit_rect(x, y, width, height, texCoords, g_textAtlas->get_default_texture(), color, pipeline, pClip);
 }
 
 void UIContainer::draw_text(const Text::LayoutInfo& layout, float positionX, float positionY,
-		float textAreaWidth, TextXAlignment textXAlignment, const Color& color) {
+		float textAreaWidth, Text::XAlignment textXAlignment, const Text::Color& color) {
 	Text::draw_text(layout, textAreaWidth, textXAlignment, VisitorBase {
 		[&](const Text::SingleScriptFont& font, uint32_t glyphIndex, float x, float y) {
 			float offset[2]{};
@@ -86,7 +86,7 @@ void UIContainer::draw_text(const Text::LayoutInfo& layout, float positionX, flo
 							glyphHasColor);
 
 			emit_rect(positionX + x + offset[0], positionY + y + offset[1], glyphSize[0], glyphSize[1],
-					texCoordExtents, pGlyphImage, glyphHasColor ? Color{1.f, 1.f, 1.f, 1.f} : color,
+					texCoordExtents, pGlyphImage, glyphHasColor ? Text::Color{1.f, 1.f, 1.f, 1.f} : color,
 					CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT);
 
 			if (CVars::showGlyphOutlines) {
@@ -98,8 +98,8 @@ void UIContainer::draw_text(const Text::LayoutInfo& layout, float positionX, flo
 }
 
 void UIContainer::draw_text(const Text::LayoutInfo& layout, const Text::FormattingRuns& formatting,
-		float positionX, float positionY, float textAreaWidth, TextXAlignment textXAlignment,
-		CursorPosition inSelectionStart, CursorPosition inCursorPosition) {
+		float positionX, float positionY, float textAreaWidth, Text::XAlignment textXAlignment,
+		Text::CursorPosition inSelectionStart, Text::CursorPosition inCursorPosition) {
 	bool hasHighlighting = inSelectionStart.is_valid();
 	uint32_t selectionStart{};
 	uint32_t selectionEnd{};
@@ -120,8 +120,8 @@ void UIContainer::draw_text(const Text::LayoutInfo& layout, const Text::Formatti
 						selectionEnd);
 				
 				emit_rect(positionX + lineX + minPos, positionY + lineY
-						- layout.get_line_ascent(lineIndex), maxPos - minPos,
-						layout.get_line_height(lineIndex), Color::from_rgb(0, 120, 215), PipelineIndex::RECT);
+						- layout.get_line_ascent(lineIndex), maxPos - minPos, layout.get_line_height(lineIndex),
+						Text::Color::from_rgb(0, 120, 215), PipelineIndex::RECT);
 			}
 		});
 	}
@@ -149,7 +149,8 @@ void UIContainer::draw_text(const Text::LayoutInfo& layout, const Text::Formatti
 			}
 		},
 		// Callback for all non-stroke glyphs
-		[&](const Text::SingleScriptFont& font, uint32_t glyphIndex, float x, float y, const Color& color) {
+		[&](const Text::SingleScriptFont& font, uint32_t glyphIndex, float x, float y,
+				const Text::Color& color) {
 			float offset[2]{};
 			float texCoordExtents[4]{};
 			float glyphSize[2]{};
@@ -161,7 +162,7 @@ void UIContainer::draw_text(const Text::LayoutInfo& layout, const Text::Formatti
 							glyphHasColor);
 
 			emit_rect(positionX + x + offset[0], positionY + y + offset[1], glyphSize[0], glyphSize[1],
-					texCoordExtents, pGlyphImage, glyphHasColor ? Color{1.f, 1.f, 1.f, 1.f} : color,
+					texCoordExtents, pGlyphImage, glyphHasColor ? Text::Color{1.f, 1.f, 1.f, 1.f} : color,
 					CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT, pClip);
 
 			if (CVars::showGlyphOutlines) {
@@ -187,7 +188,7 @@ void UIContainer::draw_text(const Text::LayoutInfo& layout, const Text::Formatti
 					CVars::useMSDF ? PipelineIndex::MSDF : PipelineIndex::RECT);
 		},
 		// Callback for all untextured rects (underline, strikethrough)
-		[&](float x, float y, float width, float height, const Color& color) {
+		[&](float x, float y, float width, float height, const Text::Color& color) {
 			emit_rect(positionX + x, positionY + y, width, height, color, PipelineIndex::RECT, pClip);
 		}
 	});
@@ -220,8 +221,8 @@ void UIContainer::draw_text(const Text::LayoutInfo& layout, const Text::Formatti
 	}
 }
 
-void UIContainer::draw_text_immediate(Text::Font font, const Color& color, std::string_view text, float x,
-		float y, float width, float height, TextXAlignment textXAlignment, TextYAlignment textYAlignment) {
+void UIContainer::draw_text_immediate(Text::Font font, const Text::Color& color, std::string_view text, float x,
+		float y, float width, float height, Text::XAlignment textXAlignment, Text::YAlignment textYAlignment) {
 	Text::LayoutInfo layout{};
 	Text::ValueRuns<Text::Font> fontRuns(font, text.size());
 	Text::build_layout_info_utf8(layout, text.data(), text.size(), fontRuns, width, height, textYAlignment,
@@ -341,7 +342,7 @@ void UIContainer::release_focused_object() {
 
 	m_focusedObject = {};
 	m_clickCount = 0;
-	m_lastClickPos = {CursorPosition::INVALID_VALUE};
+	m_lastClickPos = {Text::CursorPosition::INVALID_VALUE};
 }
 
 double UIContainer::get_mouse_x() const {
@@ -356,7 +357,7 @@ bool UIContainer::is_mouse_button_down(int mouseButton) const {
 	return m_mouseButtonsDown[mouseButton];
 }
 
-uint32_t UIContainer::text_box_click(CursorPosition pos) {
+uint32_t UIContainer::text_box_click(Text::CursorPosition pos) {
 	auto time = glfwGetTime();
 
 	if (pos == m_lastClickPos && time - m_lastClickTime <= DOUBLE_CLICK_TIME) {
@@ -373,7 +374,7 @@ uint32_t UIContainer::text_box_click(CursorPosition pos) {
 }
 
 void UIContainer::draw_rect_internal(float x, float y, float width, float height, const float* texCoords,
-		Image* texture, const Color& color, PipelineIndex pipeline) {
+		Image* texture, const Text::Color& color, PipelineIndex pipeline) {
 	if (!texture) {
 		return;
 	}

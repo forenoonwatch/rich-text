@@ -13,11 +13,11 @@ void Frame::render(UIContainer& container) {
 			m_borderColor, PipelineIndex::OUTLINE);
 }
 
-void Frame::set_background_color(const Color& color) {
+void Frame::set_background_color(const Text::Color& color) {
 	m_backgroundColor = color;
 }
 
-void Frame::set_border_color(const Color& color) {
+void Frame::set_border_color(const Text::Color& color) {
 	m_borderColor = color;
 }
 

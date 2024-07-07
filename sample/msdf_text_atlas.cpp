@@ -64,7 +64,7 @@ Image* MSDFTextAtlas::get_glyph_info(Text::SingleScriptFont font, uint32_t glyph
 }
 
 Image* MSDFTextAtlas::get_stroke_info(Text::SingleScriptFont font, uint32_t glyphIndex, uint8_t thickness,
-		StrokeType type, float* texCoordExtentsOut, float* sizeOut, float* offsetOut, bool& hasColorOut) {
+		Text::StrokeType type, float* texCoordExtentsOut, float* sizeOut, float* offsetOut, bool& hasColorOut) {
 	StrokeKey key{font.size, glyphIndex, font.face.handle, thickness, type};
 
 	if (auto it = m_strokes.find(key); it != m_strokes.end()) {
@@ -97,7 +97,7 @@ Image* MSDFTextAtlas::get_stroke_info(Text::SingleScriptFont font, uint32_t glyp
 	return result;
 }
 
-MSDFTextAtlas::Page* MSDFTextAtlas::upload_glyph(const Bitmap& bitmap, float* texCoordExtentsOut,
+MSDFTextAtlas::Page* MSDFTextAtlas::upload_glyph(const Text::Bitmap& bitmap, float* texCoordExtentsOut,
 		bool hasColor) {
 	auto padWidth = bitmap.get_width() + TEXTURE_PADDING;
 	auto padHeight = bitmap.get_height() + TEXTURE_PADDING;
@@ -170,8 +170,8 @@ size_t MSDFTextAtlas::GlyphKeyHash::operator()(const GlyphKey& k) const {
 // MSDFTextAtlas::StrokeKey
 
 bool MSDFTextAtlas::StrokeKey::operator==(const StrokeKey& o) const {
-	return glyphSize == o.glyphSize && glyphIndex == o.glyphIndex && face == o.face && strokeSize == o.strokeSize
-			&& type == o.type;
+	return glyphSize == o.glyphSize && glyphIndex == o.glyphIndex && face == o.face
+			&& strokeSize == o.strokeSize && type == o.type;
 }
 
 // TextAtlas::StrokeKeyHash

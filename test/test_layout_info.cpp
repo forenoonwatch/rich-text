@@ -81,11 +81,11 @@ static void test_lx_vs_icu(Text::Font font, const char* str, float width) {
 
 	Text::LayoutInfo lxLayout{};
 	build_layout_info_icu_lx(lxLayout, text.getBuffer(), text.length(), fontRuns, width, 100.f,
-			TextYAlignment::BOTTOM, Text::LayoutInfoFlags::NONE);
+			Text::YAlignment::BOTTOM, Text::LayoutInfoFlags::NONE);
 
 	Text::LayoutInfo icuLayout{};
 	build_layout_info_icu(icuLayout, text.getBuffer(), text.length(), fontRuns, width, 100.f,
-			TextYAlignment::BOTTOM, Text::LayoutInfoFlags::NONE);
+			Text::YAlignment::BOTTOM, Text::LayoutInfoFlags::NONE);
 
 	test_compare_layouts(lxLayout, icuLayout);
 }
@@ -99,11 +99,11 @@ static void test_lx_vs_utf8(Text::Font font, const char* str, float width) {
 	Text::LayoutInfo lxLayout{};
 	Text::LayoutInfo lxLayout8{};
 	build_layout_info_icu_lx(lxLayout, text.getBuffer(), text.length(), fontRuns16, width, 100.f,
-			TextYAlignment::BOTTOM, Text::LayoutInfoFlags::NONE);
+			Text::YAlignment::BOTTOM, Text::LayoutInfoFlags::NONE);
 	convert_layout_info_to_utf8(lxLayout, lxLayout8, text.getBuffer(), text.length(), str, count);
 
 	Text::LayoutInfo utf8Layout{};
-	build_layout_info_utf8(utf8Layout, str, count, fontRuns8, width, 100.f, TextYAlignment::BOTTOM,
+	build_layout_info_utf8(utf8Layout, str, count, fontRuns8, width, 100.f, Text::YAlignment::BOTTOM,
 			Text::LayoutInfoFlags::NONE);
 
 	test_compare_layouts(lxLayout8, utf8Layout);

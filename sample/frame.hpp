@@ -10,10 +10,10 @@ class Frame final : public UIObject {
 
 		void render(UIContainer&) override;
 
-		void set_background_color(const Color&);
-		void set_border_color(const Color&);
+		void set_background_color(const Text::Color&);
+		void set_border_color(const Text::Color&);
 	private:
-		Color m_backgroundColor{0, 0, 0, 1};
-		Color m_borderColor{0, 0, 0, 1};
+		Text::Color m_backgroundColor{0, 0, 0, 1};
+		Text::Color m_borderColor{0, 0, 0, 1};
 };
 

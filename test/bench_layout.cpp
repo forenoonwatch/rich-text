@@ -110,7 +110,7 @@ static void BM_Layout_SingleFont_MultiLang_LineBreak(benchmark::State& state) {
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
 		Text::build_layout_info_utf8(layoutInfo, str.data(), str.size(), fontRuns, 100.f, 100.f,
-				TextYAlignment::TOP, Text::LayoutInfoFlags::NONE);
+				Text::YAlignment::TOP, Text::LayoutInfoFlags::NONE);
 		benchmark::DoNotOptimize(layoutInfo);
 	}
 }
@@ -126,7 +126,7 @@ static void BM_Layout_SingleFont_MultiLang_NoLineBreak(benchmark::State& state) 
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
 		Text::build_layout_info_utf8(layoutInfo, str.data(), str.size(), fontRuns, 0.f, 100.f,
-				TextYAlignment::TOP, Text::LayoutInfoFlags::NONE);
+				Text::YAlignment::TOP, Text::LayoutInfoFlags::NONE);
 		benchmark::DoNotOptimize(layoutInfo);
 	}
 }
@@ -142,7 +142,7 @@ static void BM_Layout_SingleFont_Latin_LineBreak(benchmark::State& state) {
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
 		Text::build_layout_info_utf8(layoutInfo, str.data(), str.size(), fontRuns, 100.f, 100.f,
-				TextYAlignment::TOP, Text::LayoutInfoFlags::NONE);
+				Text::YAlignment::TOP, Text::LayoutInfoFlags::NONE);
 		benchmark::DoNotOptimize(layoutInfo);
 	}
 }
@@ -158,7 +158,7 @@ static void BM_Layout_SingleFont_Latin_NoLineBreak(benchmark::State& state) {
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
 		Text::build_layout_info_utf8(layoutInfo, str.data(), str.size(), fontRuns, 0.f, 100.f,
-				TextYAlignment::TOP, Text::LayoutInfoFlags::NONE);
+				Text::YAlignment::TOP, Text::LayoutInfoFlags::NONE);
 		benchmark::DoNotOptimize(layoutInfo);
 	}
 }
@@ -174,7 +174,7 @@ static void BM_Layout_SingleFont_CJK_LineBreak(benchmark::State& state) {
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
 		Text::build_layout_info_utf8(layoutInfo, str.data(), str.size(), fontRuns, 100.f, 100.f,
-				TextYAlignment::TOP, Text::LayoutInfoFlags::NONE);
+				Text::YAlignment::TOP, Text::LayoutInfoFlags::NONE);
 		benchmark::DoNotOptimize(layoutInfo);
 	}
 }
@@ -190,7 +190,7 @@ static void BM_Layout_SingleFont_CJK_NoLineBreak(benchmark::State& state) {
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
 		Text::build_layout_info_utf8(layoutInfo, str.data(), str.size(), fontRuns, 0.f, 100.f,
-				TextYAlignment::TOP, Text::LayoutInfoFlags::NONE);
+				Text::YAlignment::TOP, Text::LayoutInfoFlags::NONE);
 		benchmark::DoNotOptimize(layoutInfo);
 	}
 }
@@ -206,7 +206,7 @@ static void BM_Layout_SingleFont_Deva_LineBreak(benchmark::State& state) {
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
 		Text::build_layout_info_utf8(layoutInfo, str.data(), str.size(), fontRuns, 100.f, 100.f,
-				TextYAlignment::TOP, Text::LayoutInfoFlags::NONE);
+				Text::YAlignment::TOP, Text::LayoutInfoFlags::NONE);
 		benchmark::DoNotOptimize(layoutInfo);
 	}
 }
@@ -222,7 +222,7 @@ static void BM_Layout_SingleFont_Deva_NoLineBreak(benchmark::State& state) {
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
 		Text::build_layout_info_utf8(layoutInfo, str.data(), str.size(), fontRuns, 0.f, 100.f,
-				TextYAlignment::TOP, Text::LayoutInfoFlags::NONE);
+				Text::YAlignment::TOP, Text::LayoutInfoFlags::NONE);
 		benchmark::DoNotOptimize(layoutInfo);
 	}
 }
@@ -256,7 +256,7 @@ static void BM_Layout_SingleFont_Deva_NoLineBreak(benchmark::State& state) {
 	for (auto _ : state) {
 		Text::LayoutInfo layoutInfo;
 		Text::build_layout_info_utf8(layoutInfo, str.data(), str.size(), fontRuns, 100.f, 100.f,
-				TextYAlignment::TOP, Text::LayoutInfoFlags::NONE);
+				Text::YAlignment::TOP, Text::LayoutInfoFlags::NONE);
 		benchmark::DoNotOptimize(layoutInfo);
 	}
 }*/

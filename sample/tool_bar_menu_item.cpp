@@ -6,8 +6,8 @@
 
 #include <GLFW/glfw3.h>
 
-static constexpr const Color HOVER_COLOR = Color::from_rgb(145, 201, 247);
-static constexpr const Color CHECK_BOX_COLOR = Color::from_rgb(86, 176, 250);
+static constexpr const Text::Color HOVER_COLOR = Text::Color::from_rgb(145, 201, 247);
+static constexpr const Text::Color CHECK_BOX_COLOR = Text::Color::from_rgb(86, 176, 250);
 
 std::shared_ptr<ToolBarMenuItem> ToolBarMenuItem::create() {
 	return std::make_shared<ToolBarMenuItem>();
@@ -46,13 +46,13 @@ void ToolBarMenuItem::render(UIContainer& container) {
 		}
 
 		container.draw_text_immediate(font, {0, 0, 0, 1}, "\u2713", get_absolute_position()[0],
-				get_absolute_position()[1], get_size()[1], get_size()[1], TextXAlignment::CENTER,
-				TextYAlignment::CENTER);
+				get_absolute_position()[1], get_size()[1], get_size()[1], Text::XAlignment::CENTER,
+				Text::YAlignment::CENTER);
 	}
 
 	container.draw_text_immediate(font, {0, 0, 0, 1}, m_text, get_absolute_position()[0] + TEXT_OFFSET,
-			get_absolute_position()[1], get_size()[0], get_size()[1], TextXAlignment::LEFT,
-			TextYAlignment::CENTER);
+			get_absolute_position()[1], get_size()[0], get_size()[1], Text::XAlignment::LEFT,
+			Text::YAlignment::CENTER);
 }
 
 void ToolBarMenuItem::set_text(std::string text) {

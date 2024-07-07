@@ -8,7 +8,7 @@
 #include <vector>
 #include <unordered_map>
 
-class Bitmap;
+namespace Text { class Bitmap; }
 
 class TextAtlas final {
 	public:
@@ -17,7 +17,7 @@ class TextAtlas final {
 		Image* get_glyph_info(Text::SingleScriptFont, uint32_t glyphIndex, float* texCoordExtentsOut,
 				float* sizeOut, float* offsetOut, bool& hasColorOut);
 		Image* get_stroke_info(Text::SingleScriptFont, uint32_t glyphIndex, uint8_t thickness,
-				StrokeType strokeType, float* texCoordExtentsOut, float* sizeOut, float* offsetOut,
+				Text::StrokeType strokeType, float* texCoordExtentsOut, float* sizeOut, float* offsetOut,
 				bool& hasColorOut);
 
 		Image* get_default_texture();
@@ -57,7 +57,7 @@ class TextAtlas final {
 			uint32_t glyphIndex;
 			Text::FaceIndex_T face;
 			uint8_t strokeSize;
-			StrokeType type;
+			Text::StrokeType type;
 
 			bool operator==(const StrokeKey&) const;
 		};
@@ -72,7 +72,7 @@ class TextAtlas final {
 
 		Image m_defaultImage;
 
-		Page* upload_glyph(const Bitmap&, float* texCoordExtentsOut, bool hasColor);
+		Page* upload_glyph(const Text::Bitmap&, float* texCoordExtentsOut, bool hasColor);
 		Page* get_or_create_target_page(uint32_t width, uint32_t height, bool hasColor);
 
 		static bool page_can_fit_glyph(Page&, uint32_t width, uint32_t height);

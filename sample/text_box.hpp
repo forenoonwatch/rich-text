@@ -24,8 +24,8 @@ class TextBox final : public UIObject {
 
 		void set_font(Text::Font);
 		void set_text(std::string);
-		void set_text_x_alignment(TextXAlignment);
-		void set_text_y_alignment(TextYAlignment);
+		void set_text_x_alignment(Text::XAlignment);
+		void set_text_y_alignment(Text::YAlignment);
 		void set_text_wrapped(bool);
 		void set_multi_line(bool);
 		void set_rich_text(bool);
@@ -35,11 +35,11 @@ class TextBox final : public UIObject {
 		Text::Font m_font{};
 		std::string m_text{};
 		std::string m_contentText{};
-		Color m_textColor{0.f, 0.f, 0.f, 1.f};
-		CursorPosition m_cursorPosition{};
-		CursorPosition m_selectionStart{CursorPosition::INVALID_VALUE};
-		TextXAlignment m_textXAlignment{TextXAlignment::LEFT};
-		TextYAlignment m_textYAlignment{TextYAlignment::TOP};
+		Text::Color m_textColor{0.f, 0.f, 0.f, 1.f};
+		Text::CursorPosition m_cursorPosition{};
+		Text::CursorPosition m_selectionStart{Text::CursorPosition::INVALID_VALUE};
+		Text::XAlignment m_textXAlignment{Text::XAlignment::LEFT};
+		Text::YAlignment m_textYAlignment{Text::YAlignment::TOP};
 		bool m_textWrapped = true;
 		bool m_multiLine = true;
 		bool m_richText = false;
@@ -71,7 +71,7 @@ class TextBox final : public UIObject {
 
 		void cursor_move_to_mouse(double mouseX, double mouseY, bool selectionMode);
 
-		void set_cursor_position_internal(CursorPosition pos, bool selectionMode);
+		void set_cursor_position_internal(Text::CursorPosition pos, bool selectionMode);
 
 		void handle_key_backspace(bool ctrl);
 		void handle_key_delete(bool ctrl);

@@ -31,18 +31,19 @@ class UIContainer final : public UIObject {
 		void handle_focus_lost();
 
 		void emit_rect(float x, float y, float width, float height, const float* texCoords, Image* texture,
-				const Color& color, PipelineIndex pipeline,
+				const Text::Color& color, PipelineIndex pipeline,
 				const Text::Pair<float, float>* pClip = nullptr);
-		void emit_rect(float x, float y, float width, float height, const Color& color, PipelineIndex pipeline,
-				const Text::Pair<float, float>* pClip = nullptr);
+		void emit_rect(float x, float y, float width, float height, const Text::Color& color,
+				PipelineIndex pipeline, const Text::Pair<float, float>* pClip = nullptr);
 
-		void draw_text(const Text::LayoutInfo&, float x, float y, float width, TextXAlignment,
-				const Color& color);
+		void draw_text(const Text::LayoutInfo&, float x, float y, float width, Text::XAlignment,
+				const Text::Color& color);
 		void draw_text(const Text::LayoutInfo&, const Text::FormattingRuns&, float x, float y, float width,
-				TextXAlignment, CursorPosition selectionStart = {}, CursorPosition cursorPosition = {});
+				Text::XAlignment, Text::CursorPosition selectionStart = {},
+				Text::CursorPosition cursorPosition = {});
 
-		void draw_text_immediate(Text::Font font, const Color& color, std::string_view text, float x, float y,
-				float width, float height, TextXAlignment, TextYAlignment);
+		void draw_text_immediate(Text::Font font, const Text::Color& color, std::string_view text, float x, 
+				float y, float width, float height, Text::XAlignment, Text::YAlignment);
 
 		void focus_object(UIObject&);
 		void release_focused_object();
@@ -54,7 +55,7 @@ class UIContainer final : public UIObject {
 
 		bool is_mouse_button_down(int mouseButton) const;
 	protected:
-		uint32_t text_box_click(CursorPosition);
+		uint32_t text_box_click(Text::CursorPosition);
 
 		friend TextBox;
 	private:
@@ -73,9 +74,9 @@ class UIContainer final : public UIObject {
 		// TextBox control info
 		double m_lastClickTime{};
 		uint32_t m_clickCount{};
-		CursorPosition m_lastClickPos{CursorPosition::INVALID_VALUE};
+		Text::CursorPosition m_lastClickPos{Text::CursorPosition::INVALID_VALUE};
 
 		void draw_rect_internal(float x, float y, float width, float height, const float* texCoords,
-				Image* texture, const Color& color, PipelineIndex pipeline);
+				Image* texture, const Text::Color& color, PipelineIndex pipeline);
 };
 
