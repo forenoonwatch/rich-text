@@ -4,22 +4,21 @@
 
 namespace Text {
 
-class Font final {
+class FontFace {
 	private:
-		static constexpr const uint32_t INVALID_FONT = static_cast<uint32_t>(~0u);
+		static constexpr const uint32_t INVALID_FACE = static_cast<uint32_t>(~0u);
 	public:
-		constexpr Font() = default;
-		constexpr explicit Font(FontFamily family, FontWeight weight, FontStyle style,
-					uint32_t size)
+		constexpr FontFace() = default;
+		constexpr explicit FontFace(FontFamily family, FontWeight weight = FontWeight::REGULAR,
+					FontStyle style = FontStyle::NORMAL)
 				: m_handle((family.handle << 16) | (static_cast<uint32_t>(weight) << 1)
-						| static_cast<uint32_t>(style))
-				, m_size(size) {}
+						| static_cast<uint32_t>(style)) {}
 
-		constexpr Font(Font&&) noexcept = default;
-		constexpr Font& operator=(Font&&) noexcept = default;
+		constexpr FontFace(FontFace&&) noexcept = default;
+		constexpr FontFace& operator=(FontFace&&) noexcept = default;
 
-		constexpr Font(const Font&) noexcept = default;
-		constexpr Font& operator=(const Font&) noexcept = default;
+		constexpr FontFace(const FontFace&) noexcept = default;
+		constexpr FontFace& operator=(const FontFace&) noexcept = default;
 
 		constexpr FontFamily get_family() const {
 			return {static_cast<FamilyIndex_T>(m_handle >> 16)};
@@ -33,20 +32,43 @@ class Font final {
 			return static_cast<FontStyle>(m_handle & 1);
 		}
 
-		constexpr uint32_t get_size() const {
-			return m_size;
-		}
-
 		constexpr bool valid() const {
-			return m_handle != INVALID_FONT;
+			return m_handle != INVALID_FACE;
 		}
 
 		constexpr operator bool() const {
 			return valid();
 		}
 	private:
-		uint32_t m_handle{INVALID_FONT};
-		uint32_t m_size{};
+		uint32_t m_handle{INVALID_FACE};
+};
+
+class Font final : public FontFace {
+	private:
+	public:
+		constexpr Font() = default;
+		constexpr explicit Font(FontFamily family, FontWeight weight, FontStyle style, uint32_t size)
+				: FontFace(family, weight, style)
+				, m_size(size) {}
+		constexpr explicit Font(FontFace face, uint32_t size)
+				: FontFace(face)
+				, m_size(size) {}
+
+		constexpr Font(Font&&) noexcept = default;
+		constexpr Font& operator=(Font&&) noexcept = default;
+
+		constexpr Font(const Font&) noexcept = default;
+		constexpr Font& operator=(const Font&) noexcept = default;
+
+		constexpr FontFace get_face() const {
+			return static_cast<const FontFace&>(*this);
+		}
+
+		constexpr uint32_t get_size() const {
+			return m_size;
+		}
+	private:
+		uint32_t m_size;
 };
 
 struct SingleScriptFont {

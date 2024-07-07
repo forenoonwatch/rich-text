@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cstring>
 
+using namespace Text;
+
 Bitmap::Bitmap(uint32_t width, uint32_t height)
 		: m_data(std::make_unique<uint32_t[]>(width * height))
 		, m_width(width)

@@ -395,6 +395,10 @@ SingleScriptFont FontRegistry::get_sub_font(Text::Font font, const char16_t* tex
 	return get_sub_font(font, iter, offset, limit, script, false, false, false);
 }
 
+void FontRegistry::set_file_mapping_functions(const FileMappingFunctions& funcs) {
+	g_fileFuncs = funcs;
+}
+
 // Static Functions
 
 static bool family_is_initialized(FontFamily family) {

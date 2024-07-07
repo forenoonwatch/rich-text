@@ -4,6 +4,8 @@
 
 #include <memory>
 
+namespace Text {
+
 class Bitmap final {
 	public:
 		Bitmap() = default;
@@ -37,4 +39,6 @@ class Bitmap final {
 		uint32_t m_width{};
 		uint32_t m_height{};
 };
+
+}
 

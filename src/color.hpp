@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+namespace Text {
+
 struct Color {
 	float r;
 	float g;
@@ -76,4 +78,6 @@ struct Color {
 		return !(*this == c);
 	}
 };
+
+}
 

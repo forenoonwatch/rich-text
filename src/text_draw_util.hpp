@@ -8,7 +8,7 @@
 namespace Text {
 
 template <typename Visitor>
-void draw_text(const LayoutInfo& layout, float textAreaWidth, TextXAlignment textXAlignment,
+void draw_text(const LayoutInfo& layout, float textAreaWidth, XAlignment textXAlignment,
 		Visitor&& visitor) {
 	uint32_t glyphIndex{};
 	uint32_t glyphPosIndex{};
@@ -35,7 +35,7 @@ void draw_text(const LayoutInfo& layout, float textAreaWidth, TextXAlignment tex
 
 template <typename Visitor>
 void draw_text(const LayoutInfo& layout, const FormattingRuns& formatting, float textAreaWidth,
-		TextXAlignment textXAlignment, Visitor&& visitor) {
+		XAlignment textXAlignment, Visitor&& visitor) {
 	uint32_t glyphIndex{};
 	uint32_t glyphPosIndex{};
 	float strikethroughStartPos{};

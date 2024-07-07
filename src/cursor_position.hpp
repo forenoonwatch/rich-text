@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+namespace Text {
+
 enum class CursorAffinity : uint8_t {
 	DEFAULT,
 	OPPOSITE
@@ -51,4 +53,6 @@ struct CursorPosition {
 		return !(*this == other);
 	}
 };
+
+}
 
