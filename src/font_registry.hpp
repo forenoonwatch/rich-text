@@ -47,12 +47,21 @@ namespace Text::FontRegistry {
 [[nodiscard]] FontFamily get_family(std::string_view name);
 
 /**
- * Gets the face handle corresponding to the given font handle.
+ * Gets a handle for a face of the given family, weight, and style. Equivalent to constructing the FontFace
+ * from the results of `get_family(familyName)`.
+ *
+ * @thread_safety Thread safe, may block internally.
+ */
+[[nodiscard]] FontFace get_face(std::string_view familyName, FontWeight weight = FontWeight::REGULAR,
+		FontStyle style = FontStyle::NORMAL);
+
+/**
+ * Gets the face data handle corresponding to the given font handle.
  * Must be called with a valid font handle.
  *
  * @thread_safety Thread safe, may block internally.
  */
-[[nodiscard]] FaceDataHandle get_face(Font font);
+[[nodiscard]] FaceDataHandle get_face_data_handle(Font font);
 
 /**
  * Gets a generic SingleScriptFont utilizing any valid sub-font of the given Font for use in getting a
