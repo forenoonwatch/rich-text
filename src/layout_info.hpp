@@ -116,6 +116,7 @@ class LayoutInfo {
 		uint32_t get_first_position_index(size_t runIndex) const;
 
 		float get_text_start_y() const;
+		float get_text_width() const;
 		float get_text_height() const;
 
 		const float* get_run_positions(size_t runIndex) const;

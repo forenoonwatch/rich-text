@@ -415,6 +415,18 @@ float LayoutInfo::get_text_start_y() const {
 	return m_textStartY;
 }
 
+float LayoutInfo::get_text_width() const {
+	float width = 0.f;
+
+	for (auto& line : m_lines) {
+		if (line.width > width) {
+			width = line.width;
+		}
+	}
+
+	return width;
+}
+
 float LayoutInfo::get_text_height() const {
 	return m_lines.empty() ? 0.f : m_lines.back().totalDescent;
 }
