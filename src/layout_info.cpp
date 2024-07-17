@@ -152,6 +152,10 @@ size_t LayoutInfo::get_closest_line_to_height(float y) const {
 }
 
 CursorPosition LayoutInfo::get_line_start_position(size_t lineIndex) const {
+	if (m_lines.empty()) {
+		return {};
+	}
+
 	auto lowestRun = get_first_run_index(lineIndex);
 	auto lowestRunEnd = m_visualRuns[lowestRun].charEndIndex;
 
@@ -167,6 +171,10 @@ CursorPosition LayoutInfo::get_line_start_position(size_t lineIndex) const {
 }
 
 CursorPosition LayoutInfo::get_line_end_position(size_t lineIndex) const {
+	if (m_lines.empty()) {
+		return {};
+	}
+
 	auto highestRun = get_first_run_index(lineIndex);
 	auto highestRunEnd = m_visualRuns[highestRun].charEndIndex;
 
@@ -200,6 +208,10 @@ float LayoutInfo::get_line_x_start(size_t lineNumber, float textWidth, XAlignmen
 
 CursorPosition LayoutInfo::find_closest_cursor_position(float textWidth, XAlignment textXAlignment,
 		icu::BreakIterator& iter, size_t lineNumber, float cursorX) const {
+	if (m_lines.empty()) {
+		return {};
+	}
+
 	cursorX -= get_line_x_start(lineNumber, textWidth, textXAlignment);
 
 	// Find run containing char
