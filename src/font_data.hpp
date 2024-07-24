@@ -1,8 +1,9 @@
 #pragma once
 
-#include "bitmap.hpp"
 #include "font_common.hpp"
 #include "stroke_type.hpp"
+
+#include <cstddef>
 
 struct FT_FaceRec_;
 struct FT_GlyphRec_;

@@ -1,5 +1,6 @@
 #include "text_atlas.hpp"
 
+#include "bitmap.hpp"
 #include "font_registry.hpp"
 
 #include <glad/glad.h>
@@ -98,7 +99,7 @@ void TextAtlas::handle_rasterization(const Text::FontRasterizeInfo& rasterInfo, 
 	info.offset[1] = rasterInfo.offsetY;
 	hasColor = rasterInfo.format == Text::FontRasterFormat::BGRA8;
 
-	Text::Bitmap bitmap(rasterInfo.width, rasterInfo.height);
+	Bitmap bitmap(rasterInfo.width, rasterInfo.height);
 
 	if (rasterInfo.format == Text::FontRasterFormat::R8) {
 		for (uint32_t y = 0, i = 0; y < rasterInfo.height; ++y) {
@@ -125,7 +126,7 @@ void TextAtlas::handle_rasterization(const Text::FontRasterizeInfo& rasterInfo, 
 	}
 }
 
-TextAtlas::Page* TextAtlas::upload_glyph(const Text::Bitmap& bitmap, float* texCoordExtentsOut, bool hasColor) {
+TextAtlas::Page* TextAtlas::upload_glyph(const Bitmap& bitmap, float* texCoordExtentsOut, bool hasColor) {
 	auto padWidth = bitmap.get_width() + TEXTURE_PADDING;
 	auto padHeight = bitmap.get_height() + TEXTURE_PADDING;
 	auto* pPage = get_or_create_target_page(padWidth, padHeight, hasColor);

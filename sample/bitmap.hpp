@@ -4,13 +4,11 @@
 
 #include <memory>
 
-namespace Text {
-
 class Bitmap final {
 	public:
 		Bitmap() = default;
 		explicit Bitmap(uint32_t width, uint32_t height);
-		explicit Bitmap(uint32_t width, uint32_t height, const Color&);
+		explicit Bitmap(uint32_t width, uint32_t height, const Text::Color&);
 
 		Bitmap(Bitmap&&) noexcept = default;
 		Bitmap& operator=(Bitmap&&) noexcept = default;
@@ -18,16 +16,16 @@ class Bitmap final {
 		Bitmap(const Bitmap&) = delete;
 		void operator=(const Bitmap&) = delete;
 
-		void clear(const Color&);
+		void clear(const Text::Color&);
 
-		void fill_rect(int32_t x, int32_t y, uint32_t width, uint32_t height, const Color&);
+		void fill_rect(int32_t x, int32_t y, uint32_t width, uint32_t height, const Text::Color&);
 
 		void blit(const Bitmap& src, int32_t x, int32_t y);
-		void blit_alpha(const Bitmap& src, int32_t x, int32_t y, const Color& = {1.f, 1.f, 1.f, 1.f});
+		void blit_alpha(const Bitmap& src, int32_t x, int32_t y, const Text::Color& = {1.f, 1.f, 1.f, 1.f});
 
-		void set_pixel(uint32_t x, uint32_t y, const Color&);
+		void set_pixel(uint32_t x, uint32_t y, const Text::Color&);
 
-		Color get_pixel(uint32_t x, uint32_t y) const;
+		Text::Color get_pixel(uint32_t x, uint32_t y) const;
 
 		uint32_t get_width() const;
 		uint32_t get_height() const;
@@ -39,6 +37,4 @@ class Bitmap final {
 		uint32_t m_width{};
 		uint32_t m_height{};
 };
-
-}
 

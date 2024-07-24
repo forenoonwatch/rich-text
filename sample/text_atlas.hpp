@@ -8,7 +8,7 @@
 #include <vector>
 #include <unordered_map>
 
-namespace Text { class Bitmap; }
+class Bitmap;
 namespace Text { struct FontRasterizeInfo; }
 
 class TextAtlas final {
@@ -75,7 +75,7 @@ class TextAtlas final {
 
 		void handle_rasterization(const Text::FontRasterizeInfo&, GlyphInfo&, bool& hasColor);
 
-		Page* upload_glyph(const Text::Bitmap&, float* texCoordExtentsOut, bool hasColor);
+		Page* upload_glyph(const Bitmap&, float* texCoordExtentsOut, bool hasColor);
 		Page* get_or_create_target_page(uint32_t width, uint32_t height, bool hasColor);
 
 		static bool page_can_fit_glyph(Page&, uint32_t width, uint32_t height);

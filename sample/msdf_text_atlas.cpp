@@ -1,5 +1,6 @@
 #include "msdf_text_atlas.hpp"
 
+#include "bitmap.hpp"
 #include "font_registry.hpp"
 
 #include <ft2build.h>
@@ -37,7 +38,7 @@ static int msdf_conic_to(const FT_Vector* control, const FT_Vector* to, void* us
 static int msdf_cubic_to(const FT_Vector* control1, const FT_Vector* control2, const FT_Vector* to,
 		void* userData);
 
-static Text::Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float* offsetOut, int32_t upem);
+static Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float* offsetOut, int32_t upem);
 
 // MSDFTextAtlas
 
@@ -115,7 +116,7 @@ Image* MSDFTextAtlas::get_stroke_info(Text::SingleScriptFont font, uint32_t glyp
 	return result;
 }
 
-MSDFTextAtlas::Page* MSDFTextAtlas::upload_glyph(const Text::Bitmap& bitmap, float* texCoordExtentsOut,
+MSDFTextAtlas::Page* MSDFTextAtlas::upload_glyph(const Bitmap& bitmap, float* texCoordExtentsOut,
 		bool hasColor) {
 	auto padWidth = bitmap.get_width() + TEXTURE_PADDING;
 	auto padHeight = bitmap.get_height() + TEXTURE_PADDING;
@@ -227,7 +228,7 @@ static constexpr Text::Color msdf_make_color(const float* c) {
 	return {saturate(c[0]), saturate(c[1]), saturate(c[2]), 1.f};
 }
 
-static Text::Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float* offsetOut, 
+static Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float* offsetOut, 
 		int32_t upem) {
 	shape.contours.clear();
 	shape.inverseYAxis = true;
@@ -300,7 +301,7 @@ static Text::Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, 
 		msdfgen::msdfErrorCorrection(bmp, shape, projection, range, postErrorCorrectionConfig);
 	}
 
-	Text::Bitmap result(width, height);
+	Bitmap result(width, height);
 
 	for (int32_t y = 0; y < height; ++y) {
 		for (int32_t x = 0; x < width; ++x) {
