@@ -248,6 +248,10 @@ bool UIContainer::handle_mouse_button(int button, int action, int mods, double m
 	m_mouseButtonsDown[button] = action != GLFW_RELEASE;
 
 	auto iterDec = for_each_descendant_bottom_up([&](auto& desc) {
+		if (!desc.is_visible_from_ancestors()) {
+			return IterationDecision::CONTINUE;
+		}
+
 		auto iterDec = desc.handle_mouse_button(*this, button, action, mods, mouseX, mouseY)
 				? IterationDecision::BREAK : IterationDecision::CONTINUE;
 

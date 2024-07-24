@@ -126,6 +126,25 @@ bool UIObject::is_focused() const {
 	return m_focused;
 }
 
+bool UIObject::is_visible_from_ancestors() const {
+	if (!m_visible) {
+		return false;
+	}
+
+	bool result = true;
+
+	for_each_ancestor([&](auto& anc) {
+		if (!anc.is_visible()) {
+			result = false;
+			return IterationDecision::BREAK;
+		}
+
+		return IterationDecision::CONTINUE;
+	});
+
+	return result;
+}
+
 UIObject* UIObject::find_first_child(std::string_view name) const {
 	UIObject* result = nullptr;
 

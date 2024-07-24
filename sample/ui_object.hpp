@@ -50,6 +50,7 @@ class UIObject : public std::enable_shared_from_this<UIObject> {
 
 		bool is_visible() const;
 		bool is_focused() const;
+		bool is_visible_from_ancestors() const;
 
 		UIObject* find_first_child(std::string_view name) const;
 
