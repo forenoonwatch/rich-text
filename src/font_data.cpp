@@ -363,7 +363,7 @@ static Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float*
 	auto bounds = shape.getBounds();
 
 	auto scale = MSDF_PIXELS_PER_EM / static_cast<double>(upem);
-	auto range = 2.0 / scale;
+	auto range = 2.0 * static_cast<double>(upem) / MSDF_PIXELS_PER_EM;
 
 	auto l = bounds.l, b = bounds.b, r = bounds.r, t = bounds.t;
 
@@ -381,8 +381,8 @@ static Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float*
 	auto tx = -l + 0.5 * (width - w) / scale;
 	auto ty = -b + 0.5 * (height - h) / scale;
 
-	offsetOut[0] = l * scale;
-	offsetOut[1] = -t * scale;
+	offsetOut[0] = l * scale - 0.5 * (width - w);
+	offsetOut[1] = -t * scale - 0.5 * (height - h);
 
 	msdfgen::Projection projection{{scale, scale}, {tx, ty}};
 	msdfgen::Bitmap<float, 3> bmp(width, height);
