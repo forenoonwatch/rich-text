@@ -14,7 +14,6 @@ set(MSDFGEN_USE_VCPKG OFF CACHE BOOL "")
 add_subdirectory(freetype)
 add_subdirectory(harfbuzz)
 add_subdirectory(icu_cmake)
-add_subdirectory(msdfgen)
 
 if (MINGW)
 	target_compile_options(harfbuzz PRIVATE -Wa,-mbig-obj)
@@ -69,6 +68,16 @@ if (RICHTEXT_BUILD_TESTS)
 		)
 
 		FetchContent_MakeAvailable(benchmark)
+	endif()
+
+	if (NOT TARGET msdfgen::msdfgen)
+		FetchContent_Declare(
+			msdfgen
+			GIT_REPOSITORY https://github.com/Chlumsky/msdfgen.git
+			GIT_TAG v1.12
+		)
+
+		FetchContent_MakeAvailable(msdfgen)
 	endif()
 endif()
 

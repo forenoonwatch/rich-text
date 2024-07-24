@@ -9,6 +9,7 @@
 #include <unordered_map>
 
 namespace Text { class Bitmap; }
+namespace Text { struct FontRasterizeInfo; }
 
 class TextAtlas final {
 	public:
@@ -71,6 +72,8 @@ class TextAtlas final {
 		std::unordered_map<StrokeKey, GlyphInfo, StrokeKeyHash> m_strokes;
 
 		Image m_defaultImage;
+
+		void handle_rasterization(const Text::FontRasterizeInfo&, GlyphInfo&, bool& hasColor);
 
 		Page* upload_glyph(const Text::Bitmap&, float* texCoordExtentsOut, bool hasColor);
 		Page* get_or_create_target_page(uint32_t width, uint32_t height, bool hasColor);

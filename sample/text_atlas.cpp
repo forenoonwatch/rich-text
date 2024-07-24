@@ -35,13 +35,11 @@ Image* TextAtlas::get_glyph_info(Text::SingleScriptFont font, uint32_t glyphInde
 
 	GlyphInfo info{};
 	auto fontData = Text::FontRegistry::get_font_data(font);
-	auto [bitmap, hasColor] = fontData.rasterize_glyph(glyphIndex, info.offset);
-	info.bitmapSize[0] = static_cast<float>(bitmap.get_width());
-	info.bitmapSize[1] = static_cast<float>(bitmap.get_height());
+	bool hasColor = false;
 
-	if (bitmap.get_width() > 0 && bitmap.get_height() > 0) {
-		info.pPage = upload_glyph(bitmap, info.texCoordExtents, hasColor);
-	}
+	fontData.rasterize_glyph(glyphIndex, [&](const auto& rasterInfo) {
+		handle_rasterization(rasterInfo, info, hasColor);
+	});
 
 	auto* result = info.pPage ? &info.pPage->image : nullptr;
 	std::memcpy(texCoordExtentsOut, info.texCoordExtents, 4 * sizeof(float));
@@ -69,14 +67,12 @@ Image* TextAtlas::get_stroke_info(Text::SingleScriptFont font, uint32_t glyphInd
 	}
 
 	GlyphInfo info{};
+	bool hasColor = false;
 	auto fontData = Text::FontRegistry::get_font_data(font);
-	auto [bitmap, hasColor] = fontData.rasterize_glyph_outline(glyphIndex, thickness, type, info.offset);
-	info.bitmapSize[0] = static_cast<float>(bitmap.get_width());
-	info.bitmapSize[1] = static_cast<float>(bitmap.get_height());
 
-	if (bitmap.get_width() > 0 && bitmap.get_height() > 0) {
-		info.pPage = upload_glyph(bitmap, info.texCoordExtents, hasColor);
-	}
+	fontData.rasterize_glyph_outline(glyphIndex, thickness, type, [&](const auto& rasterInfo) {
+		handle_rasterization(rasterInfo, info, hasColor);
+	});
 
 	auto* result = info.pPage ? &info.pPage->image : nullptr;
 	std::memcpy(texCoordExtentsOut, info.texCoordExtents, 4 * sizeof(float));
@@ -92,6 +88,41 @@ Image* TextAtlas::get_stroke_info(Text::SingleScriptFont font, uint32_t glyphInd
 
 Image* TextAtlas::get_default_texture() {
 	return &m_defaultImage;
+}
+
+void TextAtlas::handle_rasterization(const Text::FontRasterizeInfo& rasterInfo, GlyphInfo& info,
+		bool& hasColor) {
+	info.bitmapSize[0] = static_cast<float>(rasterInfo.width);
+	info.bitmapSize[1] = static_cast<float>(rasterInfo.height);
+	info.offset[0] = rasterInfo.offsetX;
+	info.offset[1] = rasterInfo.offsetY;
+	hasColor = rasterInfo.format == Text::FontRasterFormat::BGRA8;
+
+	Text::Bitmap bitmap(rasterInfo.width, rasterInfo.height);
+
+	if (rasterInfo.format == Text::FontRasterFormat::R8) {
+		for (uint32_t y = 0, i = 0; y < rasterInfo.height; ++y) {
+			for (uint32_t x = 0; x < rasterInfo.width; ++x, ++i) {
+				auto alpha = static_cast<float>(rasterInfo.pData[i]) / 255.f;
+				bitmap.set_pixel(x, y, {1.f, 1.f, 1.f, alpha});
+			}
+		}
+	}
+	else if (rasterInfo.format == Text::FontRasterFormat::BGRA8) {
+		for (uint32_t y = 0, i = 0; y < rasterInfo.height; ++y) {
+			for (uint32_t x = 0; x < rasterInfo.width; ++x, i += 4) {
+				auto b = static_cast<float>(rasterInfo.pData[i]) / 255.f;
+				auto g = static_cast<float>(rasterInfo.pData[i + 1]) / 255.f;
+				auto r = static_cast<float>(rasterInfo.pData[i + 2]) / 255.f;
+				auto a = static_cast<float>(rasterInfo.pData[i + 3]) / 255.f;
+				bitmap.set_pixel(x, y, {r / a, g / a, b / a, a});
+			}
+		}
+	}
+
+	if (rasterInfo.width > 0 && rasterInfo.height > 0) {
+		info.pPage = upload_glyph(bitmap, info.texCoordExtents, hasColor);
+	}
 }
 
 TextAtlas::Page* TextAtlas::upload_glyph(const Text::Bitmap& bitmap, float* texCoordExtentsOut, bool hasColor) {

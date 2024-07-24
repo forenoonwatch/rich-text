@@ -19,7 +19,6 @@ endif()
 
 add_library(LibRichText STATIC "")
 target_link_libraries(LibRichText PUBLIC ICU::common ICU::data harfbuzz)
-target_link_libraries(LibRichText PRIVATE msdfgen::msdfgen)
 target_link_libraries(LibRichText PRIVATE SheenBidi)
 target_link_libraries(LibRichText PRIVATE simdjson)
 
@@ -45,6 +44,7 @@ if (RICHTEXT_BUILD_TESTS)
 	add_executable(RichText "")
 
 	target_link_libraries(RichText PRIVATE LibRichText)
+	target_link_libraries(RichText PRIVATE msdfgen::msdfgen)
 	target_link_libraries(RichText PRIVATE richtext_glad)
 	target_link_libraries(RichText PRIVATE glfw)
 	set_target_properties(RichText PROPERTIES

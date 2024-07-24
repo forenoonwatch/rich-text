@@ -6,13 +6,9 @@
 
 #include <hb.h>
 
-#include <msdfgen.h>
-
 #include <cmath>
 
 using namespace Text;
-
-static constexpr bool USE_MSDF_ERROR_CORRECTION = false;
 
 static constexpr float BOLD_SCALE[] = {
 	-1.f / 14.f, // Thin
@@ -31,28 +27,10 @@ static constexpr float BOLD_SCALE_Y = 0.4f;
 static constexpr const double M_PI = 3.14159265358979323846;
 static constexpr const double ITALIC_SHEAR = 12.0  * M_PI / 180.0;
 
-namespace {
-
-struct OutlineContext {
-	msdfgen::Point2 position;
-	msdfgen::Shape* pShape;
-	msdfgen::Contour* pContour;
-};
-
-}
-
 static void try_apply_synthetics(FT_Face face, FT_Outline& outline, SyntheticFontInfo synthInfo);
 
 static void apply_synthetic_bold(FT_Face face, FT_Outline& outline, FontWeight srcWeight, FontWeight dstWeight);
 static void apply_synthetic_italic(FT_Face face, FT_Outline& outline, FontStyle srcStyle, FontStyle dstStyle);
-
-static int msdf_move_to(const FT_Vector* to, void* userData);
-static int msdf_line_to(const FT_Vector* to, void* userData);
-static int msdf_conic_to(const FT_Vector* control, const FT_Vector* to, void* userData);
-static int msdf_cubic_to(const FT_Vector* control1, const FT_Vector* control2, const FT_Vector* to,
-		void* userData);
-
-static Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float* offsetOut, int32_t upem);
 
 float FontData::get_ascent() const {
 	return static_cast<float>(ftFace->size->metrics.ascender) / 64.f
@@ -123,7 +101,7 @@ float FontData::get_strikethrough_thickness() const {
 	return get_scale_y() * static_cast<float>(strikethroughThickness);
 }
 
-FontGlyphResult FontData::rasterize_glyph(uint32_t glyph, float* offsetOut) const {
+FontRasterizeInfo FontData::rasterize_glyph_internal(uint32_t glyph) const {
 	FT_Load_Glyph(ftFace, glyph, FT_LOAD_NO_BITMAP | FT_LOAD_COLOR);
 
 	try_apply_synthetics(ftFace, ftFace->glyph->outline, synthInfo);
@@ -132,47 +110,33 @@ FontGlyphResult FontData::rasterize_glyph(uint32_t glyph, float* offsetOut) cons
 
 	auto uWidth = static_cast<uint32_t>(ftFace->glyph->bitmap.width);
 	auto uHeight = static_cast<uint32_t>(ftFace->glyph->bitmap.rows);
-
-	FontGlyphResult result{
-		.bitmap = Bitmap{uWidth, uHeight},
-		.hasColor = false,
-	};
 	auto* buffer = ftFace->glyph->bitmap.buffer;
+
+	FontRasterFormat format{FontRasterFormat::INVALID};
 
 	switch (ftFace->glyph->bitmap.pixel_mode) {
 		case FT_PIXEL_MODE_GRAY:
-			for (uint32_t y = 0, i = 0; y < uHeight; ++y) {
-				for (uint32_t x = 0; x < uWidth; ++x, ++i) {
-					auto alpha = static_cast<float>(buffer[i]) / 255.f;
-					result.bitmap.set_pixel(x, y, {1.f, 1.f, 1.f, alpha});
-				}
-			}
+			format = FontRasterFormat::R8;
 			break;
 		case FT_PIXEL_MODE_BGRA:
-			for (uint32_t y = 0, i = 0; y < uHeight; ++y) {
-				for (uint32_t x = 0; x < uWidth; ++x, i += 4) {
-					auto b = static_cast<float>(buffer[i]) / 255.f;
-					auto g = static_cast<float>(buffer[i + 1]) / 255.f;
-					auto r = static_cast<float>(buffer[i + 2]) / 255.f;
-					auto a = static_cast<float>(buffer[i + 3]) / 255.f;
-					result.bitmap.set_pixel(x, y, {r / a, g / a, b / a, a});
-				}
-			}
-
-			result.hasColor = true;
+			format = FontRasterFormat::BGRA8;
 			break;
 		default:
 			break;
 	}
 
-	offsetOut[0] = static_cast<float>(ftFace->glyph->bitmap_left);
-	offsetOut[1] = static_cast<float>(-ftFace->glyph->bitmap_top);
-
-	return result;
+	return {
+		.pData = reinterpret_cast<const std::byte*>(buffer),
+		.offsetX = static_cast<float>(ftFace->glyph->bitmap_left),
+		.offsetY = static_cast<float>(-ftFace->glyph->bitmap_top),
+		.width = uWidth,
+		.height = uHeight,
+		.format = format,
+	};
 }
 
-FontGlyphResult FontData::rasterize_glyph_outline(uint32_t glyphIndex, uint8_t thickness, StrokeType strokeType,
-		float* offsetOut) const {
+FontRasterizeInfo FontData::rasterize_outline_internal(uint32_t glyphIndex, uint8_t thickness,
+		StrokeType strokeType, FT_Stroker& outStroker, FT_Glyph& outGlyph) const {
 	FT_Load_Glyph(ftFace, glyphIndex, FT_LOAD_NO_BITMAP);
 
 	FT_Glyph glyph;
@@ -207,37 +171,32 @@ FontGlyphResult FontData::rasterize_glyph_outline(uint32_t glyphIndex, uint8_t t
 	auto uHeight = static_cast<uint32_t>(bmpGlyph->bitmap.rows);
 	auto* buffer = bmpGlyph->bitmap.buffer;
 
-	FontGlyphResult result{
-		.bitmap = Bitmap{uWidth, uHeight},
-		.hasColor = false,
+	outStroker = stroker;
+	outGlyph = glyph;
+
+	return {
+		.pData = reinterpret_cast<const std::byte*>(buffer),
+		.offsetX = static_cast<float>(bmpGlyph->left),
+		.offsetY = static_cast<float>(-bmpGlyph->top),
+		.width = uWidth,
+		.height = uHeight,
+		.format = FontRasterFormat::R8,
 	};
+}
 
-	for (uint32_t y = 0, i = 0; y < uHeight; ++y) {
-		for (uint32_t x = 0; x < uWidth; ++x, ++i) {
-			auto alpha = static_cast<float>(buffer[i]) / 255.f;
-			result.bitmap.set_pixel(x, y, {1.f, 1.f, 1.f, alpha});
-		}
-	}
-
-	offsetOut[0] = static_cast<float>(bmpGlyph->left);
-	offsetOut[1] = static_cast<float>(-bmpGlyph->top);
-
+void FontData::rasterize_outline_finish(FT_Stroker stroker, FT_Glyph glyph) const {
 	FT_Stroker_Done(stroker);
 	FT_Done_Glyph(glyph);
-
-	return result;
 }
 
-Bitmap FontData::get_msdf_glyph(uint32_t glyphIndex, float* offsetOut) const {
+FT_Outline* FontData::load_glyph_curve_internal(uint32_t glyphIndex) const {
 	FT_Load_Glyph(ftFace, glyphIndex, FT_LOAD_NO_BITMAP | FT_LOAD_NO_SCALE);
 	try_apply_synthetics(ftFace, ftFace->glyph->outline, synthInfo);
-
-	msdfgen::Shape shape{};
-	return load_msdf_shape(shape, ftFace->glyph->outline, offsetOut, ftFace->units_per_EM);
+	return &ftFace->glyph->outline;
 }
 
-Bitmap FontData::get_msdf_outline_glyph(uint32_t glyphIndex, uint8_t thickness, StrokeType type,
-		float* offsetOut) const {
+FT_Outline* FontData::load_outline_curve_internal(uint32_t glyphIndex, uint8_t thickness,
+		StrokeType type, FT_Stroker& outStroker, FT_Glyph& outGlyph) const {
 	FT_Load_Glyph(ftFace, glyphIndex, FT_LOAD_NO_BITMAP | FT_LOAD_NO_SCALE);
 
 	FT_Glyph glyph;
@@ -265,23 +224,26 @@ Bitmap FontData::get_msdf_outline_glyph(uint32_t glyphIndex, uint8_t thickness, 
 	FT_Glyph_Stroke(&glyph, stroker, false);
 	FT_Stroker_GetCounts(stroker, &points, &contours);
 
-	FT_Outline outline{};
-	FT_Outline_New(glyph->library, points, contours, &outline);
-	outline.n_points = 0;
-	outline.n_contours = 0;
+	FT_Outline* pOutline = (FT_Outline*)malloc(sizeof(FT_Outline));
+	FT_Outline_New(glyph->library, points, contours, pOutline);
+	pOutline->n_points = 0;
+	pOutline->n_contours = 0;
 
-	FT_Stroker_Export(stroker, &outline);
+	FT_Stroker_Export(stroker, pOutline);
 
-	try_apply_synthetics(ftFace, outline, synthInfo);
+	try_apply_synthetics(ftFace, *pOutline, synthInfo);
 
-	msdfgen::Shape shape{};
-	auto result = load_msdf_shape(shape, outline, offsetOut, ftFace->units_per_EM);
+	outStroker = stroker;
+	outGlyph = glyph;
 
-	FT_Outline_Done(glyph->library, &outline);
+	return pOutline;
+}
+
+void FontData::outline_curve_finish(FT_Outline* outline, FT_Stroker stroker, FT_Glyph glyph) const {
+	FT_Outline_Done(glyph->library, outline);
 	FT_Stroker_Done(stroker);
 	FT_Done_Glyph(glyph);
-
-	return result;
+	free(outline);
 }
 
 // Static Functions
@@ -324,140 +286,5 @@ static void apply_synthetic_italic(FT_Face face, FT_Outline& outline, FontStyle 
 	};
 
 	FT_Outline_Transform(&outline, &shearMatrix);
-}
-
-static constexpr float saturate(float v) {
-	return v < 0.f ? 0.f : (v > 1.f ? 1.f : v);
-}
-
-static constexpr Color msdf_make_color(const float* c) {
-	return {saturate(c[0]), saturate(c[1]), saturate(c[2]), 1.f};
-}
-
-static Bitmap load_msdf_shape(msdfgen::Shape& shape, FT_Outline& outline, float* offsetOut, int32_t upem) {
-	shape.contours.clear();
-	shape.inverseYAxis = true;
-
-	FT_Outline_Funcs funcs{
-		.move_to = msdf_move_to,
-		.line_to = msdf_line_to,
-		.conic_to = msdf_conic_to,
-		.cubic_to = msdf_cubic_to,
-	};
-
-	OutlineContext ctx{
-		.pShape = &shape,
-	};
-
-	FT_Outline_Decompose(&outline, &funcs, &ctx);
-
-	if (!shape.contours.empty() && shape.contours.back().edges.empty()) {
-		shape.contours.pop_back();
-	}
-
-	if (shape.edgeCount() == 0) {
-		return {};
-	}
-
-	shape.normalize();
-	auto bounds = shape.getBounds();
-
-	auto scale = MSDF_PIXELS_PER_EM / static_cast<double>(upem);
-	auto range = 2.0 * static_cast<double>(upem) / MSDF_PIXELS_PER_EM;
-
-	auto l = bounds.l, b = bounds.b, r = bounds.r, t = bounds.t;
-
-	l -= 0.5 * range;
-	r += 0.5 * range;
-	b -= 0.5 * range;
-	t += 0.5 * range;
-
-	auto w = scale * (r - l);
-	auto h = scale * (t - b);
-
-	auto width = static_cast<int32_t>(w + 1.0) + 1;
-	auto height = static_cast<int32_t>(h + 1.0) + 1;
-
-	auto tx = -l + 0.5 * (width - w) / scale;
-	auto ty = -b + 0.5 * (height - h) / scale;
-
-	offsetOut[0] = l * scale - 0.5 * (width - w);
-	offsetOut[1] = -t * scale - 0.5 * (height - h);
-
-	msdfgen::Projection projection{{scale, scale}, {tx, ty}};
-	msdfgen::Bitmap<float, 3> bmp(width, height);
-
-	msdfgen::MSDFGeneratorConfig generatorConfig{};
-	generatorConfig.overlapSupport = true;
-	msdfgen::MSDFGeneratorConfig postErrorCorrectionConfig{generatorConfig};
-
-	if constexpr (USE_MSDF_ERROR_CORRECTION) {
-		generatorConfig.errorCorrection.mode = msdfgen::ErrorCorrectionConfig::DISABLED;
-		postErrorCorrectionConfig.errorCorrection.distanceCheckMode
-				= msdfgen::ErrorCorrectionConfig::DO_NOT_CHECK_DISTANCE;
-	}
-
-	//msdfgen::edgeColoringSimple(shape, 3.0, 0);
-	msdfgen::edgeColoringInkTrap(shape, 3.0, 0);
-	msdfgen::generateMSDF(bmp, shape, projection, range, generatorConfig);
-
-	if constexpr (USE_MSDF_ERROR_CORRECTION) {
-		msdfgen::distanceSignCorrection(bmp, shape, projection);
-		msdfgen::msdfErrorCorrection(bmp, shape, projection, range, postErrorCorrectionConfig);
-	}
-
-	Bitmap result(width, height);
-
-	for (int32_t y = 0; y < height; ++y) {
-		for (int32_t x = 0; x < width; ++x) {
-			result.set_pixel(x, y, msdf_make_color(bmp(x, y)));
-		}
-	}
-
-	return result;
-}
-
-static msdfgen::Point2 make_point2(const FT_Vector& v) {
-	return {(double)v.x, (double)v.y};
-}
-
-static int msdf_move_to(const FT_Vector* to, void* userData) {
-	auto& ctx = *reinterpret_cast<OutlineContext*>(userData);
-
-	if (!ctx.pContour || ctx.pContour->edges.empty()) {
-		ctx.pContour = &ctx.pShape->addContour();
-	}
-
-	ctx.position = make_point2(*to);
-
-	return 0;
-}
-
-static int msdf_line_to(const FT_Vector* to, void* userData) {
-	auto& ctx = *reinterpret_cast<OutlineContext*>(userData);
-
-	if (auto endpoint = make_point2(*to); endpoint != ctx.position) {
-		ctx.pContour->addEdge(new msdfgen::LinearSegment(ctx.position, endpoint));
-		ctx.position = endpoint;
-	}
-
-	return 0;
-}
-
-static int msdf_conic_to(const FT_Vector* control, const FT_Vector* to, void* userData) {
-	auto& ctx = *reinterpret_cast<OutlineContext*>(userData);
-	ctx.pContour->addEdge(new msdfgen::QuadraticSegment(ctx.position, make_point2(*control),
-			make_point2(*to)));
-	ctx.position = make_point2(*to);
-	return 0;
-}
-
-static int msdf_cubic_to(const FT_Vector* control1, const FT_Vector* control2, const FT_Vector* to,
-		void* userData) {
-	auto& ctx = *reinterpret_cast<OutlineContext*>(userData);
-	ctx.pContour->addEdge(new msdfgen::CubicSegment(ctx.position, make_point2(*control1),
-			make_point2(*control2), make_point2(*to)));
-	ctx.position = make_point2(*to);
-	return 0;
 }
 
