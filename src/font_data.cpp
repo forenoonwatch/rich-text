@@ -24,7 +24,9 @@ static constexpr float BOLD_SCALE[] = {
 
 static constexpr float BOLD_SCALE_Y = 0.4f;
 
+#ifndef M_PI
 static constexpr const double M_PI = 3.14159265358979323846;
+#endif
 static constexpr const double ITALIC_SHEAR = 12.0  * M_PI / 180.0;
 
 static void try_apply_synthetics(FT_Face face, FT_Outline& outline, SyntheticFontInfo synthInfo);
