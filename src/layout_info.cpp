@@ -114,15 +114,13 @@ size_t LayoutInfo::get_run_containing_cursor(CursorPosition cursor, size_t& outL
 
 	size_t firstGlyphIndex = 0;
 	for (size_t i = 0; i < m_visualRuns.size(); ++i) {
+		outLineNumber += i == m_lines[outLineNumber].visualRunsEndIndex;
+
 		auto& run = m_visualRuns[i];
 		auto lastGlyphIndex = run.glyphEndIndex;
 		bool runBeforeLineBreak = i + 1 < m_visualRuns.size()
 				&& i + 1 == m_lines[outLineNumber].visualRunsEndIndex;
 		bool runAfterLineBreak = i == m_lines[outLineNumber].visualRunsEndIndex;
-
-		if (runAfterLineBreak) {
-			++outLineNumber;
-		}
 
 		bool runBeforeSoftBreak = runBeforeLineBreak && m_visualRuns[i].charEndOffset == 0;
 		bool runAfterSoftBreak = runAfterLineBreak && i > 0 && m_visualRuns[i - 1].charEndOffset == 0;
@@ -223,8 +221,11 @@ CursorPosition LayoutInfo::find_closest_cursor_position(float textWidth, XAlignm
 	});
 
 	if (runIndex == lastRunIndex) {
-		return {m_visualRuns.back().rightToLeft ? m_visualRuns.back().charStartIndex
-				: m_visualRuns.back().charEndIndex + m_visualRuns.back().charEndOffset};
+		CursorPosition result{m_visualRuns[lastRunIndex - 1].rightToLeft
+				? m_visualRuns[lastRunIndex - 1].charStartIndex
+				: m_visualRuns[lastRunIndex - 1].charEndIndex};
+		result.set_affinity(CursorAffinity::OPPOSITE);
+		return result;
 	}
 
 	// Find closest glyph in run
