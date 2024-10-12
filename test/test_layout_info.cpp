@@ -11,20 +11,26 @@ static bool g_initialized = false;
 
 static constexpr const char* g_testStrings[] = {
 	"HelloWorld",
-	/*"إلابسم الله",
+	"إلابسم الله",
 	"beffiإلابسم اللهffter",
 	"Hello\nWorld",
 	"Hello\r\n\r\nWorld",
 	"beffiإلابسم اللهffter\r\nbeffiإلابسم اللهffter",
-	"beffiإلابسم الله\r\nhello",*/
-	//"	 ̈‫ aaa ‭ אאא ‮ aaa ‪ אאא ‬ aaa ‬ ااا ‬ aaa ‬ aaa ‬&‬‌‌&‬",
-	//"aaa\u2067אאא\u2066bbb\u202bבבב\u202cccc\u2069גגג",
+	"beffiإلابسم الله\r\nhello",
+	"	 ̈‫ aaa ‭ אאא ‮ aaa ‪ אאא ‬ aaa ‬ ااا ‬ aaa ‬ aaa ‬&‬‌‌&‬",
+	"aaa\u2067אאא\u2066bbb\u202bבבב\u202cccc\u2069גגג",
+	"A\r\n\r\nB\r\nC\r\n",
+	"BeeffiWorld",
+	"Hello\r\nWorld",
+	"\xF0\x9F\x87\xAE\xF0\x9F\x87\xB9",
+	"beffiإلابسماللهhello",
 };
 
 static void init_font_registry();
 
 static void test_lx_vs_icu(Text::Font font, const char* str, float width);
 static void test_lx_vs_utf8(Text::Font font, const char* str, float width);
+static void test_utf8_vs_utf8(Text::Font font, const char* str, float width);
 static void test_compare_layouts(const Text::LayoutInfo& lxLayout, const Text::LayoutInfo& icuLayout);
 
 TEST_CASE("ICU UTF-16", "[LayoutInfo]") {
@@ -63,6 +69,24 @@ TEST_CASE("ICU UTF-8", "[LayoutInfo]") {
 	}
 }
 
+TEST_CASE("UTF-8 REGRESSION", "[Regression]") {
+	init_font_registry();
+	auto family = Text::FontRegistry::get_family("Noto Sans"); 
+	Text::Font font(family, Text::FontWeight::REGULAR, Text::FontStyle::NORMAL, 48);
+
+	SECTION("Single Font Softbreaking") {
+		for (size_t i = 0; i < std::ssize(g_testStrings); ++i) {
+			test_utf8_vs_utf8(font, g_testStrings[i], 100.f);
+		}
+	}
+
+	SECTION("Single Font No Softbreaking") {
+		for (size_t i = 0; i < std::ssize(g_testStrings); ++i) {
+			test_utf8_vs_utf8(font, g_testStrings[i], 0.f);
+		}
+	}
+}
+
 // Static Functions
 
 static void init_font_registry() {
@@ -73,6 +97,21 @@ static void init_font_registry() {
 	g_initialized = true;
 	auto res = Text::FontRegistry::register_families_from_path("fonts/families");
 	REQUIRE(res == Text::FontRegistryError::NONE);
+}
+
+static void test_utf8_vs_utf8(Text::Font font, const char* str, float width) {
+	auto count = strlen(str);
+	Text::ValueRuns<Text::Font> fontRuns(font, count);
+
+	Text::LayoutInfo layoutA{};
+	Text::build_layout_info_utf8(layoutA, str, count, fontRuns, width, 100.f, Text::YAlignment::BOTTOM,
+			Text::LayoutInfoFlags::NONE);
+
+	Text::LayoutInfo layoutB{};
+	Text::build_layout_info_utf8_2(layoutB, str, count, fontRuns, width, 100.f, Text::YAlignment::BOTTOM,
+			Text::LayoutInfoFlags::NONE);
+
+	test_compare_layouts(layoutA, layoutB);
 }
 
 static void test_lx_vs_icu(Text::Font font, const char* str, float width) {
