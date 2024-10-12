@@ -137,6 +137,9 @@ bool TextBox::handle_key_press(UIContainer& container, int key, int action, int 
 					cursor_move_to_text_end(true);
 				}
 				break;
+			case GLFW_KEY_TAB:
+				handle_key_tab();
+				break;
 			default:
 				break;
 		}
@@ -157,14 +160,7 @@ bool TextBox::handle_mouse_move(UIContainer& container, double mouseX, double mo
 
 bool TextBox::handle_text_input(UIContainer&, unsigned codepoint) {
 	if (is_focused() && m_editable) {
-		if (m_selectionStart.is_valid()) {
-			remove_highlighted_text();
-		}
-
-		int32_t len{};
-		char buffer[4]{};
-		U8_APPEND_UNSAFE(buffer, len, codepoint);
-		insert_text(std::string(buffer, len), m_cursorPosition.get_position());
+		insert_typed_character(codepoint);
 		return true;
 	}
 
@@ -313,11 +309,15 @@ void TextBox::handle_key_delete(bool ctrl) {
 void TextBox::handle_key_enter(UIContainer& container) {
 	if (m_multiLine) {
 		remove_highlighted_text();
-		insert_text("\n", m_cursorPosition.get_position());
+		insert_typed_character('\n');
 	}
 	else {
 		container.release_focused_object();
 	}
+}
+
+void TextBox::handle_key_tab() {
+	insert_typed_character('\t');
 }
 
 void TextBox::clipboard_cut_text() {
@@ -355,6 +355,17 @@ void TextBox::clipboard_paste_text() {
 
 	remove_highlighted_text();
 	insert_text(glfwGetClipboardString(NULL), m_cursorPosition.get_position());
+}
+
+void TextBox::insert_typed_character(unsigned codepoint) {
+	if (m_selectionStart.is_valid()) {
+		remove_highlighted_text();
+	}
+
+	int32_t len{};
+	char buffer[4]{};
+	U8_APPEND_UNSAFE(buffer, len, codepoint);
+	insert_text(std::string(buffer, len), m_cursorPosition.get_position());
 }
 
 void TextBox::insert_text(const std::string& text, uint32_t startIndex) {

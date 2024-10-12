@@ -76,11 +76,13 @@ class TextBox final : public UIObject {
 		void handle_key_backspace(bool ctrl);
 		void handle_key_delete(bool ctrl);
 		void handle_key_enter(UIContainer&);
+		void handle_key_tab();
 
 		void clipboard_cut_text();
 		void clipboard_copy_text();
 		void clipboard_paste_text();
 
+		void insert_typed_character(unsigned codepoint);
 		void insert_text(const std::string& text, uint32_t startIndex);
 		void remove_text(uint32_t startIndex, uint32_t endIndex);
 		void remove_highlighted_text();

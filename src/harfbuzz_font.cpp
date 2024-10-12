@@ -30,7 +30,6 @@
 #include "harfbuzz_font.hpp"
 
 #include "hb-cache.hh"
-#include "hb-font.hh"
 #include "hb-machinery.hh"
 #include "hb-ot-os2-table.hh"
 #include "hb-ot-shaper-arabic-pua.hh"

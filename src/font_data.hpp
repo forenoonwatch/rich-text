@@ -51,6 +51,9 @@ struct FontData {
 
 	SyntheticFontInfo synthInfo;
 
+	uint32_t spaceGlyphIndex;
+	int32_t spaceAdvance;
+
 	constexpr bool valid() const {
 		return ftFace && hbFont;
 	}

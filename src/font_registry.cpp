@@ -1,7 +1,6 @@
 #include "font_registry.hpp"
 
 #include "string_hash.hpp"
-#include "file_read_bytes.hpp"
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -74,21 +73,18 @@ struct FontDataOwner {
 	uint32_t size{};
 	int16_t strikethroughPosition;
 	int16_t strikethroughThickness;
+	uint32_t spaceGlyphIndex;
+	int32_t spaceAdvance;
 
 	FontDataOwner() = default;
-	explicit FontDataOwner(FT_Face ftFaceIn, hb_font_t* hbFontIn, uint32_t sizeIn, int16_t strikePosIn,
-				int16_t strikeThickIn)
-			: ftFace(ftFaceIn)
-			, hbFont(hbFontIn)
-			, size(sizeIn)
-			, strikethroughPosition(strikePosIn)
-			, strikethroughThickness(strikeThickIn) {}
 	explicit FontDataOwner(const FontData& fontData, uint32_t sizeIn)
 			: ftFace(fontData.ftFace)
 			, hbFont(fontData.hbFont)
+			, size(sizeIn)
 			, strikethroughPosition(fontData.strikethroughPosition)
 			, strikethroughThickness(fontData.strikethroughThickness)
-			, size(sizeIn) {}
+			, spaceGlyphIndex(fontData.spaceGlyphIndex)
+			, spaceAdvance(fontData.spaceAdvance) {}
 
 	FontDataOwner(FontDataOwner&& other) noexcept {
 		*this = std::move(other);
@@ -99,6 +95,8 @@ struct FontDataOwner {
 		std::swap(hbFont, other.hbFont);
 		strikethroughPosition = other.strikethroughPosition;
 		strikethroughThickness = other.strikethroughThickness;
+		spaceGlyphIndex = other.spaceGlyphIndex;
+		spaceAdvance = other.spaceAdvance;
 		return *this;
 	}
 
@@ -130,7 +128,9 @@ struct FontDataOwner {
 				.syntheticSubscript = syntheticSubscript,
 				.syntheticSuperscript = syntheticSuperscript,
 				.syntheticSmallCaps = syntheticSmallCaps,
-			}
+			},
+			.spaceGlyphIndex = spaceGlyphIndex,
+			.spaceAdvance = spaceAdvance,
 		};
 	}
 
@@ -305,6 +305,9 @@ FontData FontRegistry::get_font_data(FaceDataHandle face, uint32_t size, FontWei
 		fontData.strikethroughPosition = -pOS2Table->yStrikeoutPosition;
 		fontData.strikethroughThickness = pOS2Table->yStrikeoutSize;
 	}
+
+	fontData.spaceGlyphIndex = FT_Get_Char_Index(fontData.ftFace, ' ');
+	fontData.spaceAdvance = hb_font_get_glyph_h_advance(fontData.hbFont, fontData.spaceGlyphIndex);
 
 	t_fontContext.cache.emplace(std::make_pair(face.handle, FontDataOwner(fontData, size)));
 
