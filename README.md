@@ -15,15 +15,18 @@ This is a prototype codebase containing the necessary code for displaying and ed
 - &check; Full feature unicode support (Complex scripts, Emoji, Zalgo text, etc)
 - &check; Color glyph support
 - &check; Dynamic glyph atlas
-- &cross; MSDF text rendering
-- &cross; Synthetic bold and italic
+- &cross; Scalable text rendering
+- &check; Synthetic bold
+- &check; Synthetic italic
+- &check; Synthetic smallcaps
+- &check; Synthetic subscript/superscript
 
 ### Text Input
-- &cross; OS text event and Input Method Editor support
-- &cross; Clipboard integration and accelerators (Ctrl+X, Ctrl+C, Ctrl+V)
-- &cross; Character break aware cursor navigation (mouse, arrow keys)
-- &cross; Basic text selection (click and drag, shift+arrow keys)
-- &cross; Word, line, and full text aware navigation (Ctrl+arrow keys, Ctrl+A, Home, End, Ctrl+Home, Ctrl+End, n-clicking text area)
+- &check; OS text event and Input Method Editor support
+- &check; Clipboard integration and accelerators (Ctrl+X, Ctrl+C, Ctrl+V)
+- &check; Character break aware cursor navigation (mouse, arrow keys)
+- &check; Basic text selection (click and drag, shift+arrow keys)
+- &check; Word, line, and full text aware navigation (Ctrl+arrow keys, Ctrl+A, Home, End, Ctrl+Home, Ctrl+End, n-clicking text area)
 - &cross; Undo, Redo (Ctrl+Z, Ctrl+Y)
 
 ### Rich Text Markup
@@ -32,8 +35,8 @@ This is a prototype codebase containing the necessary code for displaying and ed
 - &check; Font family
 - &check; Font size
 - &cross; Font weight
-- &cross; Bold
-- &cross; Italic
+- &check; Bold
+- &check; Italic
 - &check; Underline
 - &check; Strikeout
 - &check; Stroke color
