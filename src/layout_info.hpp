@@ -35,6 +35,15 @@ struct VisualCursorInfo {
 	uint32_t lineNumber;
 };
 
+/**
+ * Represents all the information necessary to display a string of text, or query a string for visual
+ * information.
+ *
+ * INTERNAL:
+ * All data is stored in Visual Order. Iterating through the list of positions and glyph indices will emit
+ * glyphs from left to right, top to bottom. This means that for all RTL runs, character indices into the
+ * source string are in reverse order.
+ */
 class LayoutInfo {
 	public:
 		/**

@@ -38,8 +38,12 @@ struct LayoutBuildState {
 	hb_buffer_t* pBuffer;
 	std::vector<uint32_t> glyphs;
 	std::vector<uint32_t> charIndices;
-	std::vector<float> glyphPositions;
+	std::vector<float> glyphPositionsX;
+	std::vector<float> glyphPositionsY;
 	std::vector<int32_t> glyphWidths;
+
+	int32_t cursorX;
+	int32_t cursorY;
 };
 
 struct LogicalRun {
@@ -53,7 +57,6 @@ struct LogicalRun {
 
 }
 
-// FIXME: Using `stringOffset` is a bit cumbersome, refactor this logic to have full view of the string
 static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, SBParagraphRef sbParagraph,
 		const char* chars, int32_t count, int32_t stringOffset, const ValueRuns<Font>& fontRuns,
 		const ValueRuns<bool>* pSmallcapsRuns, const ValueRuns<bool>* pSubscriptRuns,
@@ -80,6 +83,35 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 
 // Public Functions
 
+/**
+ * ALGORITHM:
+ * 1. Split the string by paragraph boundaries (hard line breaks) (UBA P1)
+ * 2. For each paragraph:
+ *   2a. Determine script runs (UAX #24)
+ *   2b. Determine font runs based on text and script runs
+ *   2c. Determine directional levels (UBA X1-I2)
+ *   2d. Generate the set of Logical Runs, where each run represents a region over which the font, script,
+ *       and level do not change. For each logical run, generate shaping data.
+ *   2e. If the text area width > 0, accumulate glyph widths until the width overflows the line. Find the
+ *       previous safe break point using the line break iterator. Otherwise, skip directly to 2f with the line
+ *       range covering [paragraphStart, paragraphEnd]. (UBA 3.4)
+ *   2f. For each range [lineStart, lineEnd] as computed in step 2e, compute the visual runs following the UBA
+ *       (UBA L1-L2).
+ *
+ * UBA: https://unicode.org/reports/tr9
+ * UAX #24: https://www.unicode.org/reports/tr24/
+ *
+ * DATA & ORDERING NOTES:
+ * 1. The LayoutInfo struct expects all data to be in final visual order, both at the run and character level.
+ * 2. HarfBuzz provides all data in visual order, within the context of the logical run (i.e. the data is
+ *    reversed relative to the source string if requested as RTL).
+ * 3. Line breaking (step 2e) requires positions and charIndices to be in logical order to calculate widths
+ *    (UBA L1.1).
+ * 4. Glyph mirroring (UBA L4) requires glyph index order to match char index order up to computing line
+ *    visual runs.
+ *
+ * FIXME: The algorithm does not select mirror glyphs currently.
+ */
 void Text::build_layout_info_utf8_2(LayoutInfo& result, const char* chars, int32_t count,
 		const ValueRuns<Font>& fontRuns, float textAreaWidth, float textAreaHeight,
 		YAlignment textYAlignment, LayoutInfoFlags flags, const ValueRuns<bool>* pSmallcapsRuns,
@@ -193,11 +225,16 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 	state.charIndices.clear();
 	state.charIndices.reserve(count);
 
-	state.glyphPositions.clear();
-	state.glyphPositions.reserve(2 * (count + logicalRuns.size()));
+	state.glyphPositionsX.clear();
+	state.glyphPositionsX.reserve(count + 1);
+	state.glyphPositionsY.clear();
+	state.glyphPositionsY.reserve(count + 1);
 
 	state.glyphWidths.clear();
 	state.glyphWidths.reserve(count);
+
+	state.cursorX = 0;
+	state.cursorY = 0;
 
 	for (auto& run : logicalRuns) {
 		bool rightToLeft = run.level & 1;
@@ -206,6 +243,9 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 		run.glyphEndIndex = static_cast<uint32_t>(state.glyphs.size());
 		runStart = run.charEndIndex;
 	}
+
+	state.glyphPositionsX.emplace_back(scalbnf(state.cursorX, -6));
+	state.glyphPositionsY.emplace_back(scalbnf(state.cursorY, -6));
 
 	size_t highestRun{};
 	int32_t highestRunCharEnd{INT32_MIN};
@@ -403,25 +443,20 @@ static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& f
 	auto glyphCount = hb_buffer_get_length(state.pBuffer);
 	auto* glyphPositions = hb_buffer_get_glyph_positions(state.pBuffer, nullptr);
 	auto* glyphInfos = hb_buffer_get_glyph_infos(state.pBuffer, nullptr);
-	int32_t cursorX{};
-	int32_t cursorY{};
 
 	if (font.syntheticSmallCaps) {
 		remap_char_indices(glyphInfos, glyphCount, edits, chars + offset, rightToLeft);
 	}
 
 	for (unsigned i = 0; i < glyphCount; ++i) {
-		state.glyphPositions.emplace_back(scalbnf(cursorX + glyphPositions[i].x_offset, -6));
-		state.glyphPositions.emplace_back(scalbnf(cursorY + glyphPositions[i].y_offset, -6));
-		cursorX += glyphPositions[i].x_advance;
-		cursorY += glyphPositions[i].y_advance;
+		state.glyphPositionsX.emplace_back(scalbnf(state.cursorX + glyphPositions[i].x_offset, -6));
+		state.glyphPositionsY.emplace_back(scalbnf(state.cursorY + glyphPositions[i].y_offset, -6));
+		state.cursorX += glyphPositions[i].x_advance;
+		state.cursorY += glyphPositions[i].y_advance;
 	}
 
-	state.glyphPositions.emplace_back(scalbnf(cursorX, -6));
-	state.glyphPositions.emplace_back(scalbnf(cursorY, -6));
-
 	if (rightToLeft) {
-		for (unsigned i = glyphCount - 1; ; --i) {
+		for (unsigned i = glyphCount; i--;) {
 			state.glyphs.emplace_back(glyphInfos[i].codepoint);
 			state.charIndices.emplace_back(glyphInfos[i].cluster + offset + stringOffset);
 
@@ -431,10 +466,6 @@ static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& f
 			else {
 				state.glyphWidths.emplace_back(glyphPositions[i].x_advance + glyphPositions[i + 1].x_offset
 						- glyphPositions[i].x_offset);
-			}
-
-			if (i == 0) {
-				break;
 			}
 		}
 	}
@@ -567,7 +598,6 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 		int32_t& highestRunCharEnd) {
 	auto logicalFirstGlyph = run == 0 ? 0 : logicalRuns[run - 1].glyphEndIndex;
 	auto logicalLastGlyph = logicalRuns[run].glyphEndIndex;
-	auto logicalFirstPos = run == 0 ? 0 : 2 * (logicalRuns[run - 1].glyphEndIndex + run);
 	bool rightToLeft = logicalRuns[run].level & 1;
 	uint32_t visualFirstGlyph;
 	uint32_t visualLastGlyph;
@@ -577,13 +607,11 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 		highestRunCharEnd = charEndIndex;
 	}
 
-	visualFirstGlyph = binary_search(logicalFirstGlyph,
-			logicalLastGlyph - logicalFirstGlyph, [&](auto index) {
+	visualFirstGlyph = binary_search(logicalFirstGlyph, logicalLastGlyph - logicalFirstGlyph, [&](auto index) {
 		return state.charIndices[index] < charStartIndex;
 	});
 
-	visualLastGlyph = binary_search(visualFirstGlyph,
-			logicalLastGlyph - visualFirstGlyph, [&](auto index) {
+	visualLastGlyph = binary_search(visualFirstGlyph, logicalLastGlyph - visualFirstGlyph, [&](auto index) {
 		return state.charIndices[index] <= charEndIndex;
 	});
 
@@ -591,19 +619,13 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 	uint32_t visualLastPosIndex;
 
 	if (rightToLeft) {
-		if (visualLastGlyph > visualFirstGlyph) {
-			for (uint32_t i = visualLastGlyph - 1; ; --i) {
-				result.append_glyph(state.glyphs[i]);
-				result.append_char_index(state.charIndices[i]);
-
-				if (i == visualFirstGlyph) {
-					break;
-				}
-			}
+		for (uint32_t i = visualLastGlyph; i-- > visualFirstGlyph;) {
+			result.append_glyph(state.glyphs[i]);
+			result.append_char_index(state.charIndices[i]);
 		}
 
-		visualFirstPosIndex = logicalFirstGlyph + (logicalLastGlyph - visualLastGlyph);
-		visualLastPosIndex = logicalLastGlyph - (visualFirstGlyph - logicalFirstGlyph);
+		visualFirstPosIndex = logicalFirstGlyph + logicalLastGlyph - visualLastGlyph;
+		visualLastPosIndex = logicalFirstGlyph + logicalLastGlyph - visualFirstGlyph;
 	}
 	else {
 		for (uint32_t i = visualFirstGlyph; i < visualLastGlyph; ++i) {
@@ -611,23 +633,20 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 			result.append_char_index(state.charIndices[i]);
 		}
 
-		visualFirstPosIndex = visualFirstGlyph;
-		visualLastPosIndex = visualLastGlyph;
+		visualFirstPosIndex = logicalFirstGlyph + visualFirstGlyph - logicalFirstGlyph;
+		visualLastPosIndex = logicalFirstGlyph + visualLastGlyph - logicalFirstGlyph;
 	}
 
-	visualRunLastX -= state.glyphPositions[logicalFirstPos + 2 * (visualFirstPosIndex - logicalFirstGlyph)];
+	visualRunLastX -= state.glyphPositionsX[visualFirstPosIndex];
 
 	for (uint32_t i = visualFirstPosIndex; i < visualLastPosIndex; ++i) {
-		auto posIndex = logicalFirstPos + 2 * (i - logicalFirstGlyph);
-		result.append_glyph_position(state.glyphPositions[posIndex] + visualRunLastX,
-				state.glyphPositions[posIndex + 1]);
+		result.append_glyph_position(state.glyphPositionsX[i] + visualRunLastX, state.glyphPositionsY[i]);
 	}
 
-	auto logicalLastPos = logicalFirstPos + 2 * (visualLastPosIndex - logicalFirstGlyph);
-	result.append_glyph_position(state.glyphPositions[logicalLastPos] + visualRunLastX,
-			state.glyphPositions[logicalLastPos + 1]);
+	result.append_glyph_position(state.glyphPositionsX[visualLastPosIndex] + visualRunLastX,
+			state.glyphPositionsY[visualLastPosIndex]);
 
-	visualRunLastX += state.glyphPositions[logicalLastPos];
+	visualRunLastX += state.glyphPositionsX[visualLastPosIndex];
 
 	result.append_run(logicalRuns[run].font, static_cast<uint32_t>(charStartIndex),
 			static_cast<uint32_t>(charEndIndex + 1), rightToLeft);
