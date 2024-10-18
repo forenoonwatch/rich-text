@@ -34,10 +34,13 @@ struct LayoutBuildState {
 		hb_buffer_destroy(pBuffer);
 	}
 
+	void reset(size_t capacity);
+
 	icu::BreakIterator* pLineBreakIterator;
 	hb_buffer_t* pBuffer;
 	std::vector<uint32_t> glyphs;
 	std::vector<uint32_t> charIndices;
+	std::vector<uint32_t> charIndicesV;
 	std::vector<float> glyphPositionsX;
 	std::vector<float> glyphPositionsY;
 	std::vector<int32_t> glyphWidths;
@@ -53,6 +56,26 @@ struct LogicalRun {
 	UScriptCode script;
 	int32_t charEndIndex;
 	uint32_t glyphEndIndex;
+};
+
+struct LogicalRunIterator {
+	const LogicalRun* pRuns;
+	ptrdiff_t index;
+	ptrdiff_t endIndex;
+	ptrdiff_t dir;
+	size_t runIndex;
+
+	void advance() {
+		index += dir;
+
+		if (index == endIndex) {
+			auto runStartIndex = pRuns[runIndex++].glyphEndIndex;
+			bool rightToLeft = pRuns[runIndex].level & 1;
+			index = rightToLeft ? static_cast<ptrdiff_t>(pRuns[runIndex].glyphEndIndex) - 1 : runStartIndex;
+			endIndex = rightToLeft ? static_cast<ptrdiff_t>(runStartIndex) - 1 : pRuns[runIndex].glyphEndIndex;
+			dir = rightToLeft ? -1 : 1;
+		}
+	}
 };
 
 }
@@ -174,6 +197,105 @@ void Text::build_layout_info_utf8_2(LayoutInfo& result, const char* chars, int32
 
 // Static Functions
 
+static bool find_width_of_run(const LayoutBuildState& state, size_t runStart, size_t runEnd,
+		size_t nextRunStart, bool rightToLeft, int32_t textAreaWidth, int32_t& lineWidthSoFar, size_t& result) {
+	if (rightToLeft) {
+		auto lastPos = static_cast<int32_t>(state.glyphPositionsX[runEnd] * 64.f);
+
+		for (; runEnd-- > runStart;) {
+			auto pos = static_cast<int32_t>(state.glyphPositionsX[runEnd] * 64.f);
+			auto width = lastPos - pos;
+			lastPos = pos;
+
+			if (lineWidthSoFar + width > textAreaWidth) {
+				result = runEnd;
+				return false;
+			}
+
+			lineWidthSoFar += width;
+		}
+	}
+	else {
+		auto lastPos = static_cast<int32_t>(state.glyphPositionsX[runStart] * 64.f);
+
+		for (; runStart < runEnd; ++runStart) {
+			auto pos = static_cast<int32_t>(state.glyphPositionsX[runStart + 1] * 64.f);
+			auto width = pos - lastPos;
+			lastPos = pos;
+
+			if (lineWidthSoFar + width > textAreaWidth) {
+				result = runStart;
+				return false;
+			}
+
+			lineWidthSoFar += width;
+		}
+	}
+
+	result = nextRunStart;
+	return true;
+}
+
+static int32_t find_next_line_end(const LayoutBuildState& state, const std::vector<LogicalRun>& logicalRuns,
+		int32_t textAreaWidth, int32_t lineStart, const char* chars, int32_t stringOffset, int32_t count) {
+	auto runIndex = binary_search(0, logicalRuns.size(), [&](auto index) {
+		return logicalRuns[index].charEndIndex <= lineStart - stringOffset;
+	});
+
+	int32_t lineWidthSoFar{};
+	auto runStart = runIndex == 0 ? 0 : logicalRuns[runIndex - 1].glyphEndIndex;
+	auto runEnd = logicalRuns[runIndex].glyphEndIndex;
+	auto runSeparator = runStart;
+	bool runRTL = logicalRuns[runIndex].level & 1;
+	while (runSeparator < logicalRuns[runIndex].glyphEndIndex
+			&& state.charIndicesV[runSeparator] != lineStart) {
+		++runSeparator;
+	}
+	size_t glyphIndex{};
+
+	if (find_width_of_run(state, runRTL ? runStart : runSeparator, runRTL ? runSeparator + 1 : runEnd,
+			runEnd, runRTL, textAreaWidth, lineWidthSoFar, glyphIndex)) {
+		++runIndex;
+
+		while (runIndex < logicalRuns.size()) {
+			runStart = runEnd;
+			runEnd = logicalRuns[runIndex].glyphEndIndex;
+			runRTL = logicalRuns[runIndex].level & 1;
+
+			if (!find_width_of_run(state, runStart, runEnd, runEnd, runRTL, textAreaWidth, lineWidthSoFar,
+					glyphIndex)) {
+				break;
+			}
+
+			++runIndex;
+		}
+	}
+
+	LogicalRunIterator iter{logicalRuns.data(), static_cast<ptrdiff_t>(glyphIndex),
+			runRTL ? static_cast<ptrdiff_t>(runStart) - 1 : runEnd, runRTL ? -1 : 1,
+			runIndex};
+
+	if (lineWidthSoFar == 0 && iter.runIndex < logicalRuns.size()) {
+		iter.advance();
+	}
+
+	auto charIndex = iter.runIndex < logicalRuns.size() ? state.charIndicesV[iter.index]
+			: stringOffset + count;
+	auto lineEnd = find_previous_line_break(*state.pLineBreakIterator, chars, count, charIndex - stringOffset)
+			+ stringOffset;
+
+	while (lineEnd <= lineStart && iter.runIndex < logicalRuns.size()) {
+		lineEnd = state.charIndicesV[iter.index];
+		iter.advance();
+	}
+
+	if (lineEnd <= lineStart) {
+		lineEnd = stringOffset + count;
+	}
+
+	return lineEnd;
+}
+
 static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, SBParagraphRef sbParagraph,
 		const char* chars, int32_t count, int32_t stringOffset, const ValueRuns<Font>& fontRuns,
 		const ValueRuns<bool>* pSmallcapsRuns, const ValueRuns<bool>* pSubscriptRuns,
@@ -209,6 +331,7 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 
 	std::vector<LogicalRun> logicalRuns;
 
+	// Generate logical run definitions
 	iterate_run_intersections([&](auto limit, auto font, auto level, auto script, auto* pLocale) {
 		logicalRuns.push_back({
 			.font = font,
@@ -219,23 +342,9 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 		});
 	}, subFontRuns, levelRuns, scriptRuns, localeRuns);
 
-	state.glyphs.clear();
-	state.glyphs.reserve(count);
+	state.reset(count);
 
-	state.charIndices.clear();
-	state.charIndices.reserve(count);
-
-	state.glyphPositionsX.clear();
-	state.glyphPositionsX.reserve(count + 1);
-	state.glyphPositionsY.clear();
-	state.glyphPositionsY.reserve(count + 1);
-
-	state.glyphWidths.clear();
-	state.glyphWidths.reserve(count);
-
-	state.cursorX = 0;
-	state.cursorY = 0;
-
+	// Shape all logical runs
 	for (auto& run : logicalRuns) {
 		bool rightToLeft = run.level & 1;
 		shape_logical_run(state, run.font, chars, runStart, run.charEndIndex - runStart, count, run.script,
@@ -244,6 +353,7 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 		runStart = run.charEndIndex;
 	}
 
+	// Finalize the last advance after the last character in the paragraph
 	state.glyphPositionsX.emplace_back(scalbnf(state.cursorX, -6));
 	state.glyphPositionsY.emplace_back(scalbnf(state.cursorY, -6));
 
@@ -301,6 +411,13 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 
 		if (lineEnd <= lineStart && glyphIndex == state.glyphs.size()) {
 			lineEnd = stringOffset + count;
+		}
+
+		auto charIndex2 = find_next_line_end(state, logicalRuns, textAreaWidth, lineStart, chars, stringOffset,
+				count);
+
+		if (lineEnd != charIndex2) {
+			printf("!!! %d = %d\n", lineEnd, charIndex2);
 		}
 
 		compute_line_visual_runs(state, result, logicalRuns, sbParagraph, chars, count, lineStart, lineEnd,
@@ -449,6 +566,7 @@ static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& f
 	}
 
 	for (unsigned i = 0; i < glyphCount; ++i) {
+		state.charIndicesV.emplace_back(glyphInfos[i].cluster + offset + stringOffset);
 		state.glyphPositionsX.emplace_back(scalbnf(state.cursorX + glyphPositions[i].x_offset, -6));
 		state.glyphPositionsY.emplace_back(scalbnf(state.cursorY + glyphPositions[i].y_offset, -6));
 		state.cursorX += glyphPositions[i].x_advance;
@@ -650,5 +768,29 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 
 	result.append_run(logicalRuns[run].font, static_cast<uint32_t>(charStartIndex),
 			static_cast<uint32_t>(charEndIndex + 1), rightToLeft);
+}
+
+// LayoutBuildState
+
+void LayoutBuildState::reset(size_t capacity) {
+	glyphs.clear();
+	glyphs.reserve(capacity);
+
+	charIndices.clear();
+	charIndices.reserve(capacity);
+
+	charIndicesV.clear();
+	charIndicesV.reserve(capacity);
+
+	glyphPositionsX.clear();
+	glyphPositionsX.reserve(capacity + 1);
+	glyphPositionsY.clear();
+	glyphPositionsY.reserve(capacity + 1);
+
+	glyphWidths.clear();
+	glyphWidths.reserve(capacity);
+
+	cursorX = 0;
+	cursorY = 0;
 }
 
