@@ -459,14 +459,11 @@ static int32_t find_previous_line_break(icu::BreakIterator& iter, const char* ch
 	// Skip over any whitespace or control characters because they can hang in the margin
 	UChar32 chr;
 	while (charIndex < count) {
-		// FIXME: U8_GET may be O(n), use U8_NEXT instead
-		U8_GET((const uint8_t*)chars, 0, charIndex, count, chr);
+		U8_NEXT_OR_FFFD((const uint8_t*)chars, charIndex, count, chr);
 
 		if (!u_isWhitespace(chr) && !u_iscntrl(chr)) {
-			break;
+			return iter.preceding(charIndex);
 		}
-
-		U8_FWD_1(chars, charIndex, count);
 	}
 
 	// Return the break location that's at or before the character we stopped on. Note: if we're on a break, the
