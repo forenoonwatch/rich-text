@@ -1,6 +1,6 @@
 #pragma once
 
-#include "value_runs.hpp"
+#include "value_runs_iterator.hpp"
 
 #include <algorithm>
 #include <tuple>
@@ -56,6 +56,16 @@ constexpr void iterate_run_intersections(Functor&& func, Runs&&... runs) {
 		minLimit = Internal::find_next_min_limit(minLimit, indices, runs...);
 		Internal::call_intersect_func(func, tup, indices, minLimit, std::make_index_sequence<sizeof...(Runs)>{});
 		Internal::advance_intersect_indices(minLimit, indices, runs...);
+	}
+}
+
+template <typename Functor, ValueRunsIterable... Iterators>
+constexpr void iterate_run_intersections(int32_t minLimit, int32_t maxLimit, Functor&& func,
+		Iterators&&... iterators) {
+	while (minLimit < maxLimit) {
+		minLimit = std::min<int32_t>({iterators.get_limit()...});
+		func(minLimit, iterators.get_value()...);
+		(iterators.advance_to(minLimit), ...);
 	}
 }
 

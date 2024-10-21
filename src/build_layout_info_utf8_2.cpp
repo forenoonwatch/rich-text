@@ -58,26 +58,80 @@ struct LayoutBuildState {
 	std::vector<LogicalRun> logicalRuns;
 };
 
+class ScriptRunValueIterator {
+	public:
+		explicit ScriptRunValueIterator(const char* paragraphText, int32_t paragraphStart,
+					int32_t paragraphLength)
+				: m_iter(paragraphText, paragraphLength)
+				, m_paragraphStart(paragraphStart) {
+			int32_t start;
+			m_iter.next(start, m_limit, m_value);
+		}
+
+		int32_t get_limit() const { return m_limit + m_paragraphStart; }
+		UScriptCode get_value() const { return m_value; }
+
+		void advance_to(int32_t index) {
+			if (m_limit <= index) {
+				int32_t start;
+				m_iter.next(start, m_limit, m_value);
+			}
+		}
+	private:
+		ScriptRunIterator m_iter;
+		int32_t m_paragraphStart;
+		int32_t m_limit{};
+		UScriptCode m_value{};
+};
+
+class LevelsIterator {
+	public:
+		explicit LevelsIterator(SBParagraphRef sbParagraph, int32_t paragraphStart, int32_t paragraphLength)
+				: m_levels(SBParagraphGetLevelsPtr(sbParagraph))
+				, m_end(m_levels + paragraphLength)
+				, m_lastLevel(m_levels[0])
+				, m_index(paragraphStart) {
+			while (m_levels != m_end && *m_levels == m_lastLevel) {
+				++m_levels;
+				++m_index;
+			}
+		}
+
+		SBLevel get_value() const { return m_lastLevel; }
+		int32_t get_limit() const { return m_index; }
+
+		void advance_to(int32_t index) {
+			while (m_levels != m_end && m_index <= index) {
+				m_lastLevel = *m_levels;
+
+				while (m_levels != m_end && m_lastLevel == *m_levels) {
+					++m_levels;
+					++m_index;
+				}
+			}
+		}
+	private:
+		const SBLevel* m_levels;
+		const SBLevel* m_end;
+		SBLevel m_lastLevel;
+		int32_t m_index;
+};
+
 }
 
 static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, SBParagraphRef sbParagraph,
-		const char* chars, int32_t count, int32_t stringOffset, const ValueRuns<Font>& fontRuns,
-		const ValueRuns<bool>* pSmallcapsRuns, const ValueRuns<bool>* pSubscriptRuns,
-		const ValueRuns<bool>* pSuperscriptRuns, int32_t fixedWidth);
+		const char* fullText, int32_t paragraphLength, int32_t paragraphStart,
+		ValueRunsIterator<Font>& itFont, MaybeDefaultRunsIterator<bool>& itSmallcaps,
+		MaybeDefaultRunsIterator<bool>& itSubscript, MaybeDefaultRunsIterator<bool>& itSuperscript,
+		int32_t fixedWidth);
 
-static ValueRuns<SBLevel> compute_levels(SBParagraphRef sbParagraph, size_t paragraphLength);
-static ValueRuns<UScriptCode> compute_scripts(const char* chars, int32_t count);
-static ValueRuns<SingleScriptFont> compute_sub_fonts(const char* chars, const ValueRuns<Font>& fontRuns,
-		const ValueRuns<UScriptCode>& scriptRuns, const ValueRuns<bool>& smallcapsRuns,
-		const ValueRuns<bool>& subscriptRuns, const ValueRuns<bool>& superscriptRuns);
-
-static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& font, const char* chars,
-		int32_t offset, int32_t count, int32_t max, UScriptCode script, const icu::Locale& locale,
-		bool rightToLeft, int32_t stringOffset);
+static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& font, const char* paragraphText,
+		int32_t offset, int32_t count, int32_t paragraphStart, int32_t paragraphLength, UScriptCode script,
+		const icu::Locale& locale, bool rightToLeft);
 static int32_t find_previous_line_break(icu::BreakIterator& iter, const char* chars, int32_t count,
 		int32_t charIndex);
 static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result, SBParagraphRef sbParagraph,
-		const char* chars, int32_t count, int32_t lineStart, int32_t lineEnd,  int32_t stringOffset,
+		const char* chars, int32_t count, int32_t lineStart, int32_t lineEnd, int32_t stringOffset,
 		size_t& highestRun, int32_t& highestRunCharEnd);
 static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, size_t logicalRunIndex,
 		int32_t charStartIndex, int32_t charEndIndex, int32_t& visualRunLastX, size_t& highestRun,
@@ -125,8 +179,11 @@ void Text::build_layout_info_utf8_2(LayoutInfo& result, const char* chars, int32
 	SBAlgorithmRef sbAlgorithm = SBAlgorithmCreate(&codepointSequence);
 	size_t paragraphOffset{};	
 
-	// FIXME: Give the sub-paragraphs a full view of font runs
-	ValueRuns<Font> subsetFontRuns(fontRuns.get_run_count());
+	ValueRunsIterator itFont(fontRuns);
+	MaybeDefaultRunsIterator itSmallcaps(pSmallcapsRuns, false, count);
+	MaybeDefaultRunsIterator itSubscript(pSubscriptRuns, false, count);
+	MaybeDefaultRunsIterator itSuperscript(pSuperscriptRuns, false, count);
+
 	size_t lastHighestRun = 0;
 
 	SBLevel baseDefaultLevel = ((flags & LayoutInfoFlags::RIGHT_TO_LEFT) == LayoutInfoFlags::NONE)
@@ -143,14 +200,11 @@ void Text::build_layout_info_utf8_2(LayoutInfo& result, const char* chars, int32
 
 		if (paragraphLength - separatorLength > 0) {
 			auto byteCount = paragraphLength - separatorLength * (!isLastParagraph);
-			subsetFontRuns.clear();
-			fontRuns.get_runs_subset(paragraphOffset, byteCount, subsetFontRuns);
 
 			SBParagraphRef sbParagraph = SBAlgorithmCreateParagraph(sbAlgorithm, paragraphOffset,
 					paragraphLength, baseDefaultLevel);
-			lastHighestRun = build_sub_paragraph(state, result, sbParagraph, chars + paragraphOffset, byteCount,
-					paragraphOffset, subsetFontRuns, pSmallcapsRuns, pSubscriptRuns, pSuperscriptRuns,
-					fixedTextAreaWidth);
+			lastHighestRun = build_sub_paragraph(state, result, sbParagraph, chars, byteCount,
+					paragraphOffset, itFont, itSmallcaps, itSubscript, itSuperscript, fixedTextAreaWidth);
 			SBParagraphRelease(sbParagraph);
 		}
 		else {
@@ -177,55 +231,38 @@ void Text::build_layout_info_utf8_2(LayoutInfo& result, const char* chars, int32
 // Static Functions
 
 static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, SBParagraphRef sbParagraph,
-		const char* chars, int32_t count, int32_t stringOffset, const ValueRuns<Font>& fontRuns,
-		const ValueRuns<bool>* pSmallcapsRuns, const ValueRuns<bool>* pSubscriptRuns,
-		const ValueRuns<bool>* pSuperscriptRuns, int32_t textAreaWidth) {
-	auto levelRuns = compute_levels(sbParagraph, count);
-	auto scriptRuns = compute_scripts(chars, count);
-	ValueRuns<const icu::Locale*> localeRuns(&icu::Locale::getDefault(), count);
+		const char* fullText, int32_t paragraphLength, int32_t paragraphStart, ValueRunsIterator<Font>& itFont,
+		MaybeDefaultRunsIterator<bool>& itSmallcaps, MaybeDefaultRunsIterator<bool>& itSubscript,
+		MaybeDefaultRunsIterator<bool>& itSuperscript, int32_t textAreaWidth) {
+	const char* paragraphText = fullText + paragraphStart;
+	auto paragraphEnd = paragraphStart + paragraphLength;
 
-	// FIXME: Build a ValueRunsIterator that doesn't require building fake runs - also properly iterate
-	// sub-sections of the parent runs
-	ValueRuns<bool> smallcapsRuns(false, fontRuns.get_limit());
-	ValueRuns<bool> subscriptRuns(false, fontRuns.get_limit());
-	ValueRuns<bool> superscriptRuns(false, fontRuns.get_limit());
-
-	if (pSmallcapsRuns) {
-		smallcapsRuns.clear();
-		pSmallcapsRuns->get_runs_subset(stringOffset, count, smallcapsRuns);
-	}
-
-	if (pSubscriptRuns) {
-		subscriptRuns.clear();
-		pSubscriptRuns->get_runs_subset(stringOffset, count, subscriptRuns);
-	}
-
-	if (pSuperscriptRuns) {
-		superscriptRuns.clear();
-		pSuperscriptRuns->get_runs_subset(stringOffset, count, superscriptRuns);
-	}
-
-	auto subFontRuns = compute_sub_fonts(chars, fontRuns, scriptRuns, smallcapsRuns, subscriptRuns,
-			superscriptRuns);
-
-	state.reset(count);
+	state.reset(paragraphLength);
 
 	// Generate logical run definitions and shape all logical runs
-	int32_t runStart{};
+	LevelsIterator itLevels(sbParagraph, paragraphStart, paragraphLength);
+	ScriptRunValueIterator itScripts(paragraphText, paragraphStart, paragraphLength);
+	auto subFontOffset = paragraphStart;
 
-	iterate_run_intersections([&](auto limit, auto font, auto level, auto script, auto* pLocale) {
-		shape_logical_run(state, font, chars, runStart, limit - runStart, count, script, *pLocale, level & 1,
-				stringOffset);
+	iterate_run_intersections(paragraphStart, paragraphEnd, [&](auto limit, auto baseFont, auto script,
+			auto level, bool smallcaps, bool subscript, bool superscript) {
+		while (subFontOffset < limit) {
+			auto runStart = subFontOffset;
+			auto subFont = FontRegistry::get_sub_font(baseFont, fullText, subFontOffset, limit,
+					script, smallcaps, subscript, superscript);
 
-		state.logicalRuns.push_back({
-			.font = font,
-			.level = level,
-			.charEndIndex = limit,
-			.glyphEndIndex = static_cast<uint32_t>(state.glyphs.size()),
-		});
+			shape_logical_run(state, subFont, paragraphText, runStart - paragraphStart,
+					subFontOffset - runStart, paragraphStart, paragraphLength, script,
+					icu::Locale::getDefault(), level & 1);
 
-		runStart = limit;
-	}, subFontRuns, levelRuns, scriptRuns, localeRuns);
+			state.logicalRuns.push_back({
+				.font = subFont,
+				.level = level,
+				.charEndIndex = subFontOffset - paragraphStart,
+				.glyphEndIndex = static_cast<uint32_t>(state.glyphs.size()),
+			});
+		}
+	}, itFont, itScripts, itLevels, itSmallcaps, itSubscript, itSuperscript);
 
 	// Finalize the last advance after the last character in the paragraph
 	state.glyphPositions[1].emplace_back(state.cursorY);
@@ -235,21 +272,21 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 
 	// If width == 0, perform no line breaking
 	if (textAreaWidth == 0) {
-		compute_line_visual_runs(state, result, sbParagraph, chars, count, stringOffset, stringOffset + count,
-				stringOffset, highestRun, highestRunCharEnd);
+		compute_line_visual_runs(state, result, sbParagraph, paragraphText, paragraphLength, paragraphStart,
+				paragraphStart + paragraphLength, paragraphStart, highestRun, highestRunCharEnd);
 		return highestRun;
 	}
 
 	// Find line breaks
 	UText uText UTEXT_INITIALIZER;
 	UErrorCode err{};
-	utext_openUTF8(&uText, chars, count, &err);
+	utext_openUTF8(&uText, paragraphText, paragraphLength, &err);
 	state.pLineBreakIterator->setText(&uText, err);
 
-	int32_t lineEnd = stringOffset;
+	int32_t lineEnd = paragraphStart;
 	int32_t lineStart;
 
-	while (lineEnd < stringOffset + count) {
+	while (lineEnd < paragraphStart + paragraphLength) {
 		int32_t lineWidthSoFar{};
 
 		lineStart = lineEnd;
@@ -271,10 +308,10 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 			++glyphIndex;
 		}
 
-		auto charIndex = glyphIndex == state.glyphs.size() ? count + stringOffset
+		auto charIndex = glyphIndex == state.glyphs.size() ? paragraphLength + paragraphStart
 				: state.charIndices[glyphIndex];
-		lineEnd = find_previous_line_break(*state.pLineBreakIterator, chars, count, charIndex - stringOffset)
-				+ stringOffset;
+		lineEnd = find_previous_line_break(*state.pLineBreakIterator, paragraphText, paragraphLength,
+				charIndex - paragraphStart) + paragraphStart;
 
 		// If this break is at or before the last one, find a glyph that produces a break after the last one,
 		// starting at the one which didn't fit
@@ -283,64 +320,14 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 		}
 
 		if (lineEnd <= lineStart && glyphIndex == state.glyphs.size()) {
-			lineEnd = stringOffset + count;
+			lineEnd = paragraphStart + paragraphLength;
 		}
 
-		compute_line_visual_runs(state, result, sbParagraph, chars, count, lineStart, lineEnd, stringOffset,
-				highestRun, highestRunCharEnd);
+		compute_line_visual_runs(state, result, sbParagraph, paragraphText, paragraphLength, lineStart, lineEnd,
+				paragraphStart, highestRun, highestRunCharEnd);
 	}
 
 	return highestRun;
-}
-
-static ValueRuns<SBLevel> compute_levels(SBParagraphRef sbParagraph, size_t paragraphLength) {
-	ValueRuns<SBLevel> levelRuns;
-	auto* levels = SBParagraphGetLevelsPtr(sbParagraph);
-	SBLevel lastLevel = levels[0];
-	size_t lastLevelCount{};
-
-	for (size_t i = 1; i < paragraphLength; ++i) {
-		if (levels[i] != lastLevel) {
-			levelRuns.add(i, lastLevel);
-			lastLevel = levels[i];
-		}
-	}
-
-	levelRuns.add(paragraphLength, lastLevel);
-
-	return levelRuns;
-}
-
-static ValueRuns<UScriptCode> compute_scripts(const char* chars, int32_t count) {
-	ScriptRunIterator runIter(chars, count);
-	ValueRuns<UScriptCode> scriptRuns;
-	int32_t start;
-	int32_t limit;
-	UScriptCode script;
-
-	while (runIter.next(start, limit, script)) {
-		scriptRuns.add(limit, script);
-	}
-
-	return scriptRuns;
-}
-
-static ValueRuns<SingleScriptFont> compute_sub_fonts(const char* chars, const ValueRuns<Font>& fontRuns,
-		const ValueRuns<UScriptCode>& scriptRuns, const ValueRuns<bool>& smallcapsRuns,
-		const ValueRuns<bool>& subscriptRuns, const ValueRuns<bool>& superscriptRuns) {
-	ValueRuns<SingleScriptFont> result(fontRuns.get_run_count());
-	int32_t offset{};
-
-	iterate_run_intersections([&](auto limit, auto baseFont, auto script, bool smallCaps, bool subscript,
-			bool superscript) {
-		while (offset < limit) {
-			auto subFont = FontRegistry::get_sub_font(baseFont, chars, offset, limit, script, smallCaps,
-					subscript, superscript);
-			result.add(offset, subFont);
-		}
-	}, fontRuns, scriptRuns, smallcapsRuns, subscriptRuns, superscriptRuns);
-
-	return result;
 }
 
 static void maybe_add_tag_runs(std::vector<hb_feature_t>& features, hb_tag_t tag, int32_t count,
@@ -387,16 +374,16 @@ static void remap_char_indices(hb_glyph_info_t* glyphInfos, unsigned glyphCount,
 	}
 }
 
-static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& font, const char* chars,
-		int32_t offset, int32_t count, int32_t max, UScriptCode script, const icu::Locale& locale,
-		bool rightToLeft, int32_t stringOffset) {
+static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& font, const char* paragraphText,
+		int32_t offset, int32_t count, int32_t paragraphStart, int32_t paragraphLength, UScriptCode script,
+		const icu::Locale& locale, bool rightToLeft) {
 	hb_buffer_clear_contents(state.pBuffer);
 
 	hb_buffer_set_script(state.pBuffer, hb_script_from_string(uscript_getShortName(script), 4));
 	hb_buffer_set_language(state.pBuffer, hb_language_from_string(locale.getLanguage(), -1));
 	hb_buffer_set_direction(state.pBuffer, rightToLeft ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
 	hb_buffer_set_flags(state.pBuffer, (hb_buffer_flags_t)((offset == 0 ? HB_BUFFER_FLAG_BOT : 0)
-			| (offset + count == max ? HB_BUFFER_FLAG_EOT : 0)));
+			| (offset + count == paragraphLength ? HB_BUFFER_FLAG_EOT : 0)));
 
 	icu::Edits edits;
 
@@ -405,13 +392,16 @@ static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& f
 		icu::StringByteSink<std::string> sink(&upperStr);
 		UErrorCode errc{};
 
-		icu::CaseMap::utf8ToUpper(uscript_getName(script), 0, {chars + offset, count}, sink, &edits, errc);
+		// FIXME: To produce accurate shaping results, harfbuzz needs +-5 characters around the substring,
+		// if available. These should be provided within the upperStr
+		icu::CaseMap::utf8ToUpper(uscript_getName(script), 0, {paragraphText + offset, count}, sink, &edits,
+				errc);
 		hb_buffer_add_utf8(state.pBuffer, upperStr.data(), (int)upperStr.size(), 0, (int)upperStr.size());
 		count = (int32_t)upperStr.size();
 	}
 	else {
-		hb_buffer_add_utf8(state.pBuffer, chars, max, offset, 0);
-		hb_buffer_add_utf8(state.pBuffer, chars + offset, max - offset, 0, count);
+		hb_buffer_add_utf8(state.pBuffer, paragraphText, paragraphLength, offset, 0);
+		hb_buffer_add_utf8(state.pBuffer, paragraphText + offset, paragraphLength - offset, 0, count);
 	}
 
 	std::vector<hb_feature_t> features;
@@ -428,7 +418,7 @@ static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& f
 	auto* glyphInfos = hb_buffer_get_glyph_infos(state.pBuffer, nullptr);
 
 	if (font.syntheticSmallCaps) {
-		remap_char_indices(glyphInfos, glyphCount, edits, chars + offset, rightToLeft);
+		remap_char_indices(glyphInfos, glyphCount, edits, paragraphText + offset, rightToLeft);
 	}
 
 	auto glyphPosStartIndex = state.glyphPositions[1].size();
@@ -441,7 +431,7 @@ static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& f
 	if (rightToLeft) {
 		for (unsigned i = glyphCount; i--;) {
 			state.glyphs.emplace_back(glyphInfos[i].codepoint);
-			state.charIndices.emplace_back(glyphInfos[i].cluster + offset + stringOffset);
+			state.charIndices.emplace_back(glyphInfos[i].cluster + offset + paragraphStart);
 
 			auto width = i == glyphCount - 1
 					? glyphPositions[i].x_advance - glyphPositions[i].x_offset
@@ -454,7 +444,7 @@ static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& f
 	else {
 		for (unsigned i = 0; i < glyphCount; ++i) {
 			state.glyphs.emplace_back(glyphInfos[i].codepoint);
-			state.charIndices.emplace_back(glyphInfos[i].cluster + offset + stringOffset);
+			state.charIndices.emplace_back(glyphInfos[i].cluster + offset + paragraphStart);
 
 			auto width = i == glyphCount - 1
 					? glyphPositions[i].x_advance - glyphPositions[i].x_offset
