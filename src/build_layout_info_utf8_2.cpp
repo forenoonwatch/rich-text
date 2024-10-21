@@ -21,6 +21,13 @@ using namespace Text;
 
 namespace {
 
+struct LogicalRun {
+	SingleScriptFont font;
+	SBLevel level;
+	int32_t charEndIndex;
+	uint32_t glyphEndIndex;
+};
+
 struct LayoutBuildState {
 	explicit LayoutBuildState()
 			: pBuffer(hb_buffer_create()) {
@@ -47,15 +54,8 @@ struct LayoutBuildState {
 
 	int32_t cursorX;
 	int32_t cursorY;
-};
 
-struct LogicalRun {
-	SingleScriptFont font;
-	const icu::Locale* pLocale;
-	SBLevel level;
-	UScriptCode script;
-	int32_t charEndIndex;
-	uint32_t glyphEndIndex;
+	std::vector<LogicalRun> logicalRuns;
 };
 
 }
@@ -76,13 +76,12 @@ static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& f
 		bool rightToLeft, int32_t stringOffset);
 static int32_t find_previous_line_break(icu::BreakIterator& iter, const char* chars, int32_t count,
 		int32_t charIndex);
-static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result,
-		const std::vector<LogicalRun>& logicalRuns, SBParagraphRef sbParagraph,
+static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result, SBParagraphRef sbParagraph,
 		const char* chars, int32_t count, int32_t lineStart, int32_t lineEnd,  int32_t stringOffset,
 		size_t& highestRun, int32_t& highestRunCharEnd);
-static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const LogicalRun* logicalRuns,
-		size_t logicalRunIndex, int32_t charStartIndex, int32_t charEndIndex, int32_t& visualRunLastX,
-		size_t& highestRun, int32_t& highestRunCharEnd);
+static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, size_t logicalRunIndex,
+		int32_t charStartIndex, int32_t charEndIndex, int32_t& visualRunLastX, size_t& highestRun,
+		int32_t& highestRunCharEnd);
 
 // Public Functions
 
@@ -208,31 +207,25 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 
 	auto subFontRuns = compute_sub_fonts(chars, fontRuns, scriptRuns, smallcapsRuns, subscriptRuns,
 			superscriptRuns);
-	int32_t runStart{};
-
-	std::vector<LogicalRun> logicalRuns;
-
-	// Generate logical run definitions
-	iterate_run_intersections([&](auto limit, auto font, auto level, auto script, auto* pLocale) {
-		logicalRuns.push_back({
-			.font = font,
-			.pLocale = pLocale,
-			.level = level,
-			.script = script,
-			.charEndIndex = limit,
-		});
-	}, subFontRuns, levelRuns, scriptRuns, localeRuns);
 
 	state.reset(count);
 
-	// Shape all logical runs
-	for (auto& run : logicalRuns) {
-		bool rightToLeft = run.level & 1;
-		shape_logical_run(state, run.font, chars, runStart, run.charEndIndex - runStart, count, run.script,
-				*run.pLocale, rightToLeft, stringOffset);
-		run.glyphEndIndex = static_cast<uint32_t>(state.glyphs.size());
-		runStart = run.charEndIndex;
-	}
+	// Generate logical run definitions and shape all logical runs
+	int32_t runStart{};
+
+	iterate_run_intersections([&](auto limit, auto font, auto level, auto script, auto* pLocale) {
+		shape_logical_run(state, font, chars, runStart, limit - runStart, count, script, *pLocale, level & 1,
+				stringOffset);
+
+		state.logicalRuns.push_back({
+			.font = font,
+			.level = level,
+			.charEndIndex = limit,
+			.glyphEndIndex = static_cast<uint32_t>(state.glyphs.size()),
+		});
+
+		runStart = limit;
+	}, subFontRuns, levelRuns, scriptRuns, localeRuns);
 
 	// Finalize the last advance after the last character in the paragraph
 	state.glyphPositions[1].emplace_back(state.cursorY);
@@ -242,8 +235,8 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 
 	// If width == 0, perform no line breaking
 	if (textAreaWidth == 0) {
-		compute_line_visual_runs(state, result, logicalRuns, sbParagraph, chars, count,
-				stringOffset, stringOffset + count, stringOffset, highestRun, highestRunCharEnd);
+		compute_line_visual_runs(state, result, sbParagraph, chars, count, stringOffset, stringOffset + count,
+				stringOffset, highestRun, highestRunCharEnd);
 		return highestRun;
 	}
 
@@ -293,8 +286,8 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 			lineEnd = stringOffset + count;
 		}
 
-		compute_line_visual_runs(state, result, logicalRuns, sbParagraph, chars, count, lineStart, lineEnd,
-				stringOffset, highestRun, highestRunCharEnd);
+		compute_line_visual_runs(state, result, sbParagraph, chars, count, lineStart, lineEnd, stringOffset,
+				highestRun, highestRunCharEnd);
 	}
 
 	return highestRun;
@@ -493,10 +486,9 @@ static int32_t find_previous_line_break(icu::BreakIterator& iter, const char* ch
 	return iter.preceding(charIndex);
 }
 
-static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result,
-		const std::vector<LogicalRun>& logicalRuns, SBParagraphRef sbParagraph, const char* chars,
-		int32_t count, int32_t lineStart, int32_t lineEnd, int32_t stringOffset, size_t& highestRun,
-		int32_t& highestRunCharEnd) {
+static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result, SBParagraphRef sbParagraph,
+		const char* chars, int32_t count, int32_t lineStart, int32_t lineEnd, int32_t stringOffset,
+		size_t& highestRun, int32_t& highestRunCharEnd) {
 	SBLineRef sbLine = SBParagraphCreateLine(sbParagraph, lineStart, lineEnd - lineStart);
 	auto runCount = SBLineGetRunCount(sbLine);
 	auto* sbRuns = SBLineGetRunsPtr(sbLine);
@@ -511,14 +503,14 @@ static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result
 		auto runEnd = runStart + sbRuns[i].length - 1;
 
 		if (!rightToLeft) {
-			auto run = binary_search(0, logicalRuns.size(), [&](auto index) {
-				return logicalRuns[index].charEndIndex <= runStart;
+			auto run = binary_search(0, state.logicalRuns.size(), [&](auto index) {
+				return state.logicalRuns[index].charEndIndex <= runStart;
 			});
 			auto chrIndex = runStart;
 
 			for (;;) {
-				auto logicalRunEnd = logicalRuns[run].charEndIndex;
-				auto fontData = FontRegistry::get_font_data(logicalRuns[run].font);
+				auto logicalRunEnd = state.logicalRuns[run].charEndIndex;
+				auto fontData = FontRegistry::get_font_data(state.logicalRuns[run].font);
 
 				if (auto ascent = fontData.get_ascent(); ascent > maxAscent) {
 					maxAscent = ascent;
@@ -529,12 +521,12 @@ static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result
 				}
 
 				if (runEnd < logicalRunEnd) {
-					append_visual_run(state, result, logicalRuns.data(), run, chrIndex + stringOffset,
-							runEnd + stringOffset, visualRunLastX, highestRun, highestRunCharEnd);
+					append_visual_run(state, result, run, chrIndex + stringOffset, runEnd + stringOffset,
+							visualRunLastX, highestRun, highestRunCharEnd);
 					break;
 				}
 				else {
-					append_visual_run(state, result, logicalRuns.data(), run, chrIndex + stringOffset,
+					append_visual_run(state, result, run, chrIndex + stringOffset,
 							logicalRunEnd - 1 + stringOffset, visualRunLastX, highestRun, highestRunCharEnd);
 					chrIndex = logicalRunEnd;
 					++run;
@@ -542,14 +534,14 @@ static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result
 			}
 		}
 		else {
-			auto run = binary_search(0, logicalRuns.size(), [&](auto index) {
-				return logicalRuns[index].charEndIndex <= runEnd;
+			auto run = binary_search(0, state.logicalRuns.size(), [&](auto index) {
+				return state.logicalRuns[index].charEndIndex <= runEnd;
 			});
 			auto chrIndex = runEnd;
 
 			for (;;) {
-				auto logicalRunStart = run == 0 ? 0 : logicalRuns[run - 1].charEndIndex;
-				auto fontData = FontRegistry::get_font_data(logicalRuns[run].font);
+				auto logicalRunStart = run == 0 ? 0 : state.logicalRuns[run - 1].charEndIndex;
+				auto fontData = FontRegistry::get_font_data(state.logicalRuns[run].font);
 
 				if (auto ascent = fontData.get_ascent(); ascent > maxAscent) {
 					maxAscent = ascent;
@@ -560,12 +552,12 @@ static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result
 				}
 
 				if (runStart >= logicalRunStart) {
-					append_visual_run(state, result, logicalRuns.data(), run, runStart + stringOffset,
-							chrIndex + stringOffset, visualRunLastX, highestRun, highestRunCharEnd);
+					append_visual_run(state, result, run, runStart + stringOffset, chrIndex + stringOffset,
+							visualRunLastX, highestRun, highestRunCharEnd);
 					break;
 				}
 				else {
-					append_visual_run(state, result, logicalRuns.data(), run, logicalRunStart + stringOffset,
+					append_visual_run(state, result, run, logicalRunStart + stringOffset,
 							chrIndex + stringOffset, visualRunLastX, highestRun, highestRunCharEnd);
 					chrIndex = logicalRunStart - 1;
 					--run;
@@ -579,12 +571,11 @@ static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result
 	SBLineRelease(sbLine);
 }
 
-static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const LogicalRun* logicalRuns,
-		size_t run, int32_t charStartIndex, int32_t charEndIndex, int32_t& visualRunLastX, size_t& highestRun,
-		int32_t& highestRunCharEnd) {
-	auto logicalFirstGlyph = run == 0 ? 0 : logicalRuns[run - 1].glyphEndIndex;
-	auto logicalLastGlyph = logicalRuns[run].glyphEndIndex;
-	bool rightToLeft = logicalRuns[run].level & 1;
+static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, size_t run, int32_t charStartIndex,
+		int32_t charEndIndex, int32_t& visualRunLastX, size_t& highestRun, int32_t& highestRunCharEnd) {
+	auto logicalFirstGlyph = run == 0 ? 0 : state.logicalRuns[run - 1].glyphEndIndex;
+	auto logicalLastGlyph = state.logicalRuns[run].glyphEndIndex;
+	bool rightToLeft = state.logicalRuns[run].level & 1;
 	uint32_t visualFirstGlyph;
 	uint32_t visualLastGlyph;
 
@@ -626,7 +617,7 @@ static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const
 				scalbnf(state.glyphPositions[1][visualLastGlyph], -6));
 	}
 
-	result.append_run(logicalRuns[run].font, static_cast<uint32_t>(charStartIndex),
+	result.append_run(state.logicalRuns[run].font, static_cast<uint32_t>(charStartIndex),
 			static_cast<uint32_t>(charEndIndex + 1), rightToLeft);
 }
 
@@ -646,5 +637,7 @@ void LayoutBuildState::reset(size_t capacity) {
 
 	cursorX = 0;
 	cursorY = 0;
+
+	logicalRuns.clear();
 }
 
