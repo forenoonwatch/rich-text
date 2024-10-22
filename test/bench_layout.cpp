@@ -187,8 +187,8 @@ BENCHMARK_DEFINE_F(Fixture, NoLineBreak)( 																	\
 		benchmark::ClobberMemory(); 																		\
 	} 																										\
 } 																											\
-BENCHMARK_REGISTER_F(Fixture, LineBreak)->RangeMultiplier(4)->Range(64, 1024 * 1024); 						\
-BENCHMARK_REGISTER_F(Fixture, NoLineBreak)->RangeMultiplier(4)->Range(64, 1024 * 1024)
+BENCHMARK_REGISTER_F(Fixture, LineBreak)->RangeMultiplier(4)->Range(8, 1024 * 1024); 						\
+BENCHMARK_REGISTER_F(Fixture, NoLineBreak)->RangeMultiplier(4)->Range(8, 1024 * 1024)
 
 // Benchmarks
 
@@ -284,7 +284,7 @@ static std::string gen_test_string_single_lang(std::default_random_engine& rng, 
 				chr = g_whitespace[distWhitespace(rng)];
 			}
 
-			U8_APPEND((uint8_t*)buffer.get(), stringSize, TEST_STRING_SIZE, chr, error);
+			U8_APPEND((uint8_t*)buffer.get(), stringSize, capacity, chr, error);
 
 			if (error) {
 				break;
@@ -331,7 +331,7 @@ static std::string gen_test_string_multi_lang(std::default_random_engine& rng, s
 				chr = g_whitespace[distWhitespace(rng)];
 			}
 
-			U8_APPEND((uint8_t*)buffer.get(), stringSize, TEST_STRING_SIZE, chr, error);
+			U8_APPEND((uint8_t*)buffer.get(), stringSize, capacity, chr, error);
 
 			if (error) {
 				break;
