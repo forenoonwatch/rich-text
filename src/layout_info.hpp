@@ -214,14 +214,6 @@ void build_layout_info_utf8(LayoutInfo& result, const char* chars, int32_t count
 		const ValueRuns<bool>* pSubscriptRuns = nullptr, const ValueRuns<bool>* pSuperscriptRuns = nullptr);
 
 /**
- * @brief Builds the paragraph layout using UTF-8 APIs
- */
-void build_layout_info_utf8_2(LayoutInfo& result, const char* chars, int32_t count,
-		const ValueRuns<Font>& fontRuns, float textAreaWidth, float textAreaHeight,
-		YAlignment textYAlignment, LayoutInfoFlags flags, const ValueRuns<bool>* pSmallcapsRuns = nullptr,
-		const ValueRuns<bool>* pSubscriptRuns = nullptr, const ValueRuns<bool>* pSuperscriptRuns = nullptr);
-
-/**
  * @brief Converts a UTF-16 LayoutInfo to UTF-8 based indices 
  */
 void convert_layout_info_to_utf8(const LayoutInfo& src, LayoutInfo& result, const char16_t* srcChars,

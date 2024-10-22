@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <font_registry.hpp>
-#include <layout_info.hpp>
+#include <layout_builder.hpp>
 
 #include <unicode/unistr.h>
 
@@ -59,6 +59,7 @@ TEST_CASE("ICU UTF-8", "[LayoutInfo]") {
 	SECTION("Single Font Softbreaking") {
 		for (size_t i = 0; i < std::ssize(g_testStrings); ++i) {
 			test_lx_vs_utf8(font, g_testStrings[i], 100.f);
+			test_lx_vs_utf8(font, g_testStrings[i], 200.f);
 		}
 	}
 
@@ -85,6 +86,12 @@ TEST_CASE("UTF-8 REGRESSION", "[Regression]") {
 			test_utf8_vs_utf8(font, g_testStrings[i], 0.f);
 		}
 	}
+
+	SECTION("Single Font Tinybreaking") {
+		for (size_t i = 0; i < std::ssize(g_testStrings); ++i) {
+			test_utf8_vs_utf8(font, g_testStrings[i], 3.f);
+		}
+	}
 }
 
 // Static Functions
@@ -107,8 +114,9 @@ static void test_utf8_vs_utf8(Text::Font font, const char* str, float width) {
 	Text::build_layout_info_utf8(layoutA, str, count, fontRuns, width, 100.f, Text::YAlignment::BOTTOM,
 			Text::LayoutInfoFlags::NONE);
 
+	Text::LayoutBuilder builder;
 	Text::LayoutInfo layoutB{};
-	Text::build_layout_info_utf8_2(layoutB, str, count, fontRuns, width, 100.f, Text::YAlignment::BOTTOM,
+	builder.build_layout_info(layoutB, str, count, fontRuns, width, 100.f, Text::YAlignment::BOTTOM,
 			Text::LayoutInfoFlags::NONE);
 
 	test_compare_layouts(layoutA, layoutB);

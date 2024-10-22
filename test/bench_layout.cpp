@@ -1,7 +1,7 @@
 #include <benchmark/benchmark.h>
 
 #include <font_registry.hpp>
-#include <layout_info.hpp>
+#include <layout_builder.hpp>
 
 #include <memory>
 #include <random>
@@ -124,6 +124,7 @@ class SingleFontLayoutFixture : public benchmark::Fixture {
 			}
 		}
 	protected:
+		Text::LayoutBuilder m_builder;
 		std::vector<std::string> m_strs;
 		std::vector<Text::ValueRuns<Text::Font>> m_fontRuns;
 		Text::FontFamily m_family;
@@ -168,7 +169,7 @@ BENCHMARK_DEFINE_F(Fixture, LineBreak)( 																	\
 	for (auto _ : state) { 																					\
 		auto i = (iteration++) & (m_strs.size() - 1); 														\
 		Text::LayoutInfo layoutInfo; 																		\
-		Text::build_layout_info_utf8_2(layoutInfo, m_strs[i].data(), m_strs[i].size(), m_fontRuns[i], 100.f,	\
+		m_builder.build_layout_info(layoutInfo, m_strs[i].data(), m_strs[i].size(), m_fontRuns[i], 100.f,	\
 				100.f, Text::YAlignment::TOP, Text::LayoutInfoFlags::NONE); 								\
 		benchmark::DoNotOptimize(layoutInfo); 																\
 		benchmark::ClobberMemory(); 																		\
@@ -181,7 +182,7 @@ BENCHMARK_DEFINE_F(Fixture, NoLineBreak)( 																	\
 	for (auto _ : state) { 																					\
 		auto i = (iteration++) & (m_strs.size() - 1); 														\
 		Text::LayoutInfo layoutInfo; 																		\
-		Text::build_layout_info_utf8_2(layoutInfo, m_strs[i].data(), m_strs[i].size(), m_fontRuns[i], 0.f, 	\
+		m_builder.build_layout_info(layoutInfo, m_strs[i].data(), m_strs[i].size(), m_fontRuns[i], 0.f, 	\
 				100.f, Text::YAlignment::TOP, Text::LayoutInfoFlags::NONE); 								\
 		benchmark::DoNotOptimize(layoutInfo); 																\
 		benchmark::ClobberMemory(); 																		\
