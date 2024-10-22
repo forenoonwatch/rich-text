@@ -123,7 +123,7 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 		const char* fullText, int32_t paragraphLength, int32_t paragraphStart,
 		ValueRunsIterator<Font>& itFont, MaybeDefaultRunsIterator<bool>& itSmallcaps,
 		MaybeDefaultRunsIterator<bool>& itSubscript, MaybeDefaultRunsIterator<bool>& itSuperscript,
-		int32_t fixedWidth);
+		int32_t fixedWidth, const icu::Locale& defaultLocale);
 
 static void shape_logical_run(LayoutBuildState& state, const SingleScriptFont& font, const char* paragraphText,
 		int32_t offset, int32_t count, int32_t paragraphStart, int32_t paragraphLength, UScriptCode script,
@@ -192,6 +192,8 @@ void Text::build_layout_info_utf8_2(LayoutInfo& result, const char* chars, int32
 	// 26.6 fixed-point text area width
 	auto fixedTextAreaWidth = static_cast<int32_t>(textAreaWidth * 64.f);
 
+	auto& locale = icu::Locale::getDefault();
+
 	while (paragraphOffset < count) {
 		size_t paragraphLength, separatorLength;
 		SBAlgorithmGetParagraphBoundary(sbAlgorithm, paragraphOffset, INT32_MAX, &paragraphLength,
@@ -204,7 +206,8 @@ void Text::build_layout_info_utf8_2(LayoutInfo& result, const char* chars, int32
 			SBParagraphRef sbParagraph = SBAlgorithmCreateParagraph(sbAlgorithm, paragraphOffset,
 					paragraphLength, baseDefaultLevel);
 			lastHighestRun = build_sub_paragraph(state, result, sbParagraph, chars, byteCount,
-					paragraphOffset, itFont, itSmallcaps, itSubscript, itSuperscript, fixedTextAreaWidth);
+					paragraphOffset, itFont, itSmallcaps, itSubscript, itSuperscript, fixedTextAreaWidth,
+					locale);
 			SBParagraphRelease(sbParagraph);
 		}
 		else {
@@ -233,7 +236,8 @@ void Text::build_layout_info_utf8_2(LayoutInfo& result, const char* chars, int32
 static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, SBParagraphRef sbParagraph,
 		const char* fullText, int32_t paragraphLength, int32_t paragraphStart, ValueRunsIterator<Font>& itFont,
 		MaybeDefaultRunsIterator<bool>& itSmallcaps, MaybeDefaultRunsIterator<bool>& itSubscript,
-		MaybeDefaultRunsIterator<bool>& itSuperscript, int32_t textAreaWidth) {
+		MaybeDefaultRunsIterator<bool>& itSuperscript, int32_t textAreaWidth,
+		const icu::Locale& defaultLocale) {
 	const char* paragraphText = fullText + paragraphStart;
 	auto paragraphEnd = paragraphStart + paragraphLength;
 
@@ -252,8 +256,8 @@ static size_t build_sub_paragraph(LayoutBuildState& state, LayoutInfo& result, S
 					script, smallcaps, subscript, superscript);
 
 			shape_logical_run(state, subFont, paragraphText, runStart - paragraphStart,
-					subFontOffset - runStart, paragraphStart, paragraphLength, script,
-					icu::Locale::getDefault(), level & 1);
+					subFontOffset - runStart, paragraphStart, paragraphLength, script, defaultLocale,
+					level & 1);
 
 			state.logicalRuns.push_back({
 				.font = subFont,
