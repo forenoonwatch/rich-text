@@ -38,7 +38,7 @@ class LayoutBuilder {
 
 		void build_layout_info(LayoutInfo&, const char* chars, int32_t count, const ValueRuns<Font>& fontRuns,
 				float textAreaWidth, float textAreaHeight, YAlignment textYAlignment, LayoutInfoFlags flags,
-				const ValueRuns<bool>* pSmallcapsRuns = nullptr,
+				float tabWidth, const ValueRuns<bool>* pSmallcapsRuns = nullptr,
 				const ValueRuns<bool>* pSubscriptRuns = nullptr,
 				const ValueRuns<bool>* pSuperscriptRuns = nullptr);
 	private:
@@ -65,8 +65,8 @@ class LayoutBuilder {
 		size_t build_paragraph(LayoutInfo& result, _SBParagraph* sbParagraph, const char* fullText,
 				int32_t paragraphLength, int32_t paragraphStart, ValueRunsIterator<Font>& itFont,
 				MaybeDefaultRunsIterator<bool>& itSmallcaps, MaybeDefaultRunsIterator<bool>& itSubscript,
-				MaybeDefaultRunsIterator<bool>& itSuperscript, int32_t fixedTextAreaWidth,
-				const icu::Locale& defaultLocale);
+				MaybeDefaultRunsIterator<bool>& itSuperscript, int32_t textAreaWidthFixed,
+				int32_t tabWidthFixed, const icu::Locale& defaultLocale, bool tabWidthFromPixels);
 		void shape_logical_run(const SingleScriptFont& font, const char* paragraphText, int32_t offset,
 				int32_t count, int32_t paragraphStart, int32_t paragraphLength, int script,
 				const icu::Locale& locale, bool rightToLeft);
@@ -76,6 +76,9 @@ class LayoutBuilder {
 		void append_visual_run(LayoutInfo& result, size_t logicalRunIndex, int32_t charStartIndex,
 				int32_t charEndIndex, int32_t& visualRunLastX, size_t& highestRun, int32_t& highestRunCharEnd,
 				bool rightToLeft);
+
+		void apply_tab_widths_no_line_break(const char* fullText, int32_t tabWidthFixed,
+				bool tabWidthFromPixels);
 
 		void reset(size_t capacity);
 };

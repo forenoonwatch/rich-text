@@ -172,7 +172,7 @@ BENCHMARK_DEFINE_F(Fixture, LineBreak)( 																	\
 		auto i = (iteration++) & (m_strs.size() - 1); 														\
 		Text::LayoutInfo layoutInfo; 																		\
 		m_builder.build_layout_info(layoutInfo, m_strs[i].data(), m_strs[i].size(), m_fontRuns[i], 100.f,	\
-				100.f, Text::YAlignment::TOP, Text::LayoutInfoFlags::NONE); 								\
+				100.f, Text::YAlignment::TOP, Text::LayoutInfoFlags::NONE, 4.f); 							\
 		benchmark::DoNotOptimize(layoutInfo); 																\
 		benchmark::ClobberMemory(); 																		\
 	} 																										\
@@ -185,7 +185,7 @@ BENCHMARK_DEFINE_F(Fixture, NoLineBreak)( 																	\
 		auto i = (iteration++) & (m_strs.size() - 1); 														\
 		Text::LayoutInfo layoutInfo; 																		\
 		m_builder.build_layout_info(layoutInfo, m_strs[i].data(), m_strs[i].size(), m_fontRuns[i], 0.f, 	\
-				100.f, Text::YAlignment::TOP, Text::LayoutInfoFlags::NONE); 								\
+				100.f, Text::YAlignment::TOP, Text::LayoutInfoFlags::NONE, 4.f);							\
 		benchmark::DoNotOptimize(layoutInfo); 																\
 		benchmark::ClobberMemory(); 																		\
 	} 																										\

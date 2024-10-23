@@ -92,6 +92,11 @@ static void maybe_add_tag_runs(std::vector<hb_feature_t>& features, hb_tag_t tag
 static void remap_char_indices(hb_glyph_info_t* glyphInfos, unsigned glyphCount, icu::Edits& edits,
 		const char* sourceStr, bool rightToLeft);
 
+static constexpr int32_t mul_fixed(int32_t a, int32_t b) {
+	auto ab = static_cast<int64_t>(a) * static_cast<int64_t>(b);
+	return static_cast<int32_t>(ab >> 6);
+}
+
 LayoutBuilder::LayoutBuilder()
 		: m_buffer(hb_buffer_create()) {
 	UErrorCode err{U_ZERO_ERROR};
@@ -154,7 +159,7 @@ LayoutBuilder& LayoutBuilder::operator=(LayoutBuilder&& other) noexcept {
  */
 void LayoutBuilder::build_layout_info(LayoutInfo& result, const char* chars, int32_t count,
 		const ValueRuns<Font>& fontRuns, float textAreaWidth, float textAreaHeight,
-		YAlignment textYAlignment, LayoutInfoFlags flags, const ValueRuns<bool>* pSmallcapsRuns,
+		YAlignment textYAlignment, LayoutInfoFlags flags, float tabWidth, const ValueRuns<bool>* pSmallcapsRuns,
 		const ValueRuns<bool>* pSubscriptRuns, const ValueRuns<bool>* pSuperscriptRuns) {
 	result.clear();
 
@@ -181,6 +186,7 @@ void LayoutBuilder::build_layout_info(LayoutInfo& result, const char* chars, int
 
 	// 26.6 fixed-point text area width
 	auto fixedTextAreaWidth = static_cast<int32_t>(textAreaWidth * 64.f);
+	auto tabWidthFixed = static_cast<int32_t>(tabWidth * 64.f);
 
 	auto& locale = icu::Locale::getDefault();
 
@@ -196,7 +202,8 @@ void LayoutBuilder::build_layout_info(LayoutInfo& result, const char* chars, int
 			SBParagraphRef sbParagraph = SBAlgorithmCreateParagraph(sbAlgorithm, paragraphOffset,
 					paragraphLength, baseDefaultLevel);
 			lastHighestRun = build_paragraph(result, sbParagraph, chars, byteCount, paragraphOffset, itFont,
-					itSmallcaps, itSubscript, itSuperscript, fixedTextAreaWidth, locale);
+					itSmallcaps, itSubscript, itSuperscript, fixedTextAreaWidth, tabWidthFixed, locale,
+					(flags & LayoutInfoFlags::TAB_WIDTH_PIXELS) != LayoutInfoFlags::NONE);
 			SBParagraphRelease(sbParagraph);
 		}
 		else {
@@ -223,8 +230,8 @@ void LayoutBuilder::build_layout_info(LayoutInfo& result, const char* chars, int
 size_t LayoutBuilder::build_paragraph(LayoutInfo& result, SBParagraphRef sbParagraph, const char* fullText,
 		int32_t paragraphLength, int32_t paragraphStart, ValueRunsIterator<Font>& itFont,
 		MaybeDefaultRunsIterator<bool>& itSmallcaps, MaybeDefaultRunsIterator<bool>& itSubscript,
-		MaybeDefaultRunsIterator<bool>& itSuperscript, int32_t textAreaWidth,
-		const icu::Locale& defaultLocale) {
+		MaybeDefaultRunsIterator<bool>& itSuperscript, int32_t textAreaWidth, int32_t tabWidthFixed,
+		const icu::Locale& defaultLocale, bool tabWidthFromPixels) {
 	const char* paragraphText = fullText + paragraphStart;
 	auto paragraphEnd = paragraphStart + paragraphLength;
 
@@ -267,6 +274,7 @@ size_t LayoutBuilder::build_paragraph(LayoutInfo& result, SBParagraphRef sbParag
 
 	// If width == 0, perform no line breaking
 	if (textAreaWidth == 0) {
+		apply_tab_widths_no_line_break(fullText, tabWidthFixed, tabWidthFromPixels);
 		compute_line_visual_runs(result, sbParagraph, paragraphText, paragraphLength, paragraphStart,
 				paragraphEnd, highestRun, highestRunCharEnd);
 		return highestRun;
@@ -290,11 +298,22 @@ size_t LayoutBuilder::build_paragraph(LayoutInfo& result, SBParagraphRef sbParag
 			return m_charIndices[index] < lineStart;
 		});
 
-		while (glyphIndex < m_glyphs.size()
-				&& lineWidthSoFar + m_glyphPositions[0][glyphIndex] <= textAreaWidth) {
+		while (glyphIndex < m_glyphs.size()) {
+			if (fullText[m_charIndices[glyphIndex]] == '\t') {
+				auto baseTabWidth = tabWidthFromPixels ? tabWidthFixed
+						: mul_fixed(m_glyphPositions[0][glyphIndex], tabWidthFixed);
+				m_glyphPositions[0][glyphIndex] = baseTabWidth - (lineWidthSoFar % baseTabWidth);
+			}
+
+			if (lineWidthSoFar + m_glyphPositions[0][glyphIndex] > textAreaWidth) {
+				break;
+			}
+
 			lineWidthSoFar += m_glyphPositions[0][glyphIndex];
 			++glyphIndex;
 		}
+
+		auto glyphIndexBefore = glyphIndex;
 
 		// If no glyphs fit on the line, force one to fit. There shouldn't be any zero width glyphs at the start
 		// of a line unless the paragraph consists of only zero width glyphs, because otherwise the zero width
@@ -316,6 +335,17 @@ size_t LayoutBuilder::build_paragraph(LayoutInfo& result, SBParagraphRef sbParag
 
 		if (lineEnd <= lineStart && glyphIndex == m_glyphs.size()) {
 			lineEnd = paragraphStart + paragraphLength;
+		}
+
+		// Adjust tab widths for glyphs included in the line after the line width calculation before
+		for (; glyphIndexBefore < glyphIndex; ++glyphIndexBefore) {
+			if (fullText[m_charIndices[glyphIndexBefore]] == '\t') {
+				auto baseTabWidth = tabWidthFromPixels ? tabWidthFixed
+						: mul_fixed(m_glyphPositions[0][glyphIndexBefore], tabWidthFixed);
+				m_glyphPositions[0][glyphIndexBefore] = baseTabWidth - (lineWidthSoFar % baseTabWidth);
+			}
+
+			lineWidthSoFar += m_glyphPositions[0][glyphIndexBefore];
 		}
 
 		compute_line_visual_runs(result, sbParagraph, paragraphText, paragraphLength, lineStart, lineEnd,
@@ -379,6 +409,11 @@ void LayoutBuilder::shape_logical_run(const SingleScriptFont& font, const char* 
 	for (unsigned i = 0; i < glyphCount; ++i) {
 		m_glyphPositions[1].emplace_back(m_cursorY + glyphPositions[i].y_offset);
 		m_cursorY += glyphPositions[i].y_advance;
+
+		if (paragraphText[glyphInfos[i].cluster + offset] == '\t') {
+			glyphPositions[i].x_advance = fontData.spaceAdvance;
+			glyphInfos[i].codepoint = fontData.spaceGlyphIndex;
+		}
 	}
 
 	if (rightToLeft) {
@@ -539,6 +574,24 @@ void LayoutBuilder::append_visual_run(LayoutInfo& result, size_t run, int32_t ch
 
 	result.append_run(m_logicalRuns[run].font, static_cast<uint32_t>(charStartIndex),
 			static_cast<uint32_t>(charEndIndex + 1), rightToLeft);
+}
+
+void LayoutBuilder::apply_tab_widths_no_line_break(const char* fullText, int32_t tabWidthFixed,
+		bool tabWidthFromPixels) {
+	size_t runIndex = 0;
+	int32_t lineWidthSoFar = 0;
+
+	for (size_t i = 0; i < m_charIndices.size(); ++i) {
+		runIndex += m_logicalRuns[runIndex].glyphEndIndex == i;
+
+		if (fullText[m_charIndices[i]] == '\t') {
+			auto baseTabWidth = tabWidthFromPixels ? tabWidthFixed
+					: mul_fixed(m_glyphPositions[0][i], tabWidthFixed);
+			m_glyphPositions[0][i] = baseTabWidth - (lineWidthSoFar % baseTabWidth);
+		}
+
+		lineWidthSoFar += m_glyphPositions[0][i];
+	}
 }
 
 void LayoutBuilder::reset(size_t capacity) {

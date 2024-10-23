@@ -121,7 +121,7 @@ static void test_utf8_vs_utf8(Text::Font font, const char* str, float width) {
 	Text::LayoutBuilder builder;
 	Text::LayoutInfo layoutB{};
 	builder.build_layout_info(layoutB, str, count, fontRuns, width, 100.f, Text::YAlignment::BOTTOM,
-			Text::LayoutInfoFlags::NONE);
+			Text::LayoutInfoFlags::NONE, 4.f);
 
 	test_compare_layouts(layoutA, layoutB);
 }

@@ -225,7 +225,7 @@ void UIContainer::draw_text_immediate(Text::Font font, const Text::Color& color,
 	Text::LayoutInfo layout{};
 	Text::ValueRuns<Text::Font> fontRuns(font, text.size());
 	m_layoutBuilder.build_layout_info(layout, text.data(), text.size(), fontRuns, width, height, textYAlignment,
-			Text::LayoutInfoFlags::NONE);
+			Text::LayoutInfoFlags::NONE, 8.f);
 
 	draw_text(layout, x, y, width, textXAlignment, color);
 }

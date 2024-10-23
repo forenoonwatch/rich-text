@@ -21,9 +21,16 @@ namespace Text {
 
 enum class LayoutInfoFlags : uint8_t {
 	NONE = 0,
-	RIGHT_TO_LEFT = 1, // Whether the text direction default should be RTL. Leave unset to default to LTR
-	OVERRIDE_DIRECTIONALITY = 2, // Whether the configured text direction should override script directions
-	VERTICAL = 4, // Whether the text is composed vertically. Leave unset for horizontal text.
+	// Whether the text direction default should be RTL when no strongly directional characters are detected.
+	// Leave unset to default to LTR.
+	RIGHT_TO_LEFT = 1, 
+	// Whether the configured text direction should override the paragraph base direction, regardless of the
+	// presence of strongly-directional scripts.
+	OVERRIDE_DIRECTIONALITY = 2, 
+	// Whether the text is composed vertically. Leave unset for horizontal text.
+	VERTICAL = 4, 
+	// Whether the tab width parameter is in pixels. Leave unset for tab width in terms of space-widths.
+	TAB_WIDTH_PIXELS = 8, 
 };
 
 RICHTEXT_DEFINE_ENUM_BITFLAG_OPERATORS(LayoutInfoFlags)
