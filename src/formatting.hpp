@@ -31,8 +31,5 @@ FormattingRuns make_default_formatting_runs(const std::string& text, std::string
 FormattingRuns parse_inline_formatting(const std::string& text, std::string& contentText, 
 		Font baseFont, Color baseColor, const StrokeState& baseStroke);
 
-void convert_formatting_runs_to_utf16(FormattingRuns& runs, const std::string& contentText,
-		const char16_t* dstText, int32_t dstTextLength);
-
 }
 
