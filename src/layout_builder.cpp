@@ -171,8 +171,15 @@ void LayoutBuilder::build_layout_info(LayoutInfo& result, const char* chars, int
 
 	size_t lastHighestRun = 0;
 
-	SBLevel baseDefaultLevel = ((flags & LayoutInfoFlags::RIGHT_TO_LEFT) == LayoutInfoFlags::NONE)
-			? SBLevelDefaultLTR : SBLevelDefaultRTL;
+	SBLevel baseDefaultLevel = SBLevelDefaultLTR;
+
+	if ((flags & LayoutInfoFlags::OVERRIDE_DIRECTIONALITY) != LayoutInfoFlags::NONE) {
+		baseDefaultLevel = static_cast<SBLevel>(flags & LayoutInfoFlags::RIGHT_TO_LEFT);
+	}
+	else {
+		baseDefaultLevel = ((flags & LayoutInfoFlags::RIGHT_TO_LEFT) == LayoutInfoFlags::NONE)
+				? SBLevelDefaultLTR : SBLevelDefaultRTL;
+	}
 
 	// 26.6 fixed-point text area width
 	auto fixedTextAreaWidth = static_cast<int32_t>(textAreaWidth * 64.f);
