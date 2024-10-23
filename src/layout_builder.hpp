@@ -36,7 +36,6 @@ class LayoutBuilder {
 	private:
 		struct LogicalRun {
 			SingleScriptFont font;
-			uint8_t level;
 			int32_t charEndIndex;
 			uint32_t glyphEndIndex;
 		};
@@ -64,10 +63,11 @@ class LayoutBuilder {
 				int32_t count, int32_t paragraphStart, int32_t paragraphLength, int script,
 				const icu::Locale& locale, bool rightToLeft);
 		void compute_line_visual_runs(LayoutInfo& result, _SBParagraph* sbParagraph, const char* chars,
-				int32_t count, int32_t lineStart, int32_t lineEnd, int32_t stringOffset, size_t& highestRun,
+				int32_t count, int32_t lineStart, int32_t lineEnd, size_t& highestRun,
 				int32_t& highestRunCharEnd);
 		void append_visual_run(LayoutInfo& result, size_t logicalRunIndex, int32_t charStartIndex,
-				int32_t charEndIndex, int32_t& visualRunLastX, size_t& highestRun, int32_t& highestRunCharEnd);
+				int32_t charEndIndex, int32_t& visualRunLastX, size_t& highestRun, int32_t& highestRunCharEnd,
+				bool rightToLeft);
 
 		void reset(size_t capacity);
 };

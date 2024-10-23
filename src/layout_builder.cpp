@@ -149,10 +149,6 @@ LayoutBuilder& LayoutBuilder::operator=(LayoutBuilder&& other) noexcept {
  *    reversed relative to the source string if requested as RTL).
  * 3. Line breaking (step 2e) requires positions and charIndices to be in logical order to calculate widths
  *    (UBA L1.1).
- * 4. Glyph mirroring (UBA L4) requires glyph index order to match char index order up to computing line
- *    visual runs.
- *
- * FIXME: The algorithm does not select mirror glyphs currently.
  */
 void LayoutBuilder::build_layout_info(LayoutInfo& result, const char* chars, int32_t count,
 		const ValueRuns<Font>& fontRuns, float textAreaWidth, float textAreaHeight,
@@ -247,12 +243,17 @@ size_t LayoutBuilder::build_paragraph(LayoutInfo& result, SBParagraphRef sbParag
 			shape_logical_run(subFont, paragraphText, runStart - paragraphStart, subFontOffset - runStart,
 					paragraphStart, paragraphLength, script, defaultLocale, level & 1);
 
-			m_logicalRuns.push_back({
-				.font = subFont,
-				.level = level,
-				.charEndIndex = subFontOffset - paragraphStart,
-				.glyphEndIndex = static_cast<uint32_t>(m_glyphs.size()),
-			});
+			if (!m_logicalRuns.empty() && m_logicalRuns.back().font == subFont) {
+				m_logicalRuns.back().charEndIndex = subFontOffset;
+				m_logicalRuns.back().glyphEndIndex = static_cast<uint32_t>(m_glyphs.size());
+			}
+			else {
+				m_logicalRuns.push_back({
+					.font = subFont,
+					.charEndIndex = subFontOffset,
+					.glyphEndIndex = static_cast<uint32_t>(m_glyphs.size()),
+				});
+			}
 		}
 	}, itFont, itScripts, itLevels, itSmallcaps, itSubscript, itSuperscript);
 
@@ -265,7 +266,7 @@ size_t LayoutBuilder::build_paragraph(LayoutInfo& result, SBParagraphRef sbParag
 	// If width == 0, perform no line breaking
 	if (textAreaWidth == 0) {
 		compute_line_visual_runs(result, sbParagraph, paragraphText, paragraphLength, paragraphStart,
-				paragraphStart + paragraphLength, paragraphStart, highestRun, highestRunCharEnd);
+				paragraphEnd, highestRun, highestRunCharEnd);
 		return highestRun;
 	}
 
@@ -316,7 +317,7 @@ size_t LayoutBuilder::build_paragraph(LayoutInfo& result, SBParagraphRef sbParag
 		}
 
 		compute_line_visual_runs(result, sbParagraph, paragraphText, paragraphLength, lineStart, lineEnd,
-				paragraphStart, highestRun, highestRunCharEnd);
+				highestRun, highestRunCharEnd);
 	}
 
 	return highestRun;
@@ -405,8 +406,7 @@ void LayoutBuilder::shape_logical_run(const SingleScriptFont& font, const char* 
 }
 
 void LayoutBuilder::compute_line_visual_runs(LayoutInfo& result, SBParagraphRef sbParagraph, const char* chars,
-		int32_t count, int32_t lineStart, int32_t lineEnd, int32_t stringOffset, size_t& highestRun,
-		int32_t& highestRunCharEnd) {
+		int32_t count, int32_t lineStart, int32_t lineEnd, size_t& highestRun, int32_t& highestRunCharEnd) {
 	SBLineRef sbLine = SBParagraphCreateLine(sbParagraph, lineStart, lineEnd - lineStart);
 	auto runCount = SBLineGetRunCount(sbLine);
 	auto* sbRuns = SBLineGetRunsPtr(sbLine);
@@ -417,7 +417,7 @@ void LayoutBuilder::compute_line_visual_runs(LayoutInfo& result, SBParagraphRef 
 	for (int32_t i = 0; i < runCount; ++i) {
 		int32_t logicalStart, runLength;
 		bool rightToLeft = sbRuns[i].level & 1;
-		auto runStart = sbRuns[i].offset - stringOffset;
+		auto runStart = sbRuns[i].offset;
 		auto runEnd = runStart + sbRuns[i].length - 1;
 
 		if (!rightToLeft) {
@@ -439,13 +439,13 @@ void LayoutBuilder::compute_line_visual_runs(LayoutInfo& result, SBParagraphRef 
 				}
 
 				if (runEnd < logicalRunEnd) {
-					append_visual_run(result, run, chrIndex + stringOffset, runEnd + stringOffset,
+					append_visual_run(result, run, chrIndex, runEnd,
 							visualRunLastX, highestRun, highestRunCharEnd, rightToLeft);
 					break;
 				}
 				else {
-					append_visual_run(result, run, chrIndex + stringOffset, logicalRunEnd - 1 + stringOffset,
-							visualRunLastX, highestRun, highestRunCharEnd, rightToLeft);
+					append_visual_run(result, run, chrIndex, logicalRunEnd - 1, visualRunLastX, highestRun,
+							highestRunCharEnd, rightToLeft);
 					chrIndex = logicalRunEnd;
 					++run;
 				}
@@ -470,13 +470,13 @@ void LayoutBuilder::compute_line_visual_runs(LayoutInfo& result, SBParagraphRef 
 				}
 
 				if (runStart >= logicalRunStart) {
-					append_visual_run(result, run, runStart + stringOffset, chrIndex + stringOffset,
-							visualRunLastX, highestRun, highestRunCharEnd, rightToLeft);
+					append_visual_run(result, run, runStart, chrIndex, visualRunLastX, highestRun,
+							highestRunCharEnd, rightToLeft);
 					break;
 				}
 				else {
-					append_visual_run(result, run, logicalRunStart + stringOffset, chrIndex + stringOffset,
-							visualRunLastX, highestRun, highestRunCharEnd, rightToLeft);
+					append_visual_run(result, run, logicalRunStart, chrIndex, visualRunLastX, highestRun,
+							highestRunCharEnd, rightToLeft);
 					chrIndex = logicalRunStart - 1;
 					--run;
 				}
