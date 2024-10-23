@@ -440,12 +440,12 @@ void LayoutBuilder::compute_line_visual_runs(LayoutInfo& result, SBParagraphRef 
 
 				if (runEnd < logicalRunEnd) {
 					append_visual_run(result, run, chrIndex + stringOffset, runEnd + stringOffset,
-							visualRunLastX, highestRun, highestRunCharEnd);
+							visualRunLastX, highestRun, highestRunCharEnd, rightToLeft);
 					break;
 				}
 				else {
 					append_visual_run(result, run, chrIndex + stringOffset, logicalRunEnd - 1 + stringOffset,
-							visualRunLastX, highestRun, highestRunCharEnd);
+							visualRunLastX, highestRun, highestRunCharEnd, rightToLeft);
 					chrIndex = logicalRunEnd;
 					++run;
 				}
@@ -471,12 +471,12 @@ void LayoutBuilder::compute_line_visual_runs(LayoutInfo& result, SBParagraphRef 
 
 				if (runStart >= logicalRunStart) {
 					append_visual_run(result, run, runStart + stringOffset, chrIndex + stringOffset,
-							visualRunLastX, highestRun, highestRunCharEnd);
+							visualRunLastX, highestRun, highestRunCharEnd, rightToLeft);
 					break;
 				}
 				else {
 					append_visual_run(result, run, logicalRunStart + stringOffset, chrIndex + stringOffset,
-							visualRunLastX, highestRun, highestRunCharEnd);
+							visualRunLastX, highestRun, highestRunCharEnd, rightToLeft);
 					chrIndex = logicalRunStart - 1;
 					--run;
 				}
@@ -490,10 +490,10 @@ void LayoutBuilder::compute_line_visual_runs(LayoutInfo& result, SBParagraphRef 
 }
 
 void LayoutBuilder::append_visual_run(LayoutInfo& result, size_t run, int32_t charStartIndex,
-		int32_t charEndIndex, int32_t& visualRunLastX, size_t& highestRun, int32_t& highestRunCharEnd) {
+		int32_t charEndIndex, int32_t& visualRunLastX, size_t& highestRun, int32_t& highestRunCharEnd,
+		bool rightToLeft) {
 	auto logicalFirstGlyph = run == 0 ? 0 : m_logicalRuns[run - 1].glyphEndIndex;
 	auto logicalLastGlyph = m_logicalRuns[run].glyphEndIndex;
-	bool rightToLeft = m_logicalRuns[run].level & 1;
 	uint32_t visualFirstGlyph;
 	uint32_t visualLastGlyph;
 
