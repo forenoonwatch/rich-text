@@ -4,6 +4,10 @@ target_sources(TestRichText PRIVATE
 	"${CMAKE_CURRENT_SOURCE_DIR}/test_bidi.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/test_sheen_bidi.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/test_layout_info.cpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/build_layout_info_lx.cpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/build_layout_info_icu.cpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/build_layout_info_utf8.cpp"
+	"${CMAKE_CURRENT_SOURCE_DIR}/convert_layout_info_utf8.cpp"
 )
 
 target_sources(BenchRichText PRIVATE

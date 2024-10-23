@@ -2,6 +2,8 @@
 
 #include <font_registry.hpp>
 #include <layout_builder.hpp>
+#include <layout_info.hpp>
+#include <value_runs.hpp>
 
 #include <memory>
 #include <random>

@@ -2,7 +2,6 @@
 
 #include "font_registry.hpp"
 #include "value_run_builder.hpp"
-#include "utf_conversion_util.hpp"
 
 #include <charconv>
 #include <sstream>
@@ -129,31 +128,6 @@ FormattingRuns Text::parse_inline_formatting(const std::string& text, std::strin
 	FormattingParser parser(text, baseFont, std::move(baseColor), baseStroke);
 	parser.parse();
 	return parser.get_result(contentText);
-}
-
-template <typename T>
-static void convert_runs(ValueRuns<T>& runs, const std::string& srcText, const char16_t* dstText,
-		int32_t dstTextLength) {
-	uint32_t srcCounter{};
-	uint32_t dstCounter{};
-
-	for (size_t i = 0; i < runs.get_run_count(); ++i) {
-		auto limit = runs.get_run_limit(i);
-		limit = static_cast<int32_t>(utf8_index_to_utf16(srcText.data(), srcText.size(), dstText, dstTextLength,
-				limit, srcCounter, dstCounter));
-	}
-}
-
-void Text::convert_formatting_runs_to_utf16(FormattingRuns& runs, const std::string& contentText, 
-		const char16_t* dstText, int32_t dstTextLength) {
-	convert_runs(runs.fontRuns, contentText, dstText, dstTextLength);
-	convert_runs(runs.colorRuns, contentText, dstText, dstTextLength);
-	convert_runs(runs.strokeRuns, contentText, dstText, dstTextLength);
-	convert_runs(runs.strikethroughRuns, contentText, dstText, dstTextLength);
-	convert_runs(runs.underlineRuns, contentText, dstText, dstTextLength);
-	convert_runs(runs.smallcapsRuns, contentText, dstText, dstTextLength);
-	convert_runs(runs.subscriptRuns, contentText, dstText, dstTextLength);
-	convert_runs(runs.superscriptRuns, contentText, dstText, dstTextLength);
 }
 
 // FormattingParser

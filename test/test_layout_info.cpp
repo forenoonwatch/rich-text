@@ -2,6 +2,10 @@
 
 #include <font_registry.hpp>
 #include <layout_builder.hpp>
+#include <layout_info.hpp>
+#include <value_runs.hpp>
+
+#include "other_layout_builders.hpp"
 
 #include <unicode/unistr.h>
 

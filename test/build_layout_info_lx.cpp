@@ -1,6 +1,8 @@
+#include "other_layout_builders.hpp"
 #include "layout_info.hpp"
 
 #include "font_registry.hpp"
+#include "value_runs.hpp"
 
 #include <unicode/utext.h>
 #include <unicode/utf16.h>

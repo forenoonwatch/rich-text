@@ -22,10 +22,6 @@ target_link_libraries(LibRichText PUBLIC ICU::common ICU::data harfbuzz)
 target_link_libraries(LibRichText PRIVATE SheenBidi)
 target_link_libraries(LibRichText PRIVATE simdjson)
 
-if (ICU_BUILD_LX)
-	target_link_libraries(LibRichText PRIVATE ICU::layoutex)
-endif()
-
 set_target_properties(LibRichText PROPERTIES
 	CXX_STANDARD 20
 	CXX_STANDARD_REQUIRED ON
@@ -68,6 +64,8 @@ if (RICHTEXT_BUILD_TESTS)
 		CXX_EXTENSIONS OFF
 		INTERPROCEDURAL_OPTIMIZATION_RELEASE ON
 	)
+
+	target_link_libraries(TestRichText PRIVATE ICU::layoutex)
 
 	add_custom_command(TARGET TestRichText POST_BUILD
 		COMMAND

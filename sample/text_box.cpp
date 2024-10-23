@@ -1,6 +1,7 @@
 #include "text_box.hpp"
 
 #include "font_registry.hpp"
+#include "layout_builder.hpp"
 #include "ui_container.hpp"
 
 #include <GLFW/glfw3.h>
@@ -426,7 +427,8 @@ void TextBox::recalc_text() {
 		return;
 	}
 
-	Text::build_layout_info_utf8(m_layout, text.data(), text.size(), m_formatting.fontRuns,
+	Text::LayoutBuilder builder;
+	builder.build_layout_info(m_layout, text.data(), text.size(), m_formatting.fontRuns,
 			m_textWrapped ? get_size()[0] : 0.f, get_size()[1], m_textYAlignment, Text::LayoutInfoFlags::NONE,
 			&m_formatting.smallcapsRuns, &m_formatting.subscriptRuns, &m_formatting.superscriptRuns);
 

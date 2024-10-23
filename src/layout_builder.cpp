@@ -1,9 +1,11 @@
 #include "layout_builder.hpp"
 
 #include "binary_search.hpp"
-#include "value_run_utils.hpp"
 #include "font_registry.hpp"
+#include "layout_info.hpp"
 #include "script_run_iterator.hpp"
+#include "value_runs.hpp"
+#include "value_run_utils.hpp"
 
 #include <unicode/brkiter.h>
 #include <unicode/casemap.h>

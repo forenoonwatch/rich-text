@@ -1,19 +1,27 @@
 #pragma once
 
-#include "layout_info.hpp"
+#include "font.hpp"
+#include "text_alignment.hpp"
+
+#include <unicode/uversion.h>
+
+#include <vector>
 
 U_NAMESPACE_BEGIN
 
+class BreakIterator;
 class Locale;
 
 U_NAMESPACE_END
-
 
 struct hb_buffer_t;
 struct _SBParagraph;
 
 namespace Text {
 
+class LayoutInfo;
+enum class LayoutInfoFlags : uint8_t;
+template <typename> class ValueRuns;
 template <typename> class ValueRunsIterator;
 template <typename> class MaybeDefaultRunsIterator;
 
@@ -71,7 +79,6 @@ class LayoutBuilder {
 
 		void reset(size_t capacity);
 };
-
 
 }
 

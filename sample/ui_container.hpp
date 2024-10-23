@@ -1,5 +1,7 @@
 #pragma once
 
+#include <layout_builder.hpp>
+
 #include "color.hpp"
 #include "cursor_position.hpp"
 #include "font.hpp"
@@ -75,6 +77,8 @@ class UIContainer final : public UIObject {
 		double m_lastClickTime{};
 		uint32_t m_clickCount{};
 		Text::CursorPosition m_lastClickPos{Text::CursorPosition::INVALID_VALUE};
+
+		Text::LayoutBuilder m_layoutBuilder;
 
 		void draw_rect_internal(float x, float y, float width, float height, const float* texCoords,
 				Image* texture, const Text::Color& color, PipelineIndex pipeline);
