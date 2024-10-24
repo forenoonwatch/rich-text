@@ -25,6 +25,18 @@ template <typename> class ValueRuns;
 template <typename> class ValueRunsIterator;
 template <typename> class MaybeDefaultRunsIterator;
 
+struct LayoutBuildParams {
+	float textAreaWidth;
+	float textAreaHeight;
+	float tabWidth;
+	LayoutInfoFlags flags;
+	XAlignment xAlignment;
+	YAlignment yAlignment;
+	const ValueRuns<bool>* pSmallcapsRuns;
+	const ValueRuns<bool>* pSubscriptRuns;
+	const ValueRuns<bool>* pSuperscriptRuns;
+};
+
 class LayoutBuilder {
 	public:
 		explicit LayoutBuilder();
@@ -37,10 +49,7 @@ class LayoutBuilder {
 		void operator=(const LayoutBuilder&) = delete;
 
 		void build_layout_info(LayoutInfo&, const char* chars, int32_t count, const ValueRuns<Font>& fontRuns,
-				float textAreaWidth, float textAreaHeight, YAlignment textYAlignment, LayoutInfoFlags flags,
-				float tabWidth, const ValueRuns<bool>* pSmallcapsRuns = nullptr,
-				const ValueRuns<bool>* pSubscriptRuns = nullptr,
-				const ValueRuns<bool>* pSuperscriptRuns = nullptr);
+				const LayoutBuildParams& params);
 	private:
 		struct LogicalRun {
 			SingleScriptFont font;

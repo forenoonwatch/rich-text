@@ -224,8 +224,15 @@ void UIContainer::draw_text_immediate(Text::Font font, const Text::Color& color,
 		float y, float width, float height, Text::XAlignment textXAlignment, Text::YAlignment textYAlignment) {
 	Text::LayoutInfo layout{};
 	Text::ValueRuns<Text::Font> fontRuns(font, text.size());
-	m_layoutBuilder.build_layout_info(layout, text.data(), text.size(), fontRuns, width, height, textYAlignment,
-			Text::LayoutInfoFlags::NONE, 8.f);
+
+	Text::LayoutBuildParams params{
+		.textAreaWidth = width,
+		.textAreaHeight = height,
+		.tabWidth = 8.f,
+		.xAlignment = textXAlignment,
+		.yAlignment = textYAlignment,
+	};
+	m_layoutBuilder.build_layout_info(layout, text.data(), text.size(), fontRuns, params);
 
 	draw_text(layout, x, y, width, textXAlignment, color);
 }

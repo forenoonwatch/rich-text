@@ -441,9 +441,17 @@ void TextBox::recalc_text() {
 	}
 
 	Text::LayoutBuilder builder;
-	builder.build_layout_info(m_layout, text.data(), text.size(), m_formatting.fontRuns,
-			m_textWrapped ? get_size()[0] : 0.f, get_size()[1], m_textYAlignment, Text::LayoutInfoFlags::NONE,
-			8.f, &m_formatting.smallcapsRuns, &m_formatting.subscriptRuns, &m_formatting.superscriptRuns);
+	Text::LayoutBuildParams params{
+		.textAreaWidth = m_textWrapped ? get_size()[0] : 0.f,
+		.textAreaHeight = get_size()[1],
+		.tabWidth = 8.f,
+		.xAlignment = m_textXAlignment,
+		.yAlignment = m_textYAlignment,
+		.pSmallcapsRuns = &m_formatting.smallcapsRuns,
+		.pSubscriptRuns = &m_formatting.subscriptRuns,
+		.pSuperscriptRuns = &m_formatting.superscriptRuns,
+	};
+	builder.build_layout_info(m_layout, text.data(), text.size(), m_formatting.fontRuns, params);
 
 	m_visualCursorInfo = m_layout.calc_cursor_pixel_pos(get_size()[0], m_textXAlignment, m_cursorPosition);
 }

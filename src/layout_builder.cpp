@@ -158,9 +158,7 @@ LayoutBuilder& LayoutBuilder::operator=(LayoutBuilder&& other) noexcept {
  *    (UBA L1.1).
  */
 void LayoutBuilder::build_layout_info(LayoutInfo& result, const char* chars, int32_t count,
-		const ValueRuns<Font>& fontRuns, float textAreaWidth, float textAreaHeight,
-		YAlignment textYAlignment, LayoutInfoFlags flags, float tabWidth, const ValueRuns<bool>* pSmallcapsRuns,
-		const ValueRuns<bool>* pSubscriptRuns, const ValueRuns<bool>* pSuperscriptRuns) {
+		const ValueRuns<Font>& fontRuns, const LayoutBuildParams& params) {
 	result.clear();
 
 	SBCodepointSequence codepointSequence{SBStringEncodingUTF8, (void*)chars, (size_t)count};
@@ -168,25 +166,25 @@ void LayoutBuilder::build_layout_info(LayoutInfo& result, const char* chars, int
 	size_t paragraphOffset{};	
 
 	ValueRunsIterator itFont(fontRuns);
-	MaybeDefaultRunsIterator itSmallcaps(pSmallcapsRuns, false, count);
-	MaybeDefaultRunsIterator itSubscript(pSubscriptRuns, false, count);
-	MaybeDefaultRunsIterator itSuperscript(pSuperscriptRuns, false, count);
+	MaybeDefaultRunsIterator itSmallcaps(params.pSmallcapsRuns, false, count);
+	MaybeDefaultRunsIterator itSubscript(params.pSubscriptRuns, false, count);
+	MaybeDefaultRunsIterator itSuperscript(params.pSuperscriptRuns, false, count);
 
 	size_t lastHighestRun = 0;
 
 	SBLevel baseDefaultLevel = SBLevelDefaultLTR;
 
-	if ((flags & LayoutInfoFlags::OVERRIDE_DIRECTIONALITY) != LayoutInfoFlags::NONE) {
-		baseDefaultLevel = static_cast<SBLevel>(flags & LayoutInfoFlags::RIGHT_TO_LEFT);
+	if ((params.flags & LayoutInfoFlags::OVERRIDE_DIRECTIONALITY) != LayoutInfoFlags::NONE) {
+		baseDefaultLevel = static_cast<SBLevel>(params.flags & LayoutInfoFlags::RIGHT_TO_LEFT);
 	}
 	else {
-		baseDefaultLevel = ((flags & LayoutInfoFlags::RIGHT_TO_LEFT) == LayoutInfoFlags::NONE)
+		baseDefaultLevel = ((params.flags & LayoutInfoFlags::RIGHT_TO_LEFT) == LayoutInfoFlags::NONE)
 				? SBLevelDefaultLTR : SBLevelDefaultRTL;
 	}
 
 	// 26.6 fixed-point text area width
-	auto fixedTextAreaWidth = static_cast<int32_t>(textAreaWidth * 64.f);
-	auto tabWidthFixed = static_cast<int32_t>(tabWidth * 64.f);
+	auto fixedTextAreaWidth = static_cast<int32_t>(params.textAreaWidth * 64.f);
+	auto tabWidthFixed = static_cast<int32_t>(params.tabWidth * 64.f);
 
 	auto& locale = icu::Locale::getDefault();
 
@@ -203,7 +201,7 @@ void LayoutBuilder::build_layout_info(LayoutInfo& result, const char* chars, int
 					paragraphLength, baseDefaultLevel);
 			lastHighestRun = build_paragraph(result, sbParagraph, chars, byteCount, paragraphOffset, itFont,
 					itSmallcaps, itSubscript, itSuperscript, fixedTextAreaWidth, tabWidthFixed, locale,
-					(flags & LayoutInfoFlags::TAB_WIDTH_PIXELS) != LayoutInfoFlags::NONE);
+					(params.flags & LayoutInfoFlags::TAB_WIDTH_PIXELS) != LayoutInfoFlags::NONE);
 			SBParagraphRelease(sbParagraph);
 		}
 		else {
@@ -234,7 +232,8 @@ void LayoutBuilder::build_layout_info(LayoutInfo& result, const char* chars, int
 	}
 
 	auto totalHeight = result.get_text_height();
-	result.set_text_start_y(static_cast<float>(textYAlignment) * (textAreaHeight - totalHeight) * 0.5f);
+	result.set_text_start_y(static_cast<float>(params.yAlignment)
+			* (params.textAreaHeight - totalHeight) * 0.5f);
 
 	SBAlgorithmRelease(sbAlgorithm);
 }

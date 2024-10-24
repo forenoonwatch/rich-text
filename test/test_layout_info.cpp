@@ -6,6 +6,7 @@
 #include <value_runs.hpp>
 
 #include "other_layout_builders.hpp"
+#include "text_alignment.hpp"
 
 #include <unicode/unistr.h>
 
@@ -120,8 +121,14 @@ static void test_utf8_vs_utf8(Text::Font font, const char* str, float width) {
 
 	Text::LayoutBuilder builder;
 	Text::LayoutInfo layoutB{};
-	builder.build_layout_info(layoutB, str, count, fontRuns, width, 100.f, Text::YAlignment::BOTTOM,
-			Text::LayoutInfoFlags::NONE, 4.f);
+	Text::LayoutBuildParams params{
+		.textAreaWidth = width,
+		.textAreaHeight = 100.f,
+		.tabWidth = 4.f,
+		.xAlignment = Text::XAlignment::RIGHT,
+		.yAlignment = Text::YAlignment::BOTTOM,
+	};
+	builder.build_layout_info(layoutB, str, count, fontRuns, params);
 
 	test_compare_layouts(layoutA, layoutB);
 }
