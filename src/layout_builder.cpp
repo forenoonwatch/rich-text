@@ -197,8 +197,8 @@ void LayoutBuilder::build_layout_info(LayoutInfo& result, const char* chars, int
 		bool isLastParagraph = paragraphOffset + paragraphLength == count;
 
 		if (paragraphLength - separatorLength > 0) {
-			auto byteCount = paragraphLength - separatorLength * (!isLastParagraph);
-
+			auto byteCount = paragraphLength - separatorLength;
+			
 			SBParagraphRef sbParagraph = SBAlgorithmCreateParagraph(sbAlgorithm, paragraphOffset,
 					paragraphLength, baseDefaultLevel);
 			lastHighestRun = build_paragraph(result, sbParagraph, chars, byteCount, paragraphOffset, itFont,
@@ -216,7 +216,19 @@ void LayoutBuilder::build_layout_info(LayoutInfo& result, const char* chars, int
 					static_cast<uint32_t>(paragraphOffset), height, fontData.get_ascent());
 		}
 
-		result.set_run_char_end_offset(lastHighestRun, separatorLength * (!isLastParagraph));
+		result.set_run_char_end_offset(lastHighestRun, separatorLength);
+
+		// Append empty line if string ends with a line break
+		if (isLastParagraph && separatorLength > 0) {
+			auto font = fontRuns.get_value(paragraphOffset == count ? count - 1 : paragraphOffset);
+			auto fontData = FontRegistry::get_font_data(font);
+			auto height = fontData.get_ascent() - fontData.get_descent();
+
+			result.append_empty_line(FontRegistry::get_default_single_script_font(font),
+					static_cast<uint32_t>(paragraphOffset + paragraphLength), height,
+					fontData.get_ascent());
+			result.set_run_char_end_offset(result.get_run_count() - 1, 0);
+		}
 
 		paragraphOffset += paragraphLength;
 	}
