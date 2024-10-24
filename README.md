@@ -6,17 +6,17 @@ This is a prototype codebase containing the necessary code for displaying and ed
 ### Layout and Rendering
 - &check; LTR and RTL line break aware paragraph layout
 - &check; Bidirectional text support
-- &cross; Vertical text layout, and mixed vertical/horizontal layout
+- &cross; Vertical text layout
 - &check; Per-script font fallbacks
 - &check; Common font fallbacks
-- &cross; Family fallbacks
+- &check; Family fallbacks
 - &check; Inline font size and face switching
 - &check; icu4c-compatible text run parsing
 - &check; Full feature unicode support (Complex scripts, Emoji, Zalgo text, etc)
 - &check; Color glyph support
 - &check; Dynamic glyph atlas
-- &cross; Scalable text rendering
-- &check; Synthetic bold
+- &cross; Scalable text rendering (SDF, Vector)
+- &check; Synthetic weight
 - &check; Synthetic italic
 - &check; Synthetic smallcaps
 - &check; Synthetic subscript/superscript
@@ -34,7 +34,7 @@ This is a prototype codebase containing the necessary code for displaying and ed
 - &cross; Transparency
 - &check; Font family
 - &check; Font size
-- &cross; Font weight
+- &check; Font weight
 - &check; Bold
 - &check; Italic
 - &check; Underline
@@ -43,13 +43,16 @@ This is a prototype codebase containing the necessary code for displaying and ed
 - &check; Stroke transparency
 - &check; Stroke thickness
 - &check; Stroke join type
-- &cross; Uppercase modifier
+- &check; Uppercase modifier
 - &cross; Lowercase modifier
-- &cross; Smallcaps modifier
+- &cross; Titlecase modifier
+- &check; Smallcaps modifier
+- &check; Subscript modifier
+- &check; Superscript modifier
 - &cross; Line break `<br />`
 - &cross; XML escape sequences e.g. `&lt;`
 - &check; Comment
-- &cross; SIMD-accelerated parsing and UTF encoding/decoding
+- &cross; SIMD-accelerated parsing
 
 ## Dependencies
 - [FreeType](https://freetype.org/)
