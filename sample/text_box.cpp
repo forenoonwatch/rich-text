@@ -178,12 +178,23 @@ void TextBox::handle_focus_lost(UIContainer&) {
 	recalc_text();
 }
 
+void TextBox::update(float deltaTime) {
+	UIObject::update(deltaTime);
+
+	m_cursorTimer += deltaTime;
+
+	while (m_cursorFlashIndex < 10 && m_cursorTimer >= 0.5f) {
+		m_cursorTimer -= 0.5f;
+		++m_cursorFlashIndex;
+	}
+}
+
 void TextBox::render(UIContainer& container) {
 	container.draw_text(m_layout, m_formatting, get_absolute_position()[0], get_absolute_position()[1],
 			get_size()[0], m_textXAlignment, m_selectionStart, m_cursorPosition);
 
 	// Draw Cursor
-	if (is_focused()) {
+	if (is_focused() && (m_cursorFlashIndex & 1) == 0) {
 		Text::Color cursorColor{0, 0, 0, 1};
 		container.emit_rect(get_absolute_position()[0] + m_visualCursorInfo.x,
 				get_absolute_position()[1] + m_visualCursorInfo.y, 1, m_visualCursorInfo.height, cursorColor,
@@ -267,6 +278,8 @@ void TextBox::set_cursor_position_internal(Text::CursorPosition pos, bool select
 	}
 
 	m_visualCursorInfo = m_layout.calc_cursor_pixel_pos(get_size()[0], m_textXAlignment, m_cursorPosition);
+	m_cursorTimer = 0.f;
+	m_cursorFlashIndex = 0;
 }
 
 void TextBox::handle_key_backspace(bool ctrl) {

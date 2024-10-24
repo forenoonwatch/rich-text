@@ -18,6 +18,7 @@ class TextBox final : public UIObject {
 		void handle_focused(UIContainer&) override;
 		void handle_focus_lost(UIContainer&) override;
 
+		void update(float deltaTime) override;
 		void render(UIContainer&) override;
 
 		void set_size(float width, float height) override;
@@ -51,6 +52,9 @@ class TextBox final : public UIObject {
 		Text::FormattingRuns m_formatting;
 		Text::VisualCursorInfo m_visualCursorInfo;
 		Text::CursorController m_cursorCtrl;
+
+		float m_cursorTimer{};
+		int m_cursorFlashIndex{};
 
 		bool should_focused_use_rich_text() const;
 

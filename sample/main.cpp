@@ -106,7 +106,14 @@ int main() {
 	glfwSetWindowFocusCallback(window, on_focus_event);
 	glfwSetFramebufferSizeCallback(window, on_resize);
 
+	double lastTime = glfwGetTime();
+
 	while (!glfwWindowShouldClose(window)) {
+		double currTime = glfwGetTime();
+		auto deltaTime = currTime - lastTime;
+		lastTime = currTime;
+
+		container->update(static_cast<float>(deltaTime));
 		render(*container);
 		glfwSwapBuffers(window);
 		glfwPollEvents();

@@ -12,6 +12,7 @@ class UIObject : public std::enable_shared_from_this<UIObject> {
 	public:
 		virtual ~UIObject() = default;
 
+		virtual void update(float deltaTime);
 		virtual void render(UIContainer&);
 
 		virtual bool handle_mouse_button(UIContainer&, int button, int action, int mods, double mouseX,

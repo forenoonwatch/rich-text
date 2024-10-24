@@ -1,5 +1,12 @@
 #include "ui_object.hpp"
 
+void UIObject::update(float deltaTime) {
+	for_each_child([deltaTime](auto& child) {
+		child.update(deltaTime);
+		return IterationDecision::CONTINUE;
+	});
+}
+
 void UIObject::render(UIContainer& /*container*/) {}
 
 bool UIObject::handle_mouse_button(UIContainer& /*container*/, int /*button*/, int /*action*/, int /*mods*/,
