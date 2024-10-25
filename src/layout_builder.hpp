@@ -66,8 +66,7 @@ class LayoutBuilder {
 		// position as calculated from the offsets and advances.
 		std::vector<int32_t> m_glyphPositions[2];
 
-		int32_t m_cursorX;
-		int32_t m_cursorY;
+		int32_t m_cursor;
 
 		std::vector<LogicalRun> m_logicalRuns;
 
@@ -75,19 +74,20 @@ class LayoutBuilder {
 				int32_t paragraphLength, int32_t paragraphStart, ValueRunsIterator<Font>& itFont,
 				MaybeDefaultRunsIterator<bool>& itSmallcaps, MaybeDefaultRunsIterator<bool>& itSubscript,
 				MaybeDefaultRunsIterator<bool>& itSuperscript, int32_t textAreaWidthFixed,
-				int32_t tabWidthFixed, const icu::Locale& defaultLocale, bool tabWidthFromPixels);
+				int32_t tabWidthFixed, const icu::Locale& defaultLocale, bool tabWidthFromPixels,
+				bool vertical);
 		void shape_logical_run(const SingleScriptFont& font, const char* paragraphText, int32_t offset,
 				int32_t count, int32_t paragraphStart, int32_t paragraphLength, int script,
-				const icu::Locale& locale, bool rightToLeft);
+				const icu::Locale& locale, bool reversed, bool vertical);
 		void compute_line_visual_runs(LayoutInfo& result, _SBParagraph* sbParagraph, const char* chars,
 				int32_t count, int32_t lineStart, int32_t lineEnd, size_t& highestRun,
-				int32_t& highestRunCharEnd);
+				int32_t& highestRunCharEnd, bool vertical);
 		void append_visual_run(LayoutInfo& result, size_t logicalRunIndex, int32_t charStartIndex,
-				int32_t charEndIndex, int32_t& visualRunLastX, size_t& highestRun, int32_t& highestRunCharEnd,
-				bool rightToLeft);
+				int32_t charEndIndex, int32_t& visualRunWidth, size_t& highestRun, int32_t& highestRunCharEnd,
+				bool reversed, bool vertical);
 
 		void apply_tab_widths_no_line_break(const char* fullText, int32_t tabWidthFixed,
-				bool tabWidthFromPixels);
+				bool tabWidthFromPixels, int32_t* glyphWidths);
 
 		void reset(size_t capacity);
 };
