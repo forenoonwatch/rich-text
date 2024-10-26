@@ -87,7 +87,7 @@ class LayoutBuilder {
 				bool reversed, bool vertical);
 
 		void apply_tab_widths_no_line_break(const char* fullText, int32_t tabWidthFixed,
-				bool tabWidthFromPixels, int32_t* glyphWidths);
+				bool tabWidthFromPixels);
 
 		void reset(size_t capacity);
 };

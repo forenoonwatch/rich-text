@@ -247,8 +247,6 @@ size_t LayoutBuilder::build_paragraph(LayoutInfo& result, SBParagraphRef sbParag
 		const icu::Locale& defaultLocale, bool tabWidthFromPixels, bool vertical) {
 	const char* paragraphText = fullText + paragraphStart;
 	auto paragraphEnd = paragraphStart + paragraphLength;
-	auto primaryAxis = static_cast<size_t>(vertical);
-	auto secondaryAxis = static_cast<size_t>(!vertical);
 
 	reset(paragraphLength);
 
@@ -282,15 +280,14 @@ size_t LayoutBuilder::build_paragraph(LayoutInfo& result, SBParagraphRef sbParag
 	}, itFont, itScripts, itLevels, itSmallcaps, itSubscript, itSuperscript);
 
 	// Finalize the last advance after the last character in the paragraph
-	m_glyphPositions[secondaryAxis].emplace_back(m_cursor);
+	m_glyphPositions[1].emplace_back(m_cursor);
 
 	size_t highestRun{};
 	int32_t highestRunCharEnd{INT32_MIN};
 
 	// If width == 0, perform no line breaking
 	if (textAreaWidth == 0) {
-		apply_tab_widths_no_line_break(fullText, tabWidthFixed, tabWidthFromPixels,
-				m_glyphPositions[primaryAxis].data());
+		apply_tab_widths_no_line_break(fullText, tabWidthFixed, tabWidthFromPixels);
 		compute_line_visual_runs(result, sbParagraph, paragraphText, paragraphLength, paragraphStart,
 				paragraphEnd, highestRun, highestRunCharEnd, vertical);
 		return highestRun;
@@ -305,8 +302,6 @@ size_t LayoutBuilder::build_paragraph(LayoutInfo& result, SBParagraphRef sbParag
 	int32_t lineEnd = paragraphStart;
 	int32_t lineStart;
 
-	auto& glyphWidths = m_glyphPositions[primaryAxis];
-
 	while (lineEnd < paragraphStart + paragraphLength) {
 		int32_t lineWidthSoFar{};
 
@@ -319,15 +314,15 @@ size_t LayoutBuilder::build_paragraph(LayoutInfo& result, SBParagraphRef sbParag
 		while (glyphIndex < m_glyphs.size()) {
 			if (fullText[m_charIndices[glyphIndex]] == '\t') {
 				auto baseTabWidth = tabWidthFromPixels ? tabWidthFixed
-						: mul_fixed(glyphWidths[glyphIndex], tabWidthFixed);
-				glyphWidths[glyphIndex] = baseTabWidth - (lineWidthSoFar % baseTabWidth);
+						: mul_fixed(m_glyphPositions[0][glyphIndex], tabWidthFixed);
+				m_glyphPositions[0][glyphIndex] = baseTabWidth - (lineWidthSoFar % baseTabWidth);
 			}
 
-			if (lineWidthSoFar + glyphWidths[glyphIndex] > textAreaWidth) {
+			if (lineWidthSoFar + m_glyphPositions[0][glyphIndex] > textAreaWidth) {
 				break;
 			}
 
-			lineWidthSoFar += glyphWidths[glyphIndex];
+			lineWidthSoFar += m_glyphPositions[0][glyphIndex];
 			++glyphIndex;
 		}
 
@@ -359,11 +354,11 @@ size_t LayoutBuilder::build_paragraph(LayoutInfo& result, SBParagraphRef sbParag
 		for (; glyphIndexBefore < glyphIndex; ++glyphIndexBefore) {
 			if (fullText[m_charIndices[glyphIndexBefore]] == '\t') {
 				auto baseTabWidth = tabWidthFromPixels ? tabWidthFixed
-						: mul_fixed(glyphWidths[glyphIndexBefore], tabWidthFixed);
-				glyphWidths[glyphIndexBefore] = baseTabWidth - (lineWidthSoFar % baseTabWidth);
+						: mul_fixed(m_glyphPositions[0][glyphIndexBefore], tabWidthFixed);
+				m_glyphPositions[0][glyphIndexBefore] = baseTabWidth - (lineWidthSoFar % baseTabWidth);
 			}
 
-			lineWidthSoFar += glyphWidths[glyphIndexBefore];
+			lineWidthSoFar += m_glyphPositions[0][glyphIndexBefore];
 		}
 
 		compute_line_visual_runs(result, sbParagraph, paragraphText, paragraphLength, lineStart, lineEnd,
@@ -379,9 +374,6 @@ void LayoutBuilder::shape_logical_run(const SingleScriptFont& font, const char* 
 	auto hbScript = hb_script_from_string(uscript_getShortName(static_cast<UScriptCode>(script)), 4);
 	auto direction = vertical ? (reversed ? HB_DIRECTION_BTT : HB_DIRECTION_TTB)
 			: (reversed ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
-	auto primaryAxis = static_cast<size_t>(vertical);
-	auto secondaryAxis = static_cast<size_t>(!vertical);
-
 	hb_buffer_clear_contents(m_buffer);
 
 	hb_buffer_set_script(m_buffer, hbScript);
@@ -443,10 +435,10 @@ void LayoutBuilder::shape_logical_run(const SingleScriptFont& font, const char* 
 		std::swap(pAdvancePrimary, pAdvanceSecondary);
 	}
 
-	auto glyphPosStartIndex = m_glyphPositions[secondaryAxis].size();
+	auto glyphPosStartIndex = m_glyphPositions[1].size();
 
 	for (unsigned i = 0; i < glyphCount; ++i) {
-		m_glyphPositions[secondaryAxis].emplace_back(m_cursor + *pOffsetSecondary);
+		m_glyphPositions[1].emplace_back(m_cursor + *pOffsetSecondary);
 		m_cursor += *pAdvanceSecondary;
 
 		if (paragraphText[glyphInfos[i].cluster + offset] == '\t') {
@@ -469,11 +461,10 @@ void LayoutBuilder::shape_logical_run(const SingleScriptFont& font, const char* 
 			if (i != glyphCount - 1) {
 				width += pOffsetPrimary[(i + 1) * stride];
 			}
-			m_glyphPositions[primaryAxis].emplace_back(width * widthMultiplier);
+			m_glyphPositions[0].emplace_back(width * widthMultiplier);
 		}
 
-		std::reverse(m_glyphPositions[secondaryAxis].begin() + glyphPosStartIndex,
-				m_glyphPositions[secondaryAxis].end());
+		std::reverse(m_glyphPositions[1].begin() + glyphPosStartIndex, m_glyphPositions[1].end());
 	}
 	else {
 		for (unsigned i = 0; i < glyphCount; ++i) {
@@ -484,7 +475,7 @@ void LayoutBuilder::shape_logical_run(const SingleScriptFont& font, const char* 
 			if (i != glyphCount - 1) {
 				width += pOffsetPrimary[(i + 1) * stride];
 			}
-			m_glyphPositions[primaryAxis].emplace_back(width * widthMultiplier);
+			m_glyphPositions[0].emplace_back(width * widthMultiplier);
 		}
 	}
 }
@@ -602,13 +593,12 @@ void LayoutBuilder::append_visual_run(LayoutInfo& result, size_t run, int32_t ch
 			result.append_glyph(m_glyphs[i]);
 			result.append_char_index(m_charIndices[i]);
 
-			float pos[] = {scalbnf(visualRunWidth, -6), scalbnf(m_glyphPositions[secondaryAxis][i], -6)};
+			float pos[] = {scalbnf(visualRunWidth, -6), scalbnf(m_glyphPositions[1][i], -6)};
 			result.append_glyph_position(pos[primaryAxis], pos[secondaryAxis]);
-			visualRunWidth += m_glyphPositions[primaryAxis][i];
+			visualRunWidth += m_glyphPositions[0][i];
 		}
 
-		float pos[] = {scalbnf(visualRunWidth, -6),
-			scalbnf(m_glyphPositions[secondaryAxis][visualLastGlyph], -6)};
+		float pos[] = {scalbnf(visualRunWidth, -6), scalbnf(m_glyphPositions[1][visualLastGlyph], -6)};
 		result.append_glyph_position(pos[primaryAxis], pos[secondaryAxis]);
 	}
 	else {
@@ -616,13 +606,12 @@ void LayoutBuilder::append_visual_run(LayoutInfo& result, size_t run, int32_t ch
 			result.append_glyph(m_glyphs[i]);
 			result.append_char_index(m_charIndices[i]);
 
-			float pos[] = {scalbnf(visualRunWidth, -6), scalbnf(m_glyphPositions[secondaryAxis][i], -6)};
+			float pos[] = {scalbnf(visualRunWidth, -6), scalbnf(m_glyphPositions[1][i], -6)};
 			result.append_glyph_position(pos[primaryAxis], pos[secondaryAxis]);
-			visualRunWidth += m_glyphPositions[primaryAxis][i];
+			visualRunWidth += m_glyphPositions[0][i];
 		}
 
-		float pos[] = {scalbnf(visualRunWidth, -6),
-			scalbnf(m_glyphPositions[secondaryAxis][visualLastGlyph], -6)};
+		float pos[] = {scalbnf(visualRunWidth, -6), scalbnf(m_glyphPositions[1][visualLastGlyph], -6)};
 		result.append_glyph_position(pos[primaryAxis], pos[secondaryAxis]);
 	}
 
@@ -631,7 +620,7 @@ void LayoutBuilder::append_visual_run(LayoutInfo& result, size_t run, int32_t ch
 }
 
 void LayoutBuilder::apply_tab_widths_no_line_break(const char* fullText, int32_t tabWidthFixed,
-		bool tabWidthFromPixels, int32_t* glyphWidths) {
+		bool tabWidthFromPixels) {
 	size_t runIndex = 0;
 	int32_t lineWidthSoFar = 0;
 
@@ -639,11 +628,12 @@ void LayoutBuilder::apply_tab_widths_no_line_break(const char* fullText, int32_t
 		runIndex += m_logicalRuns[runIndex].glyphEndIndex == i;
 
 		if (fullText[m_charIndices[i]] == '\t') {
-			auto baseTabWidth = tabWidthFromPixels ? tabWidthFixed : mul_fixed(glyphWidths[i], tabWidthFixed);
-			glyphWidths[i] = baseTabWidth - (lineWidthSoFar % baseTabWidth);
+			auto baseTabWidth = tabWidthFromPixels ? tabWidthFixed
+					: mul_fixed(m_glyphPositions[0][i], tabWidthFixed);
+			m_glyphPositions[0][i] = baseTabWidth - (lineWidthSoFar % baseTabWidth);
 		}
 
-		lineWidthSoFar += glyphWidths[i];
+		lineWidthSoFar += m_glyphPositions[0][i];
 	}
 }
 
