@@ -53,9 +53,10 @@ void LayoutInfo::append_run(const SingleScriptFont& font, uint32_t charStartInde
 	});
 }
 
-void LayoutInfo::append_line(float height, float ascent) {
+void LayoutInfo::append_line(float height, float ascent, bool vertical) {
 	auto lastRunIndex = static_cast<uint32_t>(m_visualRuns.size()) - 1;
-	auto width = m_glyphPositions[2 * (m_visualRuns[lastRunIndex].glyphEndIndex + lastRunIndex)];
+	auto width = m_glyphPositions[2 * (m_visualRuns[lastRunIndex].glyphEndIndex + lastRunIndex)
+			+ static_cast<size_t>(vertical)];
 
 	m_lines.push_back({
 		.visualRunsEndIndex = static_cast<uint32_t>(m_visualRuns.size()),
@@ -97,7 +98,7 @@ VisualCursorInfo LayoutInfo::calc_cursor_pixel_pos(float textWidth, XAlignment t
 		CursorPosition cursor) const {
 	size_t lineIndex;
 	auto runIndex = get_run_containing_cursor(cursor, lineIndex);
-	auto lineX = get_line_x_start(lineIndex, textWidth, textXAlignment);
+	auto lineX = get_line_start_horizontal(lineIndex, textWidth, textXAlignment);
 	auto glyphOffset = get_glyph_offset_in_run(runIndex, cursor.get_position());
 
 	return {
@@ -189,7 +190,7 @@ CursorPosition LayoutInfo::get_line_end_position(size_t lineIndex) const {
 			: m_visualRuns[highestRun].charEndIndex, oppositeAffinity);
 }
 
-float LayoutInfo::get_line_x_start(size_t lineNumber, float textWidth, XAlignment align) const {
+float LayoutInfo::get_line_start_horizontal(size_t lineNumber, float textWidth, XAlignment align) const {
 	auto lineWidth = m_lines[lineNumber].width;
 
 	switch (align) {
@@ -204,13 +205,28 @@ float LayoutInfo::get_line_x_start(size_t lineNumber, float textWidth, XAlignmen
 	RICHTEXT_UNREACHABLE();
 }
 
+float LayoutInfo::get_line_start_vertical(size_t lineNumber, float textWidth, YAlignment align) const {
+	auto lineWidth = m_lines[lineNumber].width;
+
+	switch (align) {
+		case YAlignment::TOP:
+			return 0.f;
+		case YAlignment::BOTTOM:
+			return textWidth - lineWidth;
+		case YAlignment::CENTER:
+			return 0.5f * (textWidth - lineWidth);
+	}
+
+	RICHTEXT_UNREACHABLE();
+}
+
 CursorPosition LayoutInfo::find_closest_cursor_position(float textWidth, XAlignment textXAlignment,
 		icu::BreakIterator& iter, size_t lineNumber, float cursorX) const {
 	if (m_lines.empty()) {
 		return {};
 	}
 
-	cursorX -= get_line_x_start(lineNumber, textWidth, textXAlignment);
+	cursorX -= get_line_start_horizontal(lineNumber, textWidth, textXAlignment);
 
 	// Find run containing char
 	auto firstRunIndex = get_first_run_index(lineNumber);

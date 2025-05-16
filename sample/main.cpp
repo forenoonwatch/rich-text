@@ -5,7 +5,6 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-#include "image.hpp"
 #include "pipeline.hpp"
 #include "text_atlas.hpp"
 #include "msdf_text_atlas.hpp"
@@ -89,7 +88,28 @@ int main() {
 	{
 		std::vector<char> fileData;
 		if (fileData = file_read_bytes("Sample.txt"); !fileData.empty()) {
-			std::string str(fileData.data(), fileData.size());
+			//std::string str("Hello\tworld");
+			//std::string str("یہ ایک )car( ہے۔");
+			//std::string str("<hello>");
+			//std::string str("	 ̈‫ aaa ‭ אאא ‮ aaa ‪ אאא ‬ aaa ‬ ااا ‬ aaa ‬ aaa ‬&‬‌‌&‬");
+			//std::string str(fileData.data(), fileData.size());
+			//std::string str("beffiإلابسم اللهafter\r\nhello");
+			//std::string str("beffiإلابسم الله\r\nhello");
+			//std::string str("beffiإلابسماللهhello");
+			//std::string str("beffiإلابسم اللهffter\r\nbeffiإلابسم اللهffter");
+			//std::string str("beffiإلابسم اللهffter");
+			//std::string str("<font color=\"#FF0000\">beffi</font>إلابسم اللهffter");
+			//std::string str("إلابسم الله");
+			//std::string str("<font color=\"#FF0000\"><s>إلابسم</s></font> <u>الله</u>");
+			//std::string str("A\r\n\r\nB\r\nC\r\n");
+			//std::string str("HelloWorld");
+			//std::string str("BeeffiWorld");
+			//std::string str("aaa\u2067אאא\u2066bbb\u202bבבב\u202cccc\u2069גגג");
+			std::string str("Beeffi");
+			//std::string str("<u><stroke thickness=\"2\" color=\"#007F00\"><font color=\"#FF0000\">Be<s>e</s></font></stroke><s>ff</s></u><s>i</s>");
+			//std::string str("Hello\r\nWorld");
+			//std::string str("\xF0\x9F\x87\xAE\xF0\x9F\x87\xB9");
+			//std::string str("Hello <font face=\"Noto Sans Synth\" weight=\"bold\">World</font>\nHello <font weight=\"bold\">World</font>");
 			textBox->set_text(std::move(str));
 		}
 		else {

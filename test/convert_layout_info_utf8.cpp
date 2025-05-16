@@ -55,7 +55,7 @@ static void convert_runs(const LayoutInfo& src, LayoutInfo& dst, const char16_t*
 			dst.set_run_char_end_offset(run, highChar - lowChar);
 		}
 
-		dst.append_line(src.get_line_height(line), src.get_line_ascent(line));
+		dst.append_line(src.get_line_height(line), src.get_line_ascent(line), false);
 	}
 }
 

@@ -43,6 +43,7 @@ class TextBox final : public UIObject {
 		Text::YAlignment m_textYAlignment{Text::YAlignment::TOP};
 		bool m_textWrapped = true;
 		bool m_multiLine = true;
+		bool m_vertical = true;
 		bool m_richText = false;
 		bool m_editable = true;
 		bool m_selectable = true;

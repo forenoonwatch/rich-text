@@ -8,14 +8,14 @@
 namespace Text {
 
 template <typename Visitor>
-void draw_text(const LayoutInfo& layout, float textAreaWidth, XAlignment textXAlignment,
-		Visitor&& visitor) {
+void draw_text(const LayoutInfo& layout, float textAreaWidth, float textAreaHeight, XAlignment textXAlignment,
+		YAlignment textYAlignment, bool vertical, Visitor&& visitor) {
 	uint32_t glyphIndex{};
 	uint32_t glyphPosIndex{};
 	auto* glyphPositions = layout.get_glyph_position_data();
 
-	layout.for_each_run(textAreaWidth, textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
-			auto lineY) {
+	layout.for_each_run(textAreaWidth, textAreaHeight, textXAlignment, textYAlignment, vertical,
+			[&](auto lineIndex, auto runIndex, auto lineX, auto lineY) {
 		auto font = layout.get_run_font(runIndex);
 		auto fontData = Text::FontRegistry::get_font_data(font);
 
@@ -35,15 +35,16 @@ void draw_text(const LayoutInfo& layout, float textAreaWidth, XAlignment textXAl
 
 template <typename Visitor>
 void draw_text(const LayoutInfo& layout, const FormattingRuns& formatting, float textAreaWidth,
-		XAlignment textXAlignment, Visitor&& visitor) {
+		float textAreaHeight, XAlignment textXAlignment, YAlignment textYAlignment, bool vertical,
+		Visitor&& visitor) {
 	uint32_t glyphIndex{};
 	uint32_t glyphPosIndex{};
 	float strikethroughStartPos{};
 	float underlineStartPos{};
 	auto* glyphPositions = layout.get_glyph_position_data();
 
-	layout.for_each_run(textAreaWidth, textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
-			auto lineY) {
+	layout.for_each_run(textAreaWidth, textAreaHeight, textXAlignment, textYAlignment, vertical,
+			[&](auto lineIndex, auto runIndex, auto lineX, auto lineY) {
 		auto font = layout.get_run_font(runIndex);
 		auto fontData = Text::FontRegistry::get_font_data(font);
 

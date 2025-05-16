@@ -41,8 +41,8 @@ class UIContainer final : public UIObject {
 		void draw_text(const Text::LayoutInfo&, float x, float y, float width, Text::XAlignment,
 				const Text::Color& color);
 		void draw_text(const Text::LayoutInfo&, const Text::FormattingRuns&, float x, float y, float width,
-				Text::XAlignment, Text::CursorPosition selectionStart = {},
-				Text::CursorPosition cursorPosition = {});
+				float height, Text::XAlignment, Text::YAlignment, bool vertical,
+				Text::CursorPosition selectionStart = {}, Text::CursorPosition cursorPosition = {});
 
 		void draw_text_immediate(Text::Font font, const Text::Color& color, std::string_view text, float x, 
 				float y, float width, float height, Text::XAlignment, Text::YAlignment);

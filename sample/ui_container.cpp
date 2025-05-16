@@ -72,7 +72,7 @@ void UIContainer::emit_rect(float x, float y, float width, float height, const T
 
 void UIContainer::draw_text(const Text::LayoutInfo& layout, float positionX, float positionY,
 		float textAreaWidth, Text::XAlignment textXAlignment, const Text::Color& color) {
-	Text::draw_text(layout, textAreaWidth, textXAlignment, VisitorBase {
+	Text::draw_text(layout, textAreaWidth, 0.f, textXAlignment, Text::YAlignment::TOP, false, VisitorBase {
 		[&](const Text::SingleScriptFont& font, uint32_t glyphIndex, float x, float y) {
 			float offset[2]{};
 			float texCoordExtents[4]{};
@@ -97,7 +97,8 @@ void UIContainer::draw_text(const Text::LayoutInfo& layout, float positionX, flo
 }
 
 void UIContainer::draw_text(const Text::LayoutInfo& layout, const Text::FormattingRuns& formatting,
-		float positionX, float positionY, float textAreaWidth, Text::XAlignment textXAlignment,
+		float positionX, float positionY, float textAreaWidth, float textAreaHeight,
+		Text::XAlignment textXAlignment, Text::YAlignment textYAlignment, bool vertical,
 		Text::CursorPosition inSelectionStart, Text::CursorPosition inCursorPosition) {
 	bool hasHighlighting = inSelectionStart.is_valid();
 	uint32_t selectionStart{};
@@ -112,8 +113,8 @@ void UIContainer::draw_text(const Text::LayoutInfo& layout, const Text::Formatti
 			std::swap(selectionStart, selectionEnd);
 		}
 
-		layout.for_each_run(textAreaWidth, textXAlignment, [&](auto lineIndex, auto runIndex,
-				auto lineX, auto lineY) {
+		layout.for_each_run(textAreaWidth, 0.f, textXAlignment, Text::YAlignment::TOP, false,
+				[&](auto lineIndex, auto runIndex, auto lineX, auto lineY) {
 			if (layout.run_contains_char_range(runIndex, selectionStart, selectionEnd)) {
 				auto [minPos, maxPos] = layout.get_position_range_in_run(runIndex, selectionStart,
 						selectionEnd);
@@ -130,7 +131,8 @@ void UIContainer::draw_text(const Text::LayoutInfo& layout, const Text::Formatti
 	Text::Pair<float, float> highlightRange{};
 	const Text::Pair<float, float>* pClip = nullptr;
 
-	Text::draw_text(layout, formatting, textAreaWidth, textXAlignment, VisitorBase {
+	Text::draw_text(layout, formatting, textAreaWidth, textAreaHeight, textXAlignment, textYAlignment,
+			vertical, VisitorBase {
 		// Helper callback that gets called once per run. Used to set up highlighting metadata.
 		[&](size_t /*lineIndex*/, size_t runIndex) {
 			runHasHighlighting = hasHighlighting && layout.run_contains_char_range(runIndex, selectionStart,
@@ -194,8 +196,8 @@ void UIContainer::draw_text(const Text::LayoutInfo& layout, const Text::Formatti
 
 	// Debug render run outlines
 	if (CVars::showRunOutlines) {
-		layout.for_each_run(textAreaWidth, textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
-				auto lineY) {
+		layout.for_each_run(textAreaWidth, textAreaHeight, textXAlignment, textYAlignment, vertical,
+				[&](auto lineIndex, auto runIndex, auto lineX, auto lineY) {
 			auto* positions = layout.get_run_positions(runIndex);
 			auto minBound = positions[0];
 			auto maxBound = positions[2 * layout.get_run_glyph_count(runIndex)]; 
@@ -207,8 +209,8 @@ void UIContainer::draw_text(const Text::LayoutInfo& layout, const Text::Formatti
 
 	// Debug render glyph boundaries
 	if (CVars::showGlyphBoundaries) {
-		layout.for_each_run(textAreaWidth, textXAlignment, [&](auto lineIndex, auto runIndex, auto lineX,
-				auto lineY) {
+		layout.for_each_run(textAreaWidth, textAreaHeight, textXAlignment, textYAlignment, vertical,
+				[&](auto lineIndex, auto runIndex, auto lineX, auto lineY) {
 			auto* positions = layout.get_run_positions(runIndex);
 
 			for (int32_t i = 0; i <= layout.get_run_glyph_count(runIndex); ++i) {

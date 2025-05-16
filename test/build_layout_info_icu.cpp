@@ -473,7 +473,7 @@ static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result
 		}
 	}
 
-	result.append_line(maxAscent - maxDescent, maxAscent);
+	result.append_line(maxAscent - maxDescent, maxAscent, false);
 }
 
 static void append_visual_run(LayoutBuildState& state, LayoutInfo& result, const LogicalRun* logicalRuns,

@@ -191,7 +191,8 @@ void TextBox::update(float deltaTime) {
 
 void TextBox::render(UIContainer& container) {
 	container.draw_text(m_layout, m_formatting, get_absolute_position()[0], get_absolute_position()[1],
-			get_size()[0], m_textXAlignment, m_selectionStart, m_cursorPosition);
+			get_size()[0], get_size()[1], m_textXAlignment, m_textYAlignment, m_vertical, m_selectionStart,
+			m_cursorPosition);
 
 	// Draw Cursor
 	if (is_focused() && (m_cursorFlashIndex & 1) == 0) {
@@ -445,6 +446,7 @@ void TextBox::recalc_text() {
 		.textAreaWidth = m_textWrapped ? get_size()[0] : 0.f,
 		.textAreaHeight = get_size()[1],
 		.tabWidth = 8.f,
+		.flags = m_vertical ? Text::LayoutInfoFlags::VERTICAL : Text::LayoutInfoFlags::NONE,
 		.xAlignment = m_textXAlignment,
 		.yAlignment = m_textYAlignment,
 		.pSmallcapsRuns = &m_formatting.smallcapsRuns,

@@ -276,6 +276,6 @@ static void handle_line_icu_lx(LayoutInfo& result, icu::ParagraphLayout::Line& l
 				static_cast<uint32_t>(lastChar), rightToLeft);
 	}
 
-	result.append_line(static_cast<float>(maxAscent + maxDescent), static_cast<float>(maxAscent));
+	result.append_line(static_cast<float>(maxAscent + maxDescent), static_cast<float>(maxAscent), false);
 }
 

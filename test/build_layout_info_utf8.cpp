@@ -559,7 +559,7 @@ static void compute_line_visual_runs(LayoutBuildState& state, LayoutInfo& result
 		}
 	}
 
-	result.append_line(maxAscent - maxDescent, maxAscent);
+	result.append_line(maxAscent - maxDescent, maxAscent, false);
 	
 	SBLineRelease(sbLine);
 }

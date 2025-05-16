@@ -560,7 +560,7 @@ void LayoutBuilder::compute_line_visual_runs(LayoutInfo& result, SBParagraphRef 
 		}
 	}
 
-	result.append_line(maxAscent - maxDescent, maxAscent);
+	result.append_line(maxAscent - maxDescent, maxAscent, vertical);
 	
 	SBLineRelease(sbLine);
 }

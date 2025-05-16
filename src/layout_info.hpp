@@ -64,7 +64,7 @@ class LayoutInfo {
 		void append_glyph_position(float x, float y);
 		void append_run(const SingleScriptFont& font, uint32_t charStartIndex, uint32_t charEndIndex,
 				bool rightToLeft);
-		void append_line(float height, float ascent);
+		void append_line(float height, float ascent, bool vertical);
 		void append_empty_line(const SingleScriptFont& font, uint32_t charIndex, float height, float ascent);
 		void set_run_char_end_offset(size_t runIndex, uint8_t charEndOffset);
 		void set_text_start_y(float);
@@ -104,7 +104,8 @@ class LayoutInfo {
 		CursorPosition find_closest_cursor_position(float textWidth, XAlignment, icu::BreakIterator&,
 				size_t lineNumber, float cursorX) const;
 
-		float get_line_x_start(size_t lineIndex, float textWidth, XAlignment) const;
+		float get_line_start_horizontal(size_t lineIndex, float textAreaWidth, XAlignment) const;
+		float get_line_start_vertical(size_t lineIndex, float textAreaHeight, YAlignment) const;
 
 		/**
 		 * Whether the range [firstCharIndex, lastCharIndex) intersect's the run's [charStartIndex, charEndIndex)
@@ -163,11 +164,14 @@ class LayoutInfo {
 		size_t get_glyph_position_data_count() const;
 
 		template <typename Functor>
-		void for_each_line(float textWidth, XAlignment textXAlignment, Functor&& func) const;
+		void for_each_line(float textAreaWidth, float textAreaHeight, XAlignment textXAlignment,
+				YAlignment textYAlignment, bool vertical, Functor&& func) const;
 		template <typename Functor>
-		void for_each_run(float textWidth, XAlignment textXAlignment, Functor&& func) const;
+		void for_each_run(float textAreaWidth, float textAreaHeight, XAlignment textXAlignment,
+				YAlignment textYAlignment, bool vertical, Functor&& func) const;
 		template <typename Functor>
-		void for_each_glyph(float textWidth, XAlignment textXAlignment, Functor&& func) const;
+		void for_each_glyph(float textAreaWidth, float textAreaHeight, XAlignment textXAlignment,
+				YAlignment textYAlignment, bool vertical, Functor&& func) const;
 	private:
 		struct VisualRun {
 			SingleScriptFont font;
@@ -201,21 +205,33 @@ class LayoutInfo {
 }
 
 template <typename Functor>
-void Text::LayoutInfo::for_each_line(float textWidth, XAlignment textXAlignment, Functor&& func) const {
-	auto lineY = m_textStartY;
+void Text::LayoutInfo::for_each_line(float textAreaWidth, float textAreaHeight, XAlignment textXAlignment,
+		YAlignment textYAlignment, bool vertical, Functor&& func) const {
+	auto lineSecondaryAxis = m_textStartY;
 
-	for (size_t i = 0; i < m_lines.size(); ++i) {
-		auto lineX = get_line_x_start(i, textWidth, textXAlignment);
-		func(i, lineX, lineY + m_lines[i].ascent);
-		lineY += get_line_height(i);
+	if (vertical) {
+		for (size_t i = 0; i < m_lines.size(); ++i) {
+			auto linePrimaryAxis = get_line_start_vertical(i, textAreaHeight, textYAlignment);
+			func(i, lineSecondaryAxis + m_lines[i].ascent, linePrimaryAxis);
+			lineSecondaryAxis += get_line_height(i);
+		}
+	}
+	else {
+		for (size_t i = 0; i < m_lines.size(); ++i) {
+			auto linePrimaryAxis = get_line_start_horizontal(i, textAreaWidth, textXAlignment);
+			func(i, linePrimaryAxis, lineSecondaryAxis + m_lines[i].ascent);
+			lineSecondaryAxis += get_line_height(i);
+		}
 	}
 }
 
 template <typename Functor>
-void Text::LayoutInfo::for_each_run(float textWidth, XAlignment textXAlignment, Functor&& func) const {
+void Text::LayoutInfo::for_each_run(float textAreaWidth, float textAreaHeight, XAlignment textXAlignment,
+		YAlignment textYAlignment, bool vertical, Functor&& func) const {
 	uint32_t runIndex{};
 
-	for_each_line(textWidth, textXAlignment, [&](auto lineIndex, auto lineX, auto lineY) {
+	for_each_line(textAreaWidth, textAreaHeight, textXAlignment, textYAlignment, vertical, [&](auto lineIndex,
+			auto lineX, auto lineY) {
 		for (; runIndex < m_lines[lineIndex].visualRunsEndIndex; ++runIndex) {
 			func(lineIndex, runIndex, lineX, lineY);
 		}
@@ -223,11 +239,13 @@ void Text::LayoutInfo::for_each_run(float textWidth, XAlignment textXAlignment, 
 }
 
 template <typename Functor>
-void Text::LayoutInfo::for_each_glyph(float textWidth, XAlignment textXAlignment, Functor&& func) const {
+void Text::LayoutInfo::for_each_glyph(float textAreaWidth, float textAreaHeight, XAlignment textXAlignment,
+		YAlignment textYAlignment, bool vertical, Functor&& func) const {
 	uint32_t glyphIndex{};
 	uint32_t glyphPosIndex{};
 
-	for_each_run(textWidth, textXAlignment, [&](auto, auto runIndex, auto lineX, auto lineY) {
+	for_each_run(textAreaWidth, textAreaHeight, textXAlignment, textYAlignment, vertical, [&](auto,
+			auto runIndex, auto lineX, auto lineY) {
 		auto& run = m_visualRuns[runIndex];
 
 		for (; glyphIndex < run.glyphEndIndex; ++glyphIndex, glyphPosIndex += 2) {
