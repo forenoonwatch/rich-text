@@ -5,14 +5,11 @@
 namespace Text {
 
 class FontFace {
-	private:
-		static constexpr const uint32_t INVALID_FACE = static_cast<uint32_t>(~0u);
 	public:
 		constexpr FontFace() = default;
 		constexpr explicit FontFace(FontFamily family, FontWeight weight = FontWeight::REGULAR,
 					FontStyle style = FontStyle::NORMAL)
-				: m_handle((family.handle << 16) | (static_cast<uint32_t>(weight) << 1)
-						| static_cast<uint32_t>(style)) {}
+				: m_handle(make_handle(family, weight, style)) {}
 
 		constexpr FontFace(FontFace&&) noexcept = default;
 		constexpr FontFace& operator=(FontFace&&) noexcept = default;
@@ -33,14 +30,18 @@ class FontFace {
 		}
 
 		constexpr bool valid() const {
-			return m_handle != INVALID_FACE;
+			return get_family().valid();
 		}
 
 		constexpr operator bool() const {
 			return valid();
 		}
 	private:
-		uint32_t m_handle{INVALID_FACE};
+		uint32_t m_handle{make_handle(FontFamily{}, FontWeight::REGULAR, FontStyle::NORMAL)};
+
+		static constexpr uint32_t make_handle(FontFamily family, FontWeight weight, FontStyle style) {
+			return (family.handle << 16) | (static_cast<uint32_t>(weight) << 1) | static_cast<uint32_t>(style);
+		}
 };
 
 class Font final : public FontFace {

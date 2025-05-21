@@ -460,6 +460,10 @@ size_t LayoutInfo::get_glyph_position_data_count() const {
 	return m_glyphPositions.size();
 }
 
+bool LayoutInfo::empty() const {
+	return m_lines.empty();
+}
+
 float LayoutInfo::get_glyph_offset_ltr(size_t runIndex, uint32_t cursor) const {
 	auto firstGlyphIndex = get_first_glyph_index(runIndex);
 	auto lastGlyphIndex = m_visualRuns[runIndex].glyphEndIndex;

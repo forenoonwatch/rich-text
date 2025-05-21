@@ -162,6 +162,8 @@ class LayoutInfo {
 		const float* get_glyph_position_data() const;
 		size_t get_glyph_position_data_count() const;
 
+		bool empty() const;
+
 		template <typename Functor>
 		void for_each_line(float textWidth, XAlignment textXAlignment, Functor&& func) const;
 		template <typename Functor>
